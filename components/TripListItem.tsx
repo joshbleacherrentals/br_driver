@@ -1,37 +1,133 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+type Props = {
+  // Header
+  headerTitle?: string; // e.g., $120.00 · Blch #12
+  headerSubtitle?: string; // e.g., Mon, Jan 31st
+  pickupAddress?: string;
+  pickupTime?: string;
+  pickupPoc?: string;
+  dropoffAddress?: string;
+  dropoffTime?: string;
+  dropoffPoc?: string;
+  notes?: string | null;
+};
 
 export default function TripsListItem({
-  pickup = "123 Main St, Springfield",
-  dropoff = "456 Oak Ave, Shelbyville",
-  driveTime = "25 min",
-  distance = "18.2 mi",
-}) {
+  headerTitle,
+  headerSubtitle,
+  pickupAddress = "123 Main St, Springfield",
+  pickupTime,
+  pickupPoc,
+  dropoffAddress = "456 Oak Ave, Shelbyville",
+  dropoffTime,
+  dropoffPoc,
+  notes,
+}: Props) {
+  const openInMaps = async (address?: string) => {
+    if (!address) return;
+    const q = encodeURIComponent(address);
+
+    // Build URLs for different apps/platforms
+    const appleUrl = `http://maps.apple.com/?q=${q}`; // iOS Apple Maps
+    const googleUrlIOS = `comgooglemaps://?q=${q}`; // iOS Google Maps app scheme
+    const googleUrlWeb = `https://www.google.com/maps/search/?api=1&query=${q}`; // Web fallback
+    const wazeUrl = `waze://?q=${q}&navigate=yes`;
+    const androidGeo = `geo:0,0?q=${q}`; // Android intent
+
+    // Determine available options
+    const options: { label: string; url: string }[] = [];
+
+    if (Platform.OS === "ios") {
+      options.push({ label: "Apple Maps", url: appleUrl });
+      if (await Linking.canOpenURL(googleUrlIOS))
+        options.push({ label: "Google Maps", url: googleUrlIOS });
+      if (await Linking.canOpenURL(wazeUrl)) options.push({ label: "Waze", url: wazeUrl });
+      // Web fallback as a last resort
+      if (!options.find((o) => o.label === "Google Maps"))
+        options.push({ label: "Google Maps", url: googleUrlWeb });
+    } else {
+      // Android: try geo intent first (lets user pick default maps app)
+      if (await Linking.canOpenURL(androidGeo)) options.push({ label: "Maps", url: androidGeo });
+      // Also offer Google Maps web
+      options.push({ label: "Google Maps", url: googleUrlWeb });
+      if (await Linking.canOpenURL(wazeUrl)) options.push({ label: "Waze", url: wazeUrl });
+    }
+
+    if (options.length === 0) {
+      // Absolute fallback
+      Linking.openURL(googleUrlWeb);
+      return;
+    }
+
+    // Present choices
+    Alert.alert("Open in Maps", address, [
+      ...options.map((o) => ({ text: o.label, onPress: () => Linking.openURL(o.url) })),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <View style={styles.card}>
+      {/* Header */}
+      {(headerTitle || headerSubtitle) && (
+        <View style={{ marginBottom: 12 }}>
+          {headerTitle ? <Text style={styles.headerTitle}>{headerTitle}</Text> : null}
+          {headerSubtitle ? <Text style={styles.headerSubtitle}>{headerSubtitle}</Text> : null}
+        </View>
+      )}
+      {/* Pickup */}
       <View style={styles.row}>
         <View style={styles.bullet} />
         <View style={styles.textContainer}>
-          <Text style={styles.label}>Pickup</Text>
-          <Text style={styles.location}>{pickup}</Text>
+          <Text style={styles.sectionLabel}>Pickup</Text>
+          <TouchableOpacity onPress={() => openInMaps(pickupAddress)} activeOpacity={0.7}>
+            <Text style={styles.addressLink}>{pickupAddress}</Text>
+          </TouchableOpacity>
+          {pickupTime && (
+            <View style={styles.subRow}>
+              {pickupTime ? <Text style={styles.subText}>Time: {pickupTime}</Text> : null}
+            </View>
+          )}
+          {pickupPoc && (
+            <View style={styles.subRow}>
+              {pickupPoc ? <Text style={styles.subText}>POC: {pickupPoc}</Text> : null}
+            </View>
+          )}
         </View>
       </View>
 
       <View style={styles.divider} />
 
+      {/* Drop-off */}
       <View style={styles.row}>
         <View style={[styles.bullet, { backgroundColor: "#FF3B30" }]} />
         <View style={styles.textContainer}>
-          <Text style={styles.label}>Drop-off</Text>
-          <Text style={styles.location}>{dropoff}</Text>
+          <Text style={styles.sectionLabel}>Drop-off</Text>
+          <TouchableOpacity onPress={() => openInMaps(dropoffAddress)} activeOpacity={0.7}>
+            <Text style={styles.addressLink}>{dropoffAddress}</Text>
+          </TouchableOpacity>
+          {dropoffTime && (
+            <View style={styles.subRow}>
+              {dropoffTime ? <Text style={styles.subText}>Time: {dropoffTime}</Text> : null}
+            </View>
+          )}
+          {dropoffPoc && (
+            <View style={styles.subRow}>
+              {dropoffPoc ? <Text style={styles.subText}>POC: {dropoffPoc}</Text> : null}
+            </View>
+          )}
         </View>
       </View>
 
-      <View style={styles.meta}>
-        <Text style={styles.metaText}>{driveTime}</Text>
-        <Text style={styles.metaText}>•</Text>
-        <Text style={styles.metaText}>{distance}</Text>
-      </View>
+      {/* Notes */}
+      {notes ? (
+        <View style={styles.notesBox}>
+          <Text style={styles.notesLabel}>Notes</Text>
+          <Text style={styles.notesText}>{notes}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -64,30 +160,64 @@ const styles = StyleSheet.create({
   textContainer: {
     flex: 1,
   },
-  label: {
+  sectionLabel: {
     fontSize: 12,
     color: "#888",
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  location: {
+  address: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#111",
+  },
+  addressLink: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0A84FF", // iOS link blue
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111",
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 2,
+  },
+  subRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  dot: {
+    fontSize: 14,
+    color: "#bbb",
+    marginHorizontal: 4,
+  },
+  subText: {
+    fontSize: 14,
+    color: "#444",
   },
   divider: {
     height: 1,
     backgroundColor: "#eee",
     marginVertical: 12,
   },
-  meta: {
+  notesBox: {
     marginTop: 12,
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: "#F8F8F8",
+    borderRadius: 8,
+    padding: 10,
   },
-  metaText: {
+  notesLabel: {
+    fontSize: 12,
+    color: "#888",
+    marginBottom: 4,
+  },
+  notesText: {
     fontSize: 14,
-    color: "#666",
+    color: "#333",
   },
 });
