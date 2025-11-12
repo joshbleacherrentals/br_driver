@@ -77,6 +77,7 @@ export default function TripsScreen() {
               dropoffTime={item.dropoff_time || ""}
               dropoffPoc={item.dropoff_poc || ""}
               notes={item.notes || null}
+              swipeable
             />
           );
         }}

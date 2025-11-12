@@ -1,3 +1,4 @@
+import SwipeAcceptBarV2 from "@/components/SwipeAcceptBarV2";
 import React from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -12,6 +13,7 @@ type Props = {
   dropoffTime?: string;
   dropoffPoc?: string;
   notes?: string | null;
+  swipeable?: boolean; // demo flag to wrap with SwipeToAccept
 };
 
 export default function TripsListItem({
@@ -24,6 +26,7 @@ export default function TripsListItem({
   dropoffTime,
   dropoffPoc,
   notes,
+  swipeable = false,
 }: Props) {
   const openInMaps = async (address?: string) => {
     if (!address) return;
@@ -61,14 +64,13 @@ export default function TripsListItem({
       return;
     }
 
-    // Present choices
     Alert.alert("Open in Maps", address, [
       ...options.map((o) => ({ text: o.label, onPress: () => Linking.openURL(o.url) })),
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
-  return (
+  const content = (
     <View style={styles.card}>
       {/* Header */}
       {(headerTitle || headerSubtitle) && (
@@ -121,7 +123,10 @@ export default function TripsListItem({
         </View>
       </View>
 
-      {/* Notes */}
+      {/* Swipe Bar (visual only) */}
+      {swipeable ? <SwipeAcceptBarV2 /> : null}
+
+      {/* Notes (stay at the very bottom) */}
       {notes ? (
         <View style={styles.notesBox}>
           <Text style={styles.notesLabel}>Notes</Text>
@@ -130,6 +135,8 @@ export default function TripsListItem({
       ) : null}
     </View>
   );
+
+  return content;
 }
 
 const styles = StyleSheet.create({
