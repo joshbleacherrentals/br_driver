@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "br_driver",
+    "name": "Bleacher Rentals Driver",
     "slug": "br_driver",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,14 +9,19 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bleacherrentals.driver",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.bleacherrentals.driver"
     },
     "web": {
       "bundler": "metro",
@@ -36,6 +41,11 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "eb97b59b-bd6b-4c6b-9f5e-3648b258f93e"
+      }
     }
   }
 }
