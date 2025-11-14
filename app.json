@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Bleacher Rentals Driver",
+    "owner": "jredgrift",
     "slug": "br_driver",
     "version": "1.0.0",
     "orientation": "portrait",

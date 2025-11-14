@@ -2,10 +2,11 @@ import { Colors } from "@/constants/Colors";
 import { useSSO } from "@clerk/clerk-expo";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import * as AuthSession from "expo-auth-session";
+import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -30,28 +31,51 @@ export default function Page() {
 
   const onPress = useCallback(async () => {
     try {
+      // Build a stable redirect URL for native + Expo Go
+      // - In Expo Go, use the AuthSession proxy (https://auth.expo.io/@user/slug)
+      // - In development clients/production, use the app scheme
+      const isExpoGo = Constants.appOwnership === "expo";
+      // Build redirect once; avoid AuthSession.getRedirectUrl to prevent proxy errors in Expo Go
+      const owner = (Constants.expoConfig as any)?.owner as string | undefined;
+      const slug = (Constants.expoConfig as any)?.slug || "br_driver";
+      // In Expo Go, use the Expo AuthSession proxy with the callback path appended.
+      // Clerk must have BOTH of these in Authorized Redirect URLs:
+      //   brdriver://oauth-native-callback
+      //   https://auth.expo.io/@owner/slug/oauth-native-callback
+      const redirectUrl = isExpoGo
+        ? // Dev in Expo Go: use the proxy (returns https://auth.expo.io/@owner/slug)
+          AuthSession.makeRedirectUri({
+            preferLocalhost: false,
+          })
+        : // Native/dev-client/TestFlight/Play: use your app scheme
+          AuthSession.makeRedirectUri({
+            scheme: "brdriver",
+            path: "oauth-native-callback",
+          });
+
+      if (__DEV__) {
+        console.log("Clerk SSO redirect URL:", redirectUrl);
+      }
+
       // Start the authentication process by calling `startSSOFlow()`
-      const { createdSessionId, setActive, signIn, signUp } = await startSSOFlow({
+      const { createdSessionId, setActive } = await startSSOFlow({
         strategy: "oauth_google",
-        // For web, defaults to current path
-        // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
-        // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
-        redirectUrl: AuthSession.makeRedirectUri(),
+        redirectUrl,
       });
 
-      // If sign in was successful, set the active session
       if (createdSessionId) {
         setActive!({ session: createdSessionId });
-      } else {
-        // If there is no `createdSessionId`,
-        // there are missing requirements, such as MFA
-        // Use the `signIn` or `signUp` returned from `startSSOFlow`
-        // to handle next steps
       }
-    } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2));
+    } catch (err: unknown) {
+      // See https://clerk.com/docs/custom-flows/error-handling for patterns
+      // Avoid JSON.stringify on unknown/circular errors; log raw and show message
+      console.error("SSO error:", err);
+      const message =
+        (err as any)?.errors?.[0]?.longMessage ||
+        (err as any)?.errors?.[0]?.message ||
+        (err as any)?.message ||
+        "Sign-in failed. Check redirect URLs in Clerk settings.";
+      Alert.alert("Sign-in error", message);
     }
   }, []);
 
