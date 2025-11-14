@@ -1,4 +1,3 @@
-import SwipeAcceptBarV2 from "@/components/SwipeAcceptBarV2";
 import React from "react";
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -124,7 +123,7 @@ export default function TripsListItem({
       </View>
 
       {/* Swipe Bar (visual only) */}
-      {swipeable ? <SwipeAcceptBarV2 /> : null}
+      {/* {swipeable ? <SwipeAcceptBarV2 /> : null} */}
 
       {/* Notes (stay at the very bottom) */}
       {notes ? (

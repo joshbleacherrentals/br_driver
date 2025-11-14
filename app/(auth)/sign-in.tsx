@@ -1,153 +1,258 @@
-import { Colors } from "@/constants/Colors";
-import { useSSO } from "@clerk/clerk-expo";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import * as AuthSession from "expo-auth-session";
-import Constants from "expo-constants";
-import { Stack } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import React, { useCallback, useEffect } from "react";
-import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import OAuthButton from "@/components/OAuthButton";
+import { getAuthStyles, PRIMARY, PRIMARY_LIGHT } from "@/constants/AuthStyles";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { useSignIn } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
-export const useWarmUpBrowser = () => {
-  useEffect(() => {
-    // Preloads the browser for Android devices to reduce authentication load time
-    // See: https://docs.expo.dev/guides/authentication/#improving-user-experience
-    void WebBrowser.warmUpAsync();
-    return () => {
-      // Cleanup: closes browser when component unmounts
-      void WebBrowser.coolDownAsync();
-    };
-  }, []);
-};
+function SignInScreen() {
+  const colorScheme = useColorScheme();
+  const styles = getAuthStyles(colorScheme);
+  const placeholderTextColor = colorScheme === "dark" ? "#94A3B8" : "#94A3B8";
+  const router = useRouter();
+  // [useSignIn hook](/docs/hooks/use-sign-in) from Clerk SDK to handle sign-in logic
+  const { signIn, isLoaded, setActive } = useSignIn();
+  const [emailAddress, setEmailAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorVisible, setErrorVisible] = useState(false);
+  const [errorMessages, setErrorMessages] = useState<string[]>([]);
 
-// Handle any pending authentication sessions
-WebBrowser.maybeCompleteAuthSession();
-
-export default function Page() {
-  useWarmUpBrowser();
-
-  // Use the `useSSO()` hook to access the `startSSOFlow()` method
-  const { startSSOFlow } = useSSO();
-
-  const onPress = useCallback(async () => {
+  const extractClerkMessages = (err: unknown): string[] => {
     try {
-      // Build a stable redirect URL for native + Expo Go
-      // - In Expo Go, use the AuthSession proxy (https://auth.expo.io/@user/slug)
-      // - In development clients/production, use the app scheme
-      const isExpoGo = Constants.appOwnership === "expo";
-      // Build redirect once; avoid AuthSession.getRedirectUrl to prevent proxy errors in Expo Go
-      const owner = (Constants.expoConfig as any)?.owner as string | undefined;
-      const slug = (Constants.expoConfig as any)?.slug || "br_driver";
-      // In Expo Go, use the Expo AuthSession proxy with the callback path appended.
-      // Clerk must have BOTH of these in Authorized Redirect URLs:
-      //   brdriver://oauth-native-callback
-      //   https://auth.expo.io/@owner/slug/oauth-native-callback
-      const redirectUrl = isExpoGo
-        ? // Dev in Expo Go: use the proxy (returns https://auth.expo.io/@owner/slug)
-          AuthSession.makeRedirectUri({
-            preferLocalhost: false,
-          })
-        : // Native/dev-client/TestFlight/Play: use your app scheme
-          AuthSession.makeRedirectUri({
-            scheme: "brdriver",
-            path: "oauth-native-callback",
-          });
-
-      if (__DEV__) {
-        console.log("Clerk SSO redirect URL:", redirectUrl);
+      if (err && typeof err === "object") {
+        const anyErr = err as any;
+        if (Array.isArray(anyErr?.errors)) {
+          const msgs = anyErr.errors.map((e: any) => e?.longMessage || e?.message).filter(Boolean);
+          if (msgs.length) return msgs as string[];
+        }
+        if (typeof anyErr?.message === "string") {
+          return [anyErr.message];
+        }
       }
+      if (err instanceof Error && err.message) return [err.message];
+    } catch {}
+    return ["Something went wrong. Please try again."];
+  };
 
-      // Start the authentication process by calling `startSSOFlow()`
-      const { createdSessionId, setActive } = await startSSOFlow({
-        strategy: "oauth_google",
-        redirectUrl,
+  const onSignInPress = async () => {
+    if (!isLoaded || !setActive) return;
+
+    try {
+      // signIn.create() method from Clerk SDK to handle sign-in logic
+      const signInAttempt = await signIn.create({
+        identifier: emailAddress,
+        password,
       });
 
-      if (createdSessionId) {
-        setActive!({ session: createdSessionId });
+      if (signInAttempt.status === "complete") {
+        await setActive({
+          session: signInAttempt.createdSessionId,
+        });
+        // Navigate to protected screen once the session is created
+        router.replace("/(tabs)/index");
+      } else {
+        console.error("Sign-in not complete", signInAttempt);
+        setErrorMessages(["Unable to sign in. Please check your credentials and try again."]);
+        setErrorVisible(true);
       }
-    } catch (err: unknown) {
-      // See https://clerk.com/docs/custom-flows/error-handling for patterns
-      // Avoid JSON.stringify on unknown/circular errors; log raw and show message
-      console.error("SSO error:", err);
-      const message =
-        (err as any)?.errors?.[0]?.longMessage ||
-        (err as any)?.errors?.[0]?.message ||
-        (err as any)?.message ||
-        "Sign-in failed. Check redirect URLs in Clerk settings.";
-      Alert.alert("Sign-in error", message);
+    } catch (err: any) {
+      // Avoid JSON.stringify on complex objects; log raw and show a friendly modal
+      console.error("Sign-in error", err);
+      setErrorMessages(extractClerkMessages(err));
+      setErrorVisible(true);
     }
-  }, []);
+  };
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
-      <View style={styles.container}>
-        <Image
-          source={require("@/assets/images/NEW-Bleacher-Rentals-logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()} accessible={false}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              paddingHorizontal: 24,
+              paddingTop: 72,
+              paddingBottom: 32,
+              flexGrow: 1,
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.headerContainer}>
+              <Image
+                source={require("@/assets/images/NEW-Bleacher-Rentals-logo.png")}
+                style={{ width: 200, height: 60, marginBottom: 16, marginTop: 28 }}
+                contentFit="contain"
+                accessibilityLabel="Bleacher Rentals"
+              />
+              <Text style={styles.title}>Welcome to Bleacher Rentals Driver</Text>
+              <Text style={styles.subtitle}>
+                Please sign in using the email address that your Account Manager used to create your
+                account.
+              </Text>
+            </View>
 
-        <Text style={styles.title}>Welcome to Bleacher Rentals</Text>
-        <Text style={styles.subtitle}>Driver App</Text>
+            <View style={styles.form}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email address"
+                  placeholderTextColor={placeholderTextColor}
+                  value={emailAddress}
+                  onChangeText={(text) => setEmailAddress(text)}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                />
+              </View>
 
-        <TouchableOpacity style={styles.button} onPress={onPress}>
-          <View style={styles.buttonContent}>
-            <AntDesign name="google" size={24} color={Colors.blue} />
-            <Text style={styles.buttonText}>Sign in with Google</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={placeholderTextColor}
+                  value={password}
+                  onChangeText={(text) => setPassword(text)}
+                  secureTextEntry
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    Keyboard.dismiss();
+                  }}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  void onSignInPress();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+            {/* can you do something like a line with the word "or" in the center to separate the sign-in methods? */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginVertical: 16,
+                marginBottom: -12,
+              }}
+            >
+              <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
+              <Text style={{ marginHorizontal: 8, color: "#666" }}>or</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
+            </View>
+            {/* OAuthButton component to handle OAuth sign-in */}
+            <View style={{ marginBottom: 24 }}>
+              <OAuthButton strategy="oauth_google">Sign in with Google</OAuthButton>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
+      /* Error Modal */
+      <Modal
+        visible={errorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorVisible(false)}
+      >
+        <View style={{ flex: 1 }}>
+          <BlurView
+            intensity={20}
+            tint={colorScheme === "dark" ? "dark" : "light"}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+          <Pressable
+            onPress={() => setErrorVisible(false)}
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
+            <View
+              style={{
+                width: "86%",
+                maxWidth: 420,
+                borderRadius: 16,
+                padding: 20,
+                backgroundColor: colorScheme === "dark" ? "#0b1f35" : "#ffffff",
+                borderWidth: 1,
+                borderColor: colorScheme === "dark" ? "#1d3d5b" : "#E2E8F0",
+                shadowColor: PRIMARY_LIGHT,
+                shadowOpacity: 0.25,
+                shadowOffset: { width: 0, height: 10 },
+                shadowRadius: 20,
+                elevation: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+                <Ionicons name="alert-circle" size={24} color={PRIMARY_LIGHT} />
+                <Text
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: colorScheme === "dark" ? "#F1F5F9" : "#0F172A",
+                  }}
+                >
+                  Sign in error
+                </Text>
+              </View>
+
+              {errorMessages.map((m, idx) => (
+                <Text
+                  key={idx}
+                  style={{
+                    marginTop: idx === 0 ? 8 : 6,
+                    fontSize: 15,
+                    lineHeight: 21,
+                    color: colorScheme === "dark" ? "#CBD5E1" : "#334155",
+                  }}
+                >
+                  • {m}
+                </Text>
+              ))}
+
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16 }}>
+                <TouchableOpacity
+                  onPress={() => setErrorVisible(false)}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    backgroundColor: PRIMARY,
+                    borderRadius: 10,
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "600" }}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </View>
+      </Modal>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  logo: {
-    width: 240,
-    height: 120,
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#111",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 18,
-    color: "#666",
-    marginBottom: 40,
-    textAlign: "center",
-  },
-  button: {
-    borderWidth: 2,
-    borderColor: Colors.blue,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: "#fff",
-  },
-  buttonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  buttonText: {
-    color: Colors.blue,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-});
+export default SignInScreen;
