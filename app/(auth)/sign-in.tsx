@@ -1,4 +1,5 @@
 import OAuthButton from "@/components/OAuthButton";
+import { AppleSignInButton } from "@/components/SignInWithApple";
 import { getAuthStyles, PRIMARY, PRIMARY_LIGHT } from "@/constants/AuthStyles";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useSignIn } from "@clerk/clerk-expo";
@@ -17,7 +18,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -81,97 +81,99 @@ function SignInScreen() {
 
   return (
     <>
-      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()} accessible={false}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: 24,
+            paddingTop: 72,
+            paddingBottom: 32,
+            flexGrow: 1,
+          }}
+          keyboardShouldPersistTaps="handled"
         >
-          <ScrollView
-            contentContainerStyle={{
-              paddingHorizontal: 24,
-              paddingTop: 72,
-              paddingBottom: 32,
-              flexGrow: 1,
-            }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.headerContainer}>
-              <Image
-                source={require("@/assets/images/NEW-Bleacher-Rentals-logo.png")}
-                style={{ width: 200, height: 60, marginBottom: 16, marginTop: 28 }}
-                contentFit="contain"
-                accessibilityLabel="Bleacher Rentals"
+          <View style={styles.headerContainer}>
+            <Image
+              source={require("@/assets/images/NEW-Bleacher-Rentals-logo.png")}
+              style={{ width: 200, height: 60, marginBottom: 16, marginTop: 28 }}
+              contentFit="contain"
+              accessibilityLabel="Bleacher Rentals"
+            />
+            <Text style={styles.title}>Welcome to Bleacher Rentals Driver</Text>
+            <Text style={styles.subtitle}>
+              Please sign in using the email address that your Account Manager used to create your
+              account.
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email address"
+                placeholderTextColor={placeholderTextColor}
+                value={emailAddress}
+                onChangeText={(text) => setEmailAddress(text)}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                returnKeyType="next"
               />
-              <Text style={styles.title}>Welcome to Bleacher Rentals Driver</Text>
-              <Text style={styles.subtitle}>
-                Please sign in using the email address that your Account Manager used to create your
-                account.
-              </Text>
             </View>
 
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email address"
-                  placeholderTextColor={placeholderTextColor}
-                  value={emailAddress}
-                  onChangeText={(text) => setEmailAddress(text)}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your password"
-                  placeholderTextColor={placeholderTextColor}
-                  value={password}
-                  onChangeText={(text) => setPassword(text)}
-                  secureTextEntry
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    Keyboard.dismiss();
-                  }}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => {
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor={placeholderTextColor}
+                value={password}
+                onChangeText={(text) => setPassword(text)}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={() => {
                   Keyboard.dismiss();
-                  void onSignInPress();
                 }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.buttonText}>Sign In</Text>
-              </TouchableOpacity>
+              />
             </View>
-            {/* can you do something like a line with the word "or" in the center to separate the sign-in methods? */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginVertical: 16,
-                marginBottom: -12,
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => {
+                Keyboard.dismiss();
+                void onSignInPress();
               }}
+              activeOpacity={0.8}
             >
-              <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
-              <Text style={{ marginHorizontal: 8, color: "#666" }}>or</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
-            </View>
-            {/* OAuthButton component to handle OAuth sign-in */}
-            <View style={{ marginBottom: 24 }}>
-              <OAuthButton strategy="oauth_google">Sign in with Google</OAuthButton>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+              <Text style={styles.buttonText}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
+          {/* can you do something like a line with the word "or" in the center to separate the sign-in methods? */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginVertical: 16,
+              marginBottom: -12,
+            }}
+          >
+            <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
+            <Text style={{ marginHorizontal: 8, color: "#666" }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
+          </View>
+          {/* OAuthButton component to handle OAuth sign-in */}
+          <View style={{ marginBottom: 24 }}>
+            <OAuthButton strategy="oauth_google">Sign in with Google</OAuthButton>
+            <AppleSignInButton
+              onSignInComplete={() => router.replace("/(tabs)/index")}
+              showDivider={false}
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
       /* Error Modal */
       <Modal
         visible={errorVisible}
