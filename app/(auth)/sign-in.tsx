@@ -1,6 +1,7 @@
 import OAuthButton from "@/components/OAuthButton";
 import { AppleSignInButton } from "@/components/SignInWithApple";
 import { getAuthStyles, PRIMARY, PRIMARY_LIGHT } from "@/constants/AuthStyles";
+import { useAuthError } from "@/hooks/useAuthError";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useSignIn } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,25 +31,7 @@ function SignInScreen() {
   const { signIn, isLoaded, setActive } = useSignIn();
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [errorMessages, setErrorMessages] = useState<string[]>([]);
-
-  const extractClerkMessages = (err: unknown): string[] => {
-    try {
-      if (err && typeof err === "object") {
-        const anyErr = err as any;
-        if (Array.isArray(anyErr?.errors)) {
-          const msgs = anyErr.errors.map((e: any) => e?.longMessage || e?.message).filter(Boolean);
-          if (msgs.length) return msgs as string[];
-        }
-        if (typeof anyErr?.message === "string") {
-          return [anyErr.message];
-        }
-      }
-      if (err instanceof Error && err.message) return [err.message];
-    } catch {}
-    return ["Something went wrong. Please try again."];
-  };
+  const { errorVisible, errorMessages, showError, hideError } = useAuthError();
 
   const onSignInPress = async () => {
     if (!isLoaded || !setActive) return;
@@ -68,14 +51,12 @@ function SignInScreen() {
         router.replace("/(tabs)/index");
       } else {
         console.error("Sign-in not complete", signInAttempt);
-        setErrorMessages(["Unable to sign in. Please check your credentials and try again."]);
-        setErrorVisible(true);
+        showError(new Error("Unable to sign in. Please check your credentials and try again."));
       }
     } catch (err: any) {
       // Avoid JSON.stringify on complex objects; log raw and show a friendly modal
       console.error("Sign-in error", err);
-      setErrorMessages(extractClerkMessages(err));
-      setErrorVisible(true);
+      showError(err);
     }
   };
 
@@ -166,21 +147,20 @@ function SignInScreen() {
           </View>
           {/* OAuthButton component to handle OAuth sign-in */}
           <View style={{ marginBottom: 24 }}>
-            <OAuthButton strategy="oauth_google">Sign in with Google</OAuthButton>
+            <OAuthButton strategy="oauth_google" onError={showError}>
+              Sign in with Google
+            </OAuthButton>
+            <View style={{ height: 12 }} />
             <AppleSignInButton
               onSignInComplete={() => router.replace("/(tabs)/index")}
+              onError={showError}
               showDivider={false}
             />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      /* Error Modal */
-      <Modal
-        visible={errorVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setErrorVisible(false)}
-      >
+      {/* Error Modal */}
+      <Modal visible={errorVisible} transparent animationType="fade" onRequestClose={hideError}>
         <View style={{ flex: 1 }}>
           <BlurView
             intensity={20}
@@ -188,7 +168,7 @@ function SignInScreen() {
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           />
           <Pressable
-            onPress={() => setErrorVisible(false)}
+            onPress={hideError}
             style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
           >
             <View
@@ -237,7 +217,7 @@ function SignInScreen() {
 
               <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16 }}>
                 <TouchableOpacity
-                  onPress={() => setErrorVisible(false)}
+                  onPress={hideError}
                   style={{
                     paddingHorizontal: 16,
                     paddingVertical: 10,

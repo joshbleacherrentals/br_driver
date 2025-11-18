@@ -1,7 +1,22 @@
-import { useSignInWithApple } from "@clerk/clerk-expo";
+import { useSSO } from "@clerk/clerk-expo";
 import { AntDesign } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useCallback, useEffect } from "react";
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+WebBrowser.maybeCompleteAuthSession();
+
+export const useWarmUpBrowser = () => {
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
+};
 
 // Example props that you could pass to your button
 interface AppleSignInButtonProps {
@@ -9,13 +24,17 @@ interface AppleSignInButtonProps {
   onSignInComplete?: () => void;
   // Whether to show a divider between the button and the text
   showDivider?: boolean;
+  // Callback function that is called when an error occurs
+  onError?: (err: unknown) => void;
 }
 
 export function AppleSignInButton({
   onSignInComplete,
   showDivider = true,
+  onError,
 }: AppleSignInButtonProps) {
-  const { startAppleAuthenticationFlow } = useSignInWithApple();
+  useWarmUpBrowser();
+  const { startSSOFlow } = useSSO();
   const router = useRouter();
 
   // Only render on iOS
@@ -23,27 +42,38 @@ export function AppleSignInButton({
     return null;
   }
 
-  const handleAppleSignIn = async () => {
+  const handleAppleSignIn = useCallback(async () => {
     try {
-      const { createdSessionId, setActive } = await startAppleAuthenticationFlow();
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "brdriver",
+        path: "oauth-native-callback",
+      });
 
-      if (createdSessionId && setActive) {
-        // Set the created session as the active session
-        await setActive({ session: createdSessionId });
+      console.log("Apple OAuth Redirect URL:", redirectUrl);
 
-        // Once the session is set as active,
-        // if a callback function is provided, call it.
-        // Otherwise, redirect to the home page.
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: "oauth_apple",
+        redirectUrl,
+      });
+
+      if (createdSessionId) {
+        setActive!({ session: createdSessionId });
         onSignInComplete ? onSignInComplete() : router.replace("/");
+      } else {
+        throw new Error("Failed to create session");
       }
     } catch (err: any) {
       // User canceled the sign-in flow
-      if (err.code === "ERR_REQUEST_CANCELED") return;
+      if (err.code === "ERR_REQUEST_CANCELED" || err.code === "ERR_CANCELED") return;
 
-      Alert.alert("Error", err.message || "An error occurred during Apple Sign-In");
-      console.error("Apple Sign-In error:", JSON.stringify(err, null, 2));
+      console.error("Apple Sign-In error:", err);
+      if (onError) {
+        onError(err);
+      } else {
+        Alert.alert("Error", err.message || "An error occurred during Apple Sign-In");
+      }
     }
-  };
+  }, [startSSOFlow, onSignInComplete, router, onError]);
 
   return (
     <>
