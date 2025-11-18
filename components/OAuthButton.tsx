@@ -23,9 +23,10 @@ interface Props {
   // The OAuthStrategy type from Clerk allows you to specify the provider you want to use in this specific instance of the OAuthButton component
   strategy: OAuthStrategy;
   children: React.ReactNode;
+  onError?: (err: unknown) => void;
 }
 
-export default function OAuthButton({ strategy, children }: Props) {
+export default function OAuthButton({ strategy, children, onError }: Props) {
   useWarmUpBrowser();
   const colorScheme = useColorScheme();
   const styles = getAuthStyles(colorScheme);
@@ -34,9 +35,16 @@ export default function OAuthButton({ strategy, children }: Props) {
 
   const onPress = useCallback(async () => {
     try {
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: "brdriver",
+        path: "oauth-native-callback",
+      });
+
+      console.log("OAuth Redirect URL:", redirectUrl);
+
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy,
-        redirectUrl: AuthSession.makeRedirectUri(),
+        redirectUrl,
       });
 
       if (createdSessionId) {
@@ -45,9 +53,12 @@ export default function OAuthButton({ strategy, children }: Props) {
         throw new Error("Failed to create session");
       }
     } catch (err) {
-      console.error(JSON.stringify(err, null, 2));
+      console.error("OAuth error:", err);
+      if (onError) {
+        onError(err);
+      }
     }
-  }, [startSSOFlow, strategy]);
+  }, [startSSOFlow, strategy, onError]);
 
   return (
     <TouchableOpacity onPress={onPress} style={styles.button} activeOpacity={0.85}>
