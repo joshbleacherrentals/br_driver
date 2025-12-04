@@ -1,5 +1,4 @@
 import { Database } from "@/database.types";
-import { PostTripInspection, PreTripInspection } from "./inspection";
 
 export type WorkTrackerStatus = Database["public"]["Enums"]["worktracker_status"];
 
@@ -27,8 +26,6 @@ export interface WorkTracker {
   released_at: string | null;
   pre_inspection_id: number | null;
   post_inspection_id: number | null;
-  pre_trip_inspection_data?: PreTripInspection | null;
-  post_trip_inspection_data?: PostTripInspection | null;
 }
 
 export interface Address {

@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import InspectionPhotoUploader from "./InspectionPhotoUploader";
 
 interface InspectionFormProps {
   workTrackerId: number;
@@ -56,20 +57,56 @@ export default function InspectionForm({
     notes: "",
   });
 
+  // Track the created inspection ID for photo uploads
+  const [inspectionId, setInspectionId] = useState<number | null>(null);
+  const [pendingPhotoUris, setPendingPhotoUris] = useState<string[]>([]);
+
+  // Log inspectionId changes
+  React.useEffect(() => {
+    console.log(`[InspectionForm] ${type} inspectionId changed:`, inspectionId);
+  }, [inspectionId, type]);
+
   const mutation = useMutation({
     mutationFn: async () => {
+      console.log(`[InspectionForm] Starting ${type} inspection mutation`);
       if (type === "pre-trip") {
-        return await createAndLinkPreTripInspection(supabase, workTrackerId, formData);
+        const result = await createAndLinkPreTripInspection(supabase, workTrackerId, formData);
+        console.log(`[InspectionForm] Pre-trip inspection result:`, result);
+        return result;
       } else {
         const inspection = await createAndLinkPostTripInspection(supabase, workTrackerId, formData);
+        console.log(`[InspectionForm] Post-trip inspection result:`, inspection);
         // After post-trip inspection, mark trip as complete
         await completeTrip(supabase, workTrackerId);
         return inspection;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
-      onComplete();
+    onSuccess: (data) => {
+      console.log(`[InspectionForm] ${type} inspection success:`, data);
+      console.log(`[InspectionForm] inspection_id:`, data?.inspection_id);
+      // Store inspection ID for photo uploads
+      if (data?.inspection_id) {
+        setInspectionId(data.inspection_id);
+        console.log(`[InspectionForm] setInspectionId called with:`, data.inspection_id);
+
+        // If there are pending photos, wait a bit for them to start uploading
+        if (pendingPhotoUris.length > 0) {
+          console.log(
+            `[InspectionForm] Waiting for ${pendingPhotoUris.length} pending photos to start uploading...`
+          );
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
+            onComplete();
+          }, 1000); // Give the photo uploader time to react to inspectionId change
+        } else {
+          queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
+          onComplete();
+        }
+      } else {
+        console.warn(`[InspectionForm] No inspection_id in response!`, data);
+        queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
+        onComplete();
+      }
     },
     onError: (error) => {
       console.error(`${type} inspection error:`, error);
@@ -285,7 +322,8 @@ export default function InspectionForm({
             Please record any issues or details of damages below.
           </Text>
           <Text style={styles.sectionNote}>
-            If you have any issues attaching photos, please send in Slack or text to 226-931-6016
+            You can add photos in the next section. If you have any issues attaching photos, please
+            send in Slack or text to 226-931-6016
           </Text>
           <TextInput
             style={styles.textInput}
@@ -294,6 +332,13 @@ export default function InspectionForm({
             numberOfLines={4}
             value={formData.notes}
             onChangeText={(text) => setFormData({ ...formData, notes: text })}
+          />
+        </View>
+        {/* Photo Upload */}
+        <View style={styles.section}>
+          <InspectionPhotoUploader
+            inspectionId={inspectionId}
+            onPendingPhotosChange={setPendingPhotoUris}
           />
         </View>
         {/* Action Buttons */}
