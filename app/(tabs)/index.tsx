@@ -1,19 +1,20 @@
 import TripsListItem from "@/components/TripListItem";
 import { EnrichedWorkTracker, fetchWorkTrackersForClerkUser } from "@/db/workTrackers";
+import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "@tanstack/react-query";
 import { FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TripsScreen() {
-  const { getToken, isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId } = useAuth();
+  const supabase = useClerkSupabaseClient();
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ["workTrackers", userId],
     enabled: !!isSignedIn && !!userId,
     queryFn: async () => {
-      const token = await getToken({ template: "supabase" });
-      return await fetchWorkTrackersForClerkUser(token ?? null, userId);
+      return await fetchWorkTrackersForClerkUser(supabase, userId);
     },
   });
 

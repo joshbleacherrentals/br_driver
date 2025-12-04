@@ -1,4 +1,5 @@
-import { getSupabaseClient } from "@/utils/supabase/getSupabaseClient";
+import { Database } from "@/database.types";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export interface WorkTracker {
   work_tracker_id: number;
@@ -42,11 +43,10 @@ export type FetchWorkTrackersResult = { workTrackers: EnrichedWorkTracker[] | nu
  * Fetch WorkTrackers belonging to the Clerk user (by clerk_user_id) and enrich with addresses & bleacher number.
  */
 export async function fetchWorkTrackersForClerkUser(
-  token: string | null,
+  supabase: SupabaseClient<Database>,
   clerkUserId: string | undefined | null
 ): Promise<FetchWorkTrackersResult> {
-  if (!token || !clerkUserId) return { workTrackers: null };
-  const supabase = await getSupabaseClient(token);
+  if (!clerkUserId) return { workTrackers: null };
 
   // 1. Resolve internal user_id from Users table via clerk_user_id
   const { data: userRow, error: userError } = await supabase
