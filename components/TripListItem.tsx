@@ -1,7 +1,21 @@
+import { WorkTrackerStatus } from "@/types/workTracker";
+import { openInMaps } from "@/utils/mapsUtils";
+import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
+import { acceptTrip, startTrip } from "@/utils/tripActions";
+import {
+  canAcceptTrip,
+  canStartTrip,
+  getStatusColor,
+  getStatusLabel,
+} from "@/utils/workTrackerUtils";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
-import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
+  workTrackerId: number;
+  status: WorkTrackerStatus;
+  date: string;
   // Header
   headerTitle?: string; // e.g., $120.00 · Blch #12
   headerSubtitle?: string; // e.g., Mon, Jan 31st
@@ -12,65 +26,67 @@ type Props = {
   dropoffTime?: string;
   dropoffPoc?: string;
   notes?: string | null;
-  swipeable?: boolean; // demo flag to wrap with SwipeToAccept
+  onTripStart?: () => void; // Callback when trip is started (enters trip mode)
 };
 
 export default function TripsListItem({
+  workTrackerId,
+  status,
+  date,
   headerTitle,
   headerSubtitle,
-  pickupAddress = "123 Main St, Springfield",
+  pickupAddress,
   pickupTime,
   pickupPoc,
-  dropoffAddress = "456 Oak Ave, Shelbyville",
+  dropoffAddress,
   dropoffTime,
   dropoffPoc,
   notes,
-  swipeable = false,
+  onTripStart,
 }: Props) {
-  const openInMaps = async (address?: string) => {
-    if (!address) return;
-    const q = encodeURIComponent(address);
+  const supabase = useClerkSupabaseClient();
+  const queryClient = useQueryClient();
 
-    // Build URLs for different apps/platforms
-    const appleUrl = `http://maps.apple.com/?q=${q}`; // iOS Apple Maps
-    const googleUrlIOS = `comgooglemaps://?q=${q}`; // iOS Google Maps app scheme
-    const googleUrlWeb = `https://www.google.com/maps/search/?api=1&query=${q}`; // Web fallback
-    const wazeUrl = `waze://?q=${q}&navigate=yes`;
-    const androidGeo = `geo:0,0?q=${q}`; // Android intent
+  const acceptMutation = useMutation({
+    mutationFn: () => acceptTrip(supabase, workTrackerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
+    },
+    onError: (error) => {
+      console.error("Accept trip error:", error);
+      Alert.alert("Error", "Failed to accept trip. Please try again.");
+    },
+  });
 
-    // Determine available options
-    const options: { label: string; url: string }[] = [];
+  const startMutation = useMutation({
+    mutationFn: () => startTrip(supabase, workTrackerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
+      if (onTripStart) {
+        onTripStart();
+      }
+    },
+    onError: (error) => {
+      console.error("Start trip error:", error);
+      Alert.alert("Error", "Failed to start trip. Please try again.");
+    },
+  });
 
-    if (Platform.OS === "ios") {
-      options.push({ label: "Apple Maps", url: appleUrl });
-      if (await Linking.canOpenURL(googleUrlIOS))
-        options.push({ label: "Google Maps", url: googleUrlIOS });
-      if (await Linking.canOpenURL(wazeUrl)) options.push({ label: "Waze", url: wazeUrl });
-      // Web fallback as a last resort
-      if (!options.find((o) => o.label === "Google Maps"))
-        options.push({ label: "Google Maps", url: googleUrlWeb });
-    } else {
-      // Android: try geo intent first (lets user pick default maps app)
-      if (await Linking.canOpenURL(androidGeo)) options.push({ label: "Maps", url: androidGeo });
-      // Also offer Google Maps web
-      options.push({ label: "Google Maps", url: googleUrlWeb });
-      if (await Linking.canOpenURL(wazeUrl)) options.push({ label: "Waze", url: wazeUrl });
-    }
+  const handleAccept = () => {
+    acceptMutation.mutate();
+  };
 
-    if (options.length === 0) {
-      // Absolute fallback
-      Linking.openURL(googleUrlWeb);
-      return;
-    }
-
-    Alert.alert("Open in Maps", address, [
-      ...options.map((o) => ({ text: o.label, onPress: () => Linking.openURL(o.url) })),
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const handleStart = () => {
+    startMutation.mutate();
   };
 
   const content = (
     <View style={styles.card}>
+      {/* Status Badge */}
+      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(status) }]}>
+        <Text style={styles.statusText}>{getStatusLabel(status)}</Text>
+      </View>
+
       {/* Header */}
       {(headerTitle || headerSubtitle) && (
         <View style={{ marginBottom: 12 }}>
@@ -83,8 +99,11 @@ export default function TripsListItem({
         <View style={styles.bullet} />
         <View style={styles.textContainer}>
           <Text style={styles.sectionLabel}>Pickup</Text>
-          <TouchableOpacity onPress={() => openInMaps(pickupAddress)} activeOpacity={0.7}>
-            <Text style={styles.addressLink}>{pickupAddress}</Text>
+          <TouchableOpacity
+            onPress={() => pickupAddress && openInMaps(pickupAddress)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.addressLink}>{pickupAddress || "No address"}</Text>
           </TouchableOpacity>
           {pickupTime && (
             <View style={styles.subRow}>
@@ -106,8 +125,11 @@ export default function TripsListItem({
         <View style={[styles.bullet, { backgroundColor: "#FF3B30" }]} />
         <View style={styles.textContainer}>
           <Text style={styles.sectionLabel}>Drop-off</Text>
-          <TouchableOpacity onPress={() => openInMaps(dropoffAddress)} activeOpacity={0.7}>
-            <Text style={styles.addressLink}>{dropoffAddress}</Text>
+          <TouchableOpacity
+            onPress={() => dropoffAddress && openInMaps(dropoffAddress)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.addressLink}>{dropoffAddress || "No address"}</Text>
           </TouchableOpacity>
           {dropoffTime && (
             <View style={styles.subRow}>
@@ -122,8 +144,34 @@ export default function TripsListItem({
         </View>
       </View>
 
-      {/* Swipe Bar (visual only) */}
-      {/* {swipeable ? <SwipeAcceptBarV2 /> : null} */}
+      {/* Action Buttons */}
+      {canAcceptTrip({ status, date } as any) && (
+        <TouchableOpacity
+          style={[styles.actionButton, styles.acceptButton]}
+          onPress={handleAccept}
+          disabled={acceptMutation.isPending}
+        >
+          {acceptMutation.isPending ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.actionButtonText}>Accept Trip</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {canStartTrip({ status, date } as any) && (
+        <TouchableOpacity
+          style={[styles.actionButton, styles.startButton]}
+          onPress={handleStart}
+          disabled={startMutation.isPending}
+        >
+          {startMutation.isPending ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.actionButtonText}>Start Trip</Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Notes (stay at the very bottom) */}
       {notes ? (
@@ -150,6 +198,20 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3, // Android shadow
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+    textTransform: "uppercase",
   },
   row: {
     flexDirection: "row",
@@ -210,6 +272,24 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#eee",
     marginVertical: 12,
+  },
+  actionButton: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  acceptButton: {
+    backgroundColor: "#34C759", // iOS green
+  },
+  startButton: {
+    backgroundColor: "#0A84FF", // iOS blue
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
   notesBox: {
     marginTop: 12,

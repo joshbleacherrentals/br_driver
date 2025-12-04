@@ -1,3 +1,4 @@
+import TripModeLockGuard from "@/components/TripModeLockGuard";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -32,9 +33,17 @@ export default function RootLayout() {
     <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <TripModeLockGuard />
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="trip-mode/[id]"
+              options={{
+                headerShown: false,
+                gestureEnabled: false, // Disable swipe back gesture
+              }}
+            />
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style="auto" />

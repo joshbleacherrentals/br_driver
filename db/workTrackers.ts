@@ -1,46 +1,13 @@
 import { Database } from "@/database.types";
+import { Address, Bleacher, EnrichedWorkTracker, WorkTracker } from "@/types/workTracker";
 import { SupabaseClient } from "@supabase/supabase-js";
 
-export interface WorkTracker {
-  work_tracker_id: number;
-  created_at: string;
-  user_id: number | null;
-  date: string | null; // ISO date (yyyy-mm-dd)
-  pickup_time: string | null;
-  pickup_address_id: number | null;
-  pickup_poc: string | null;
-  dropoff_time: string | null;
-  dropoff_address_id: number | null;
-  dropoff_poc: string | null;
-  pay_cents: number | null;
-  notes: string | null;
-  bleacher_id: number | null;
-  internal_notes: string | null;
-}
-
-export interface Address {
-  address_id: number;
-  street: string;
-  city: string;
-  state_province: string;
-  zip_postal: string | null;
-}
-
-export interface Bleacher {
-  bleacher_id: number;
-  bleacher_number: number;
-}
-
-export interface EnrichedWorkTracker extends WorkTracker {
-  pickup_address?: Address;
-  dropoff_address?: Address;
-  bleacher?: Bleacher;
-}
-
+export type { Address, Bleacher, EnrichedWorkTracker, WorkTracker };
 export type FetchWorkTrackersResult = { workTrackers: EnrichedWorkTracker[] | null };
 
 /**
  * Fetch WorkTrackers belonging to the Clerk user (by clerk_user_id) and enrich with addresses & bleacher number.
+ * Excludes draft work trackers (only visible to account managers)
  */
 export async function fetchWorkTrackersForClerkUser(
   supabase: SupabaseClient<Database>,
@@ -61,11 +28,12 @@ export async function fetchWorkTrackersForClerkUser(
   }
   const userId = userRow.user_id;
 
-  // 2. Fetch trackers for this user
+  // 2. Fetch trackers for this user, excluding drafts
   const { data: trackers, error: trackersError } = await supabase
     .from("WorkTrackers")
     .select("*")
     .eq("user_id", userId)
+    .neq("status", "draft") // Exclude drafts
     .order("date", { ascending: true });
 
   if (trackersError) {
@@ -73,7 +41,7 @@ export async function fetchWorkTrackersForClerkUser(
     return { workTrackers: null };
   }
 
-  const list = (trackers as WorkTracker[]) || [];
+  const list = (trackers as unknown as WorkTracker[]) || [];
   if (list.length === 0) return { workTrackers: [] };
 
   // 3. Gather unique related ids
@@ -109,11 +77,13 @@ export async function fetchWorkTrackersForClerkUser(
   if (bleachersRes.error) console.warn("Bleachers fetch error", bleachersRes.error.message);
 
   const pickupMap = new Map<number, Address>();
-  (pickupAddressesRes.data as Address[]).forEach((a) => pickupMap.set(a.address_id, a));
+  (pickupAddressesRes.data as unknown as Address[])?.forEach((a) => pickupMap.set(a.address_id, a));
   const dropoffMap = new Map<number, Address>();
-  (dropoffAddressesRes.data as Address[]).forEach((a) => dropoffMap.set(a.address_id, a));
+  (dropoffAddressesRes.data as unknown as Address[])?.forEach((a) =>
+    dropoffMap.set(a.address_id, a)
+  );
   const bleacherMap = new Map<number, Bleacher>();
-  (bleachersRes.data as Bleacher[]).forEach((b) => bleacherMap.set(b.bleacher_id, b));
+  (bleachersRes.data as unknown as Bleacher[])?.forEach((b) => bleacherMap.set(b.bleacher_id, b));
 
   // 5. Enrich trackers
   const enriched: EnrichedWorkTracker[] = list.map((t) => ({
