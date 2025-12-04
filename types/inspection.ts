@@ -1,63 +1,32 @@
 /**
- * Pre-trip inspection checklist
- * Performed before starting a trip to verify bleacher and vehicle condition
+ * Inspection data that matches the WorkTrackerInspections table schema
  */
-export interface PreTripInspection {
-  // Bleacher condition
-  bleacherDamage: boolean;
-  bleacherDamageNotes?: string;
-  bleacherCleanliness: "clean" | "dirty" | "damaged";
-  bleacherCleanlinessNotes?: string;
-
-  // Vehicle condition
-  vehicleCondition: "good" | "issues" | "critical";
-  vehicleConditionNotes?: string;
-
-  // Tire check
-  tiresChecked: boolean;
-  tireIssues?: string;
-
-  // Lights and signals
-  lightsWorking: boolean;
-  lightsIssues?: string;
-
-  // Photos
-  photos?: string[]; // Array of photo URIs or base64 strings
-
-  // Metadata
-  timestamp: string; // ISO timestamp
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
+export interface InspectionData {
+  is_bleacher_clean: boolean;
+  is_sticker_condition_good: boolean;
+  is_spare_tire_present: boolean;
+  is_tire_condition_good: boolean;
+  is_safety_chain_condition_good: boolean;
+  are_safety_chains_attached: boolean;
+  are_safety_pins_attached: boolean;
+  are_lights_in_place: boolean;
+  are_lights_functioning: boolean;
+  is_cylinder_sleeve_in_place: boolean;
+  opens_closes_smoothly: boolean;
+  e_brake_pin_works: boolean;
+  electric_trailer_brake_works: boolean;
+  all_spindles_present: boolean;
+  locking_tabs_present: boolean;
+  handrails_present: boolean;
+  any_broken_parts: boolean;
+  overall_rating: number; // 1-5
+  notes: string;
 }
 
 /**
- * Post-trip inspection checklist
- * Performed after completing a trip to document final bleacher condition
+ * WorkTrackerInspection from database (includes ID and timestamp)
  */
-export interface PostTripInspection {
-  // Bleacher condition
-  bleacherDamage: boolean;
-  bleacherDamageNotes?: string;
-  bleacherCleanliness: "clean" | "dirty" | "damaged";
-  bleacherCleanlinessNotes?: string;
-
-  // Delivery confirmation
-  deliveredSuccessfully: boolean;
-  deliveryIssues?: string;
-
-  // Customer signature
-  customerSignature?: string; // Base64 image of signature
-  customerName?: string;
-
-  // Photos
-  photos?: string[]; // Array of photo URIs or base64 strings
-
-  // Metadata
-  timestamp: string; // ISO timestamp
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
+export interface WorkTrackerInspection extends InspectionData {
+  inspection_id: number;
+  created_at: string;
 }

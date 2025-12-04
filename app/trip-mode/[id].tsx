@@ -17,8 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import PostTripInspectionForm from "../../components/PostTripInspectionForm";
-import PreTripInspectionForm from "../../components/PreTripInspectionForm";
+import InspectionForm from "../../components/InspectionForm";
 import TripHeader from "../../components/TripHeader";
 import TripLocationCard from "../../components/TripLocationCard";
 
@@ -56,9 +55,9 @@ export default function TripModeScreen() {
 
   const workTracker = data?.workTrackers?.find((wt) => wt.work_tracker_id === parseInt(id || "0"));
 
-  // Check inspection status early
-  const hasPreTripInspection = !!workTracker?.pre_trip_inspection_data;
-  const hasPostTripInspection = !!workTracker?.post_trip_inspection_data;
+  // Check inspection status early - check for FK IDs instead of JSONB data
+  const hasPreTripInspection = !!workTracker?.pre_inspection_id;
+  const hasPostTripInspection = !!workTracker?.post_inspection_id;
 
   if (isLoading) {
     return (
@@ -95,8 +94,9 @@ export default function TripModeScreen() {
   if (inspectionMode === "pre-trip") {
     return (
       <SafeAreaView style={styles.container}>
-        <PreTripInspectionForm
+        <InspectionForm
           workTrackerId={workTracker.work_tracker_id}
+          type="pre-trip"
           onComplete={() => setInspectionMode("none")}
           onCancel={() => setInspectionMode("none")}
         />
@@ -107,8 +107,9 @@ export default function TripModeScreen() {
   if (inspectionMode === "post-trip") {
     return (
       <SafeAreaView style={styles.container}>
-        <PostTripInspectionForm
+        <InspectionForm
           workTrackerId={workTracker.work_tracker_id}
+          type="post-trip"
           onComplete={() => {
             Alert.alert("Trip Complete", "Your trip has been completed successfully!", [
               { text: "OK", onPress: () => router.replace("/(tabs)") },
