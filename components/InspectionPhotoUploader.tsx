@@ -95,8 +95,9 @@ export default function InspectionPhotoUploader({
         }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ["images"],
-          allowsEditing: true,
-          quality: 0.8,
+          allowsEditing: false,
+          quality: 0.1,
+          exif: false,
         });
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -106,24 +107,26 @@ export default function InspectionPhotoUploader({
         }
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ["images"],
-          allowsEditing: true,
-          quality: 0.8,
+          allowsEditing: false,
+          allowsMultipleSelection: true,
+          quality: 0.1,
+          exif: false,
         });
       }
 
-      if (!result.canceled && result.assets[0]) {
-        const fileUri = result.assets[0].uri;
-        console.log("Photo selected:", fileUri);
+      if (!result.canceled && result.assets.length > 0) {
+        const selectedUris = result.assets.map((asset) => asset.uri);
+        console.log(`${selectedUris.length} photo(s) selected:`, selectedUris);
         console.log("Inspection ID:", inspectionId);
 
         if (inspectionId) {
           // Upload immediately if inspection exists
-          console.log("Uploading photo immediately...");
-          uploadMutation.mutate(fileUri);
+          console.log("Uploading photos immediately...");
+          selectedUris.forEach((uri) => uploadMutation.mutate(uri));
         } else {
           // Store locally if inspection doesn't exist yet
-          console.log("Storing photo as pending...");
-          const newPendingPhotos = [...pendingPhotos, fileUri];
+          console.log("Storing photos as pending...");
+          const newPendingPhotos = [...pendingPhotos, ...selectedUris];
           setPendingPhotos(newPendingPhotos);
         }
       }
