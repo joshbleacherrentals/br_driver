@@ -68,7 +68,7 @@ export function DriverAddressInfo({
 
     // Update all fields
     const fullStreet = `${streetNumber} ${route}`.trim();
-    
+
     // Store as last valid address
     const validAddress = {
       street: fullStreet,
@@ -77,13 +77,13 @@ export function DriverAddressInfo({
       zipPostal: postalCodeComp,
     };
     setLastValidAddress(validAddress);
-    
+
     // Update parent state with valid address
     setStreet(fullStreet);
     setCity(cityComp);
     setStateProvince(stateComp);
     setZipPostal(postalCodeComp);
-    
+
     // Update input display
     setInputValue(fullStreet);
 
