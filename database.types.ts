@@ -258,36 +258,54 @@ export type Database = {
       Drivers: {
         Row: {
           account_manager_id: number | null;
+          address_id: number | null;
           created_at: string;
           driver_id: number;
+          insurance_photo_path: string | null;
           is_active: boolean;
+          license_photo_path: string | null;
+          medical_card_photo_path: string | null;
           pay_currency: string;
           pay_per_unit: string;
           pay_rate_cents: number;
+          phone_number: string | null;
           tax: number;
           user_id: number;
+          vehicle_id: number | null;
         };
         Insert: {
           account_manager_id?: number | null;
+          address_id?: number | null;
           created_at?: string;
           driver_id?: number;
+          insurance_photo_path?: string | null;
           is_active?: boolean;
+          license_photo_path?: string | null;
+          medical_card_photo_path?: string | null;
           pay_currency?: string;
           pay_per_unit?: string;
           pay_rate_cents?: number;
+          phone_number?: string | null;
           tax?: number;
           user_id: number;
+          vehicle_id?: number | null;
         };
         Update: {
           account_manager_id?: number | null;
+          address_id?: number | null;
           created_at?: string;
           driver_id?: number;
+          insurance_photo_path?: string | null;
           is_active?: boolean;
+          license_photo_path?: string | null;
+          medical_card_photo_path?: string | null;
           pay_currency?: string;
           pay_per_unit?: string;
           pay_rate_cents?: number;
+          phone_number?: string | null;
           tax?: number;
           user_id?: number;
+          vehicle_id?: number | null;
         };
         Relationships: [
           {
@@ -298,11 +316,25 @@ export type Database = {
             referencedColumns: ["account_manager_id"];
           },
           {
+            foreignKeyName: "Drivers_address_id_fkey";
+            columns: ["address_id"];
+            isOneToOne: false;
+            referencedRelation: "Addresses";
+            referencedColumns: ["address_id"];
+          },
+          {
             foreignKeyName: "Drivers_user_id_fkey";
             columns: ["user_id"];
             isOneToOne: true;
             referencedRelation: "Users";
             referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "Drivers_vehicle_id_fkey";
+            columns: ["vehicle_id"];
+            isOneToOne: false;
+            referencedRelation: "Vehicles";
+            referencedColumns: ["vehicle_id"];
           }
         ];
       };
@@ -639,6 +671,33 @@ export type Database = {
           created_at?: string;
           id?: number;
           status?: string;
+        };
+        Relationships: [];
+      };
+      Vehicles: {
+        Row: {
+          created_at: string;
+          make: string;
+          model: string;
+          vehicle_id: number;
+          vin_number: string | null;
+          year: number;
+        };
+        Insert: {
+          created_at?: string;
+          make: string;
+          model: string;
+          vehicle_id?: number;
+          vin_number?: string | null;
+          year: number;
+        };
+        Update: {
+          created_at?: string;
+          make?: string;
+          model?: string;
+          vehicle_id?: number;
+          vin_number?: string | null;
+          year?: number;
         };
         Relationships: [];
       };
