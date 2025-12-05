@@ -8,6 +8,7 @@ import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import { Truck } from "lucide-react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -34,9 +35,7 @@ export default function TabLayout() {
             name="index"
             options={{
               title: "Trips",
-              tabBarIcon: ({ color }) => (
-                <FontAwesome6 name="truck-pickup" size={24} color={color} />
-              ),
+              tabBarIcon: ({ color }) => <Truck size={24} color={color} />,
             }}
           />
           <Tabs.Screen

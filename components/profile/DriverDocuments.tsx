@@ -5,6 +5,7 @@ import {
   uploadDriverDocument,
 } from "@/db/documentOperations";
 import { SupabaseClient } from "@supabase/supabase-js";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { Upload, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -26,7 +27,7 @@ interface DocumentUploadProps {
   onChange: (path: string | null) => void;
   driverId: number;
   supabase: TypedSupabaseClient;
-  onUploadComplete?: (path: string) => Promise<void>;
+  onDocumentChange?: (path: string | null) => Promise<void>;
 }
 
 function DocumentUpload({
@@ -35,7 +36,7 @@ function DocumentUpload({
   onChange,
   driverId,
   supabase,
-  onUploadComplete,
+  onDocumentChange,
 }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -57,23 +58,91 @@ function DocumentUpload({
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: false,
-        quality: 0.8,
-        exif: false,
-      });
+      // Show options: Take Photo, Choose from Gallery, Choose File
+      Alert.alert(
+        "Upload Document",
+        "Choose an option",
+        [
+          {
+            text: "Take Photo",
+            onPress: async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert("Permission Denied", "Camera access is required.");
+                return;
+              }
 
-      if (result.canceled) return;
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ["images"],
+                allowsEditing: false,
+                quality: 0.8,
+                exif: false,
+              });
 
-      const asset = result.assets[0];
+              if (!result.canceled) {
+                await uploadFile({
+                  uri: result.assets[0].uri,
+                  type: result.assets[0].mimeType || "image/jpeg",
+                  name: result.assets[0].fileName || `document_${Date.now()}.jpg`,
+                });
+              }
+            },
+          },
+          {
+            text: "Choose from Gallery",
+            onPress: async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert("Permission Denied", "Photo library access is required.");
+                return;
+              }
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                allowsEditing: false,
+                quality: 0.8,
+                exif: false,
+              });
+
+              if (!result.canceled) {
+                await uploadFile({
+                  uri: result.assets[0].uri,
+                  type: result.assets[0].mimeType || "image/jpeg",
+                  name: result.assets[0].fileName || `document_${Date.now()}.jpg`,
+                });
+              }
+            },
+          },
+          {
+            text: "Choose File",
+            onPress: async () => {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: ["image/*", "application/pdf"],
+                copyToCacheDirectory: true,
+              });
+
+              if (!result.canceled && result.assets && result.assets[0]) {
+                await uploadFile({
+                  uri: result.assets[0].uri,
+                  type: result.assets[0].mimeType || "application/pdf",
+                  name: result.assets[0].name || `document_${Date.now()}.pdf`,
+                });
+              }
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+        { cancelable: true }
+      );
+    } catch (error) {
+      console.error("File selection error:", error);
+      Alert.alert("Error", "Failed to select file");
+    }
+  };
+
+  const uploadFile = async (file: { uri: string; type: string; name: string }) => {
+    try {
       setUploading(true);
-
-      const file = {
-        uri: asset.uri,
-        type: asset.mimeType || "image/jpeg",
-        name: asset.fileName || `document_${Date.now()}.jpg`,
-      };
 
       console.log("Uploading document for driverId:", driverId);
       const uploadResult = await uploadDriverDocument(supabase, file, driverId);
@@ -85,8 +154,8 @@ function DocumentUpload({
       onChange(uploadResult.path);
 
       // Save to database immediately if callback provided
-      if (onUploadComplete) {
-        await onUploadComplete(uploadResult.path);
+      if (onDocumentChange) {
+        await onDocumentChange(uploadResult.path);
       }
 
       Alert.alert("Success", "Document uploaded successfully");
@@ -115,6 +184,12 @@ function DocumentUpload({
             }
 
             onChange(null);
+
+            // Update the database field to null
+            if (onDocumentChange) {
+              await onDocumentChange(null);
+            }
+
             Alert.alert("Success", "Document removed");
           } catch (error) {
             console.error("Delete error:", error);
@@ -203,7 +278,7 @@ export function DriverDocuments({
         onChange={setLicensePhotoPath}
         driverId={driverId}
         supabase={supabase}
-        onUploadComplete={(path) => onDocumentUpdate("license_photo_path", path)}
+        onDocumentChange={(path) => onDocumentUpdate("license_photo_path", path)}
       />
       <DocumentUpload
         label="Insurance"
@@ -211,7 +286,7 @@ export function DriverDocuments({
         onChange={setInsurancePhotoPath}
         driverId={driverId}
         supabase={supabase}
-        onUploadComplete={(path) => onDocumentUpdate("insurance_photo_path", path)}
+        onDocumentChange={(path) => onDocumentUpdate("insurance_photo_path", path)}
       />
       <DocumentUpload
         label="Medical Card"
@@ -219,7 +294,7 @@ export function DriverDocuments({
         onChange={setMedicalCardPhotoPath}
         driverId={driverId}
         supabase={supabase}
-        onUploadComplete={(path) => onDocumentUpdate("medical_card_photo_path", path)}
+        onDocumentChange={(path) => onDocumentUpdate("medical_card_photo_path", path)}
       />
       <Text style={styles.helpText}>Accepted formats: JPG, PNG, PDF (max 10MB)</Text>
     </View>
