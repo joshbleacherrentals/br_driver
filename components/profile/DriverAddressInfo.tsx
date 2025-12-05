@@ -28,6 +28,21 @@ export function DriverAddressInfo({
 }: DriverAddressInfoProps) {
   const placesRef = useRef<any>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [inputValue, setInputValue] = useState("");
+  const [lastValidAddress, setLastValidAddress] = useState({
+    street: "",
+    city: "",
+    stateProvince: "",
+    zipPostal: "",
+  });
+
+  // Initialize input value and last valid address when street changes from parent
+  useState(() => {
+    if (street) {
+      setInputValue(street);
+      setLastValidAddress({ street, city, stateProvince, zipPostal });
+    }
+  });
 
   const handleAddressSelect = (data: any, details: any) => {
     if (!details) return;
@@ -53,14 +68,52 @@ export function DriverAddressInfo({
 
     // Update all fields
     const fullStreet = `${streetNumber} ${route}`.trim();
+    
+    // Store as last valid address
+    const validAddress = {
+      street: fullStreet,
+      city: cityComp,
+      stateProvince: stateComp,
+      zipPostal: postalCodeComp,
+    };
+    setLastValidAddress(validAddress);
+    
+    // Update parent state with valid address
     setStreet(fullStreet);
     setCity(cityComp);
     setStateProvince(stateComp);
     setZipPostal(postalCodeComp);
+    
+    // Update input display
+    setInputValue(fullStreet);
 
     // Update the visible text & hide the list
     if (placesRef.current?.setAddressText) {
       placesRef.current.setAddressText(fullStreet);
+    }
+    setShowSuggestions(false);
+  };
+
+  // When user types without selecting, keep the last valid address
+  const handleInputChange = (text: string) => {
+    setInputValue(text);
+    setShowSuggestions(!!text);
+    // Don't update parent state - keep last valid address
+  };
+
+  // When editing ends, restore last valid address if user typed arbitrary text
+  const handleBlur = () => {
+    if (inputValue !== lastValidAddress.street) {
+      // User typed something but didn't select - restore last valid address
+      setInputValue(lastValidAddress.street);
+      if (placesRef.current?.setAddressText) {
+        placesRef.current.setAddressText(lastValidAddress.street);
+      }
+      // Ensure parent state still has last valid address
+      setStreet(lastValidAddress.street);
+      setCity(lastValidAddress.city);
+      setStateProvince(lastValidAddress.stateProvince);
+      setZipPostal(lastValidAddress.zipPostal);
     }
     setShowSuggestions(false);
   };
@@ -99,12 +152,9 @@ export function DriverAddressInfo({
               },
             }}
             textInputProps={{
-              value: street,
-              // onChangeText: setStreet,
-              onChangeText: (text) => {
-                setStreet(text);
-                setShowSuggestions(!!text);
-              },
+              value: inputValue,
+              onChangeText: handleInputChange,
+              onBlur: handleBlur,
               placeholderTextColor: "#94A3B8",
             }}
           />
@@ -119,32 +169,29 @@ export function DriverAddressInfo({
         <View style={[styles.field, styles.fieldHalf, { marginRight: 6 }]}>
           <Text style={styles.label}>City</Text>
           <TextInput
-            style={[styles.input, !editing && styles.inputDisabled]}
+            style={[styles.input, styles.inputDisabled]}
             value={city}
-            onChangeText={setCity}
             placeholder="Toronto"
-            editable={editing}
+            editable={false}
           />
         </View>
         <View style={[styles.field, styles.fieldHalf, { marginLeft: 6 }]}>
           <Text style={styles.label}>State/Province</Text>
           <TextInput
-            style={[styles.input, !editing && styles.inputDisabled]}
+            style={[styles.input, styles.inputDisabled]}
             value={stateProvince}
-            onChangeText={setStateProvince}
             placeholder="ON"
-            editable={editing}
+            editable={false}
           />
         </View>
       </View>
       <View style={styles.field}>
         <Text style={styles.label}>Postal Code</Text>
         <TextInput
-          style={[styles.input, !editing && styles.inputDisabled]}
+          style={[styles.input, styles.inputDisabled]}
           value={zipPostal}
-          onChangeText={setZipPostal}
           placeholder="M1M 1M1"
-          editable={editing}
+          editable={false}
         />
       </View>
     </View>
