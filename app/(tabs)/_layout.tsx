@@ -8,7 +8,7 @@ import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
-import { Truck } from "lucide-react-native";
+import { CircleDollarSign, MoreHorizontal, Truck } from "lucide-react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -39,12 +39,26 @@ export default function TabLayout() {
             }}
           />
           <Tabs.Screen
+            name="earnings"
+            options={{
+              title: "Earnings",
+              tabBarIcon: ({ color }) => <CircleDollarSign size={24} color={color} />,
+            }}
+          />
+          <Tabs.Screen
             name="profile"
             options={{
               title: "Profile",
               tabBarIcon: ({ color }) => (
                 <FontAwesome6 name="user-circle" size={24} color={color} />
               ),
+            }}
+          />
+          <Tabs.Screen
+            name="more"
+            options={{
+              title: "More",
+              tabBarIcon: ({ color }) => <MoreHorizontal size={24} color={color} />,
             }}
           />
         </Tabs>
