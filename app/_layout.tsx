@@ -58,6 +58,7 @@
 // app/_layout.tsx
 import TripModeLockGuard from "@/components/TripModeLockGuard";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import SupabaseAuthSync from "@/utils/supabase/SupabaseAuthSync";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { ClerkProvider } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -83,24 +84,26 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
   useClerkSupabaseClient();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <TripModeLockGuard />
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="trip-mode/[id]"
-            options={{
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <SupabaseAuthSync>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <TripModeLockGuard />
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="trip-mode/[id]"
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </SupabaseAuthSync>
   );
 }
 

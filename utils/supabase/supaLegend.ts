@@ -1,29 +1,12 @@
-import { Database } from "@/database.types";
 import { observable } from "@legendapp/state";
 import { observablePersistAsyncStorage } from "@legendapp/state/persist-plugins/async-storage";
 import { configureSynced } from "@legendapp/state/sync";
 import { syncedSupabase } from "@legendapp/state/sync-plugins/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createClient } from "@supabase/supabase-js";
-import * as Burnt from "burnt";
+import { Alert } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-
-let currentAccessToken: string | null = null;
-
-// called from a React hook whenever the Clerk session changes
-export function setSupabaseAccessToken(token: string | null) {
-  currentAccessToken = token;
-}
-
-export const supabase = createClient<Database>(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    // Supabase will call this for *every* request / realtime connection
-    accessToken: async () => currentAccessToken,
-  }
-);
+import { supabase } from "./supabaseClient";
 
 // Provide a function to generate ids locally
 const generateId = () => uuidv4();
@@ -46,31 +29,12 @@ const customSynced = configureSynced(syncedSupabase, {
   onError: (error) => {
     console.error("Supabase sync error:", error);
 
-    // Show user-friendly toast based on error type
     const errorMessage = error instanceof Error ? error.message : String(error);
 
     if (errorMessage.includes("JWT expired")) {
-      Burnt.toast({
-        title: "Session expired",
-        message: errorMessage,
-        preset: "error",
-        duration: 4,
-      });
-    } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
-      Burnt.toast({
-        title: "Connection issue",
-        message: errorMessage,
-        preset: "custom",
-        icon: { ios: { name: "wifi.slash", color: "#f59e0b" } },
-        duration: 3,
-      });
+      Alert.alert("Session Expired", errorMessage, [{ text: "OK" }]);
     } else {
-      Burnt.toast({
-        title: "Sync error",
-        message: errorMessage,
-        preset: "error",
-        duration: 3,
-      });
+      Alert.alert("Sync Error", errorMessage, [{ text: "OK" }]);
     }
   },
 });
@@ -79,7 +43,7 @@ const customSynced = configureSynced(syncedSupabase, {
 export const todos$ = observable(
   customSynced({
     supabase,
-    collection: "todos", // <-- must match Database["public"]["Tables"]
+    collection: "Todos", // <-- must match Database["public"]["Tables"]
     select: (from: any) => from.select("id,counter,text,done,created_at,updated_at,deleted"),
     actions: ["read", "create", "update", "delete"],
     realtime: true,

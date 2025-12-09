@@ -1,52 +1,29 @@
-// import "react-native-get-random-values";
-// import "react-native-url-polyfill/auto";
+// utils/supabase/supabaseClient.ts
+import { Database } from "@/database.types";
+import { createClient } from "@supabase/supabase-js";
 
-// import { createClient, SupabaseClient } from "@supabase/supabase-js";
+// A function that will be provided by Clerk-land
+type TokenGetter = () => Promise<string | null>;
 
-// // Prevent multiple clients with different tokens from piling up in memory
-// let currentClient: SupabaseClient | null = null;
-// let currentToken: string | null = null;
+let tokenGetter: TokenGetter | null = null;
 
-// export const supabaseClient = (supabaseToken: string): SupabaseClient => {
-//   if (!supabaseToken) throw new Error("Missing Supabase token");
+export function setSupabaseTokenGetter(fn: TokenGetter | null) {
+  tokenGetter = fn;
+}
 
-//   if (currentClient && currentToken === supabaseToken) {
-//     return currentClient;
-//   }
-
-//   // Clean up any open channels if we are switching tokens
-//   if (currentClient) {
-//     try {
-//       currentClient.removeAllChannels();
-//     } catch {}
-//   }
-
-//   currentToken = supabaseToken;
-
-//   const url = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-//   const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-
-//   if (!url || !anon) {
-//     throw new Error(
-//       "Missing Supabase env vars. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY"
-//     );
-//   }
-
-//   currentClient = createClient(url, anon, {
-//     global: {
-//       headers: {
-//         Authorization: `Bearer ${supabaseToken}`,
-//       },
-//     },
-//     auth: {
-//       // In React Native we manage auth with Clerk; Supabase auth is header-based
-//       persistSession: false,
-//       autoRefreshToken: false,
-//       detectSessionInUrl: false,
-//     },
-//   });
-
-//   return currentClient;
-// };
-
-// export type { SupabaseClient };
+export const supabase = createClient<Database>(
+  process.env.EXPO_PUBLIC_SUPABASE_URL!,
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    // This is Supabase's official way to use 3rd-party JWTs
+    accessToken: async () => {
+      if (!tokenGetter) return null;
+      try {
+        return (await tokenGetter()) ?? null;
+      } catch (err) {
+        console.warn("Error getting Clerk token for Supabase:", err);
+        return null;
+      }
+    },
+  }
+);

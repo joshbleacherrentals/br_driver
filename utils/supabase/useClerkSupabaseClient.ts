@@ -1,49 +1,45 @@
-"use client";
-
-import { useSession } from "@clerk/clerk-expo";
+// utils/supabase/useClerkSupabaseClient.ts
+import { useAuth } from "@clerk/clerk-expo";
 import { useEffect } from "react";
-import { setSupabaseAccessToken, supabase } from "./supaLegend";
+import { setSupabaseTokenGetter, supabase } from "./supabaseClient";
 
-// export function useClerkSupabaseClient() {
-//   const { session } = useSession();
-
-//   const client = useMemo(
-//     () =>
-//       createClient<Database>(
-//         process.env.EXPO_PUBLIC_SUPABASE_URL!,
-//         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!, // or _KEY, just be consistent
-//         {
-//           async accessToken() {
-//             // If you’re using the Supabase third-party auth integration,
-//             // this can just be the Clerk session token.
-//             return (await session?.getToken()) ?? null;
-//           },
-//         }
-//       ),
-//     [session]
-//   );
-
-//   return client;
-// }
-
+/**
+ * Hook to connect Clerk authentication with the shared Supabase client.
+ * Automatically refreshes the Supabase token whenever the Clerk session changes.
+ */
 export function useClerkSupabaseClient() {
-  const { session } = useSession();
+  const { getToken, isSignedIn } = useAuth();
 
   useEffect(() => {
-    let cancelled = false;
+    if (!isSignedIn) {
+      setSupabaseTokenGetter(null);
+      supabase.realtime.setAuth("");
+      return;
+    }
 
-    (async () => {
-      const token = (await session?.getToken()) ?? null;
-      if (!cancelled) {
-        setSupabaseAccessToken(token);
+    // Supply Supabase with a token getter that always calls Clerk
+    setSupabaseTokenGetter(async () => {
+      try {
+        const token = await getToken(); // no template — new integration
+        return token ?? null;
+      } catch (err) {
+        console.warn("Error getting Clerk token:", err);
+        return null;
       }
+    });
+
+    // Immediately set Realtime auth (needed for subscriptions)
+    (async () => {
+      const token = await getToken();
+      supabase.realtime.setAuth(token ?? "");
     })();
 
+    // Clean up when user signs out
     return () => {
-      cancelled = true;
+      setSupabaseTokenGetter(null);
+      supabase.realtime.setAuth("");
     };
-  }, [session]);
+  }, [isSignedIn, getToken]);
 
-  // everyone uses the same client (the one Legend uses)
   return supabase;
 }

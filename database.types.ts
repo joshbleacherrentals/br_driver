@@ -560,7 +560,7 @@ export type Database = {
         };
         Relationships: [];
       };
-      todos: {
+      Todos: {
         Row: {
           counter: number;
           created_at: string | null;
