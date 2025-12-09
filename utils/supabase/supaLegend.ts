@@ -5,6 +5,7 @@ import { configureSynced } from "@legendapp/state/sync";
 import { syncedSupabase } from "@legendapp/state/sync-plugins/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import * as Burnt from "burnt";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 
@@ -44,6 +45,33 @@ const customSynced = configureSynced(syncedSupabase, {
   fieldDeleted: "deleted",
   onError: (error) => {
     console.error("Supabase sync error:", error);
+
+    // Show user-friendly toast based on error type
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes("JWT expired")) {
+      Burnt.toast({
+        title: "Session expired",
+        message: errorMessage,
+        preset: "error",
+        duration: 4,
+      });
+    } else if (errorMessage.includes("network") || errorMessage.includes("fetch")) {
+      Burnt.toast({
+        title: "Connection issue",
+        message: errorMessage,
+        preset: "custom",
+        icon: { ios: { name: "wifi.slash", color: "#f59e0b" } },
+        duration: 3,
+      });
+    } else {
+      Burnt.toast({
+        title: "Sync error",
+        message: errorMessage,
+        preset: "error",
+        duration: 3,
+      });
+    }
   },
 });
 
