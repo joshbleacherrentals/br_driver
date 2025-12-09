@@ -560,6 +560,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      todos: {
+        Row: {
+          counter: number;
+          created_at: string | null;
+          deleted: boolean | null;
+          done: boolean | null;
+          id: string;
+          text: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          counter?: number;
+          created_at?: string | null;
+          deleted?: boolean | null;
+          done?: boolean | null;
+          id?: string;
+          text?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          counter?: number;
+          created_at?: string | null;
+          deleted?: boolean | null;
+          done?: boolean | null;
+          id?: string;
+          text?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       UserHomeBases: {
         Row: {
           created_at: string;

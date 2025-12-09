@@ -8,7 +8,7 @@ import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
-import { CircleDollarSign, MoreHorizontal, Truck } from "lucide-react-native";
+import { CheckSquare, CircleDollarSign, MoreHorizontal, Truck } from "lucide-react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -59,6 +59,13 @@ export default function TabLayout() {
             options={{
               title: "More",
               tabBarIcon: ({ color }) => <MoreHorizontal size={24} color={color} />,
+            }}
+          />
+          <Tabs.Screen
+            name="todos"
+            options={{
+              title: "Todos",
+              tabBarIcon: ({ color }) => <CheckSquare size={24} color={color} />,
             }}
           />
         </Tabs>
