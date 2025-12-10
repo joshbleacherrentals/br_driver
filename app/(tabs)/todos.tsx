@@ -1,7 +1,9 @@
 import { todos$ as _todos$, addTodo, deleteTodo, toggleDone } from "@/utils/supabase/supaLegend";
+import { syncState } from "@legendapp/state";
 import { observer } from "@legendapp/state/react";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // Emojis to decorate each todo.
 const NOT_DONE_ICON = String.fromCodePoint(0x1f7e0);
 const DONE_ICON = String.fromCodePoint(0x2705);
+const SYNCED_ICON = "☁️"; // Cloud = synced with remote
+const ERROR_ICON = "⚠️"; // Warning = sync error
 
 type Todo = {
   id: string;
@@ -26,6 +30,93 @@ type Todo = {
   updated_at?: string | null;
   deleted?: boolean | null;
 };
+
+// Sync status indicator component - tracks the whole collection's sync state
+const SyncStatusIndicator = observer(() => {
+  const state$ = syncState(_todos$);
+  const state = state$.get();
+
+  const handleRetry = () => {
+    // Manually trigger a sync retry
+    state?.sync();
+  };
+
+  // Check for error state
+  if (state?.error) {
+    return (
+      <TouchableOpacity onPress={handleRetry} style={styles.syncIndicator}>
+        <Text style={styles.syncIconError}>{ERROR_ICON}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  // Check if currently syncing (getting or setting)
+  if (state?.isGetting || state?.isSetting) {
+    return (
+      <View style={styles.syncIndicator}>
+        <ActivityIndicator size="small" color="#007AFF" />
+      </View>
+    );
+  }
+
+  // Check if there are pending changes to sync
+  if (state?.numPendingSets && state.numPendingSets > 0) {
+    return (
+      <View style={styles.syncIndicator}>
+        <ActivityIndicator size="small" color="#FF9500" />
+      </View>
+    );
+  }
+
+  // Check if not yet loaded from remote
+  if (!state?.isLoaded) {
+    return (
+      <View style={styles.syncIndicator}>
+        <ActivityIndicator size="small" color="#999" />
+      </View>
+    );
+  }
+
+  // Synced successfully
+  return (
+    <View style={styles.syncIndicator}>
+      <Text style={styles.syncIconSynced}>{SYNCED_ICON}</Text>
+    </View>
+  );
+});
+
+// Global sync status bar - shows at the top when there are issues
+const GlobalSyncStatus = observer(() => {
+  const state$ = syncState(_todos$);
+  const state = state$.get();
+
+  const handleRetry = () => {
+    state?.sync();
+  };
+
+  // Show error banner
+  if (state?.error) {
+    return (
+      <TouchableOpacity onPress={handleRetry} style={styles.syncBanner}>
+        <Text style={styles.syncBannerText}>{ERROR_ICON} Sync failed - tap to retry</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  // Show pending changes banner
+  if (state?.numPendingSets && state.numPendingSets > 0) {
+    return (
+      <View style={styles.syncBannerPending}>
+        <ActivityIndicator size="small" color="#fff" />
+        <Text style={styles.syncBannerText}>
+          Syncing {state.numPendingSets} change{state.numPendingSets > 1 ? "s" : ""}...
+        </Text>
+      </View>
+    );
+  }
+
+  return null;
+});
 
 // The text input component to add a new todo.
 const NewTodo = () => {
@@ -73,6 +164,7 @@ const TodoItem = ({ todo }: { todo: Todo }) => {
           {todo.done ? DONE_ICON : NOT_DONE_ICON} {todo.text}
         </Text>
       </TouchableOpacity>
+      <SyncStatusIndicator />
       <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
         <Text style={styles.deleteButtonText}>✕</Text>
       </TouchableOpacity>
@@ -121,6 +213,8 @@ export default function TodosScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
+        <GlobalSyncStatus />
+
         <View style={styles.header}>
           <Text style={styles.title}>📝 Todos</Text>
           <Text style={styles.subtitle}>Legend-State + Supabase Realtime</Text>
@@ -240,5 +334,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     marginTop: 8,
+  },
+  syncIndicator: {
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  syncIconSynced: {
+    fontSize: 16,
+  },
+  syncIconError: {
+    fontSize: 16,
+  },
+  syncBanner: {
+    backgroundColor: "#c62828",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  syncBannerPending: {
+    backgroundColor: "#FF9500",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  syncBannerText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

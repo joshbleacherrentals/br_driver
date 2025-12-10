@@ -3,6 +3,7 @@ import TripModeLockGuard from "@/components/TripModeLockGuard";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
+import { useResyncTodosOnReconnect } from "@/utils/supabase/useResyncTodosOnReconnect";
 import { ClerkLoaded, ClerkProvider } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -25,6 +26,7 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
   // This is now safe: useSession() sees ClerkProvider above it
   console.log("AppShell rendered, setting up Supabase client with Clerk auth");
   useClerkSupabaseClient();
+  useResyncTodosOnReconnect();
 
   const queryClient = new QueryClient();
 

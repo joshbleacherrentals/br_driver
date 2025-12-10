@@ -4,7 +4,6 @@ import { observablePersistAsyncStorage } from "@legendapp/state/persist-plugins/
 import { configureSynced } from "@legendapp/state/sync";
 import { syncedSupabase } from "@legendapp/state/sync-plugins/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "./supabaseClient";
@@ -28,15 +27,13 @@ const customSynced = configureSynced(syncedSupabase, {
   // Optionally enable soft deletes
   fieldDeleted: "deleted",
   onError: (error) => {
-    console.error("Supabase sync error:", error);
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes("JWT expired")) {
-      Alert.alert("Session Expired", errorMessage, [{ text: "OK" }]);
-    } else {
-      Alert.alert("Sync Error", errorMessage, [{ text: "OK" }]);
-    }
+    // console.error("Supabase sync error:", error);
+    // const errorMessage = error instanceof Error ? error.message : String(error);
+    // if (errorMessage.includes("JWT expired")) {
+    //   Alert.alert("Session Expired", errorMessage, [{ text: "OK" }]);
+    // } else {
+    //   Alert.alert("Sync Error", errorMessage, [{ text: "OK" }]);
+    // }
   },
 });
 
@@ -55,6 +52,9 @@ export const todos$ = observable(
     },
     retry: {
       infinite: true, // Retry changes with exponential backoff
+      backoff: "exponential",
+      delay: 1000, // Start with 1 second delay
+      maxDelay: 30000, // Max 30 seconds between retries
     },
   })
 );
