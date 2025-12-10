@@ -1,45 +1,93 @@
 // utils/supabase/useClerkSupabaseClient.ts
-import { useAuth } from "@clerk/clerk-expo";
+import { isClerkRuntimeError, useAuth } from "@clerk/clerk-expo";
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import { setSupabaseTokenGetter, supabase } from "./supabaseClient";
 
 /**
  * Hook to connect Clerk authentication with the shared Supabase client.
- * Automatically refreshes the Supabase token whenever the Clerk session changes.
+ * - Wires Clerk's getToken() into Supabase's accessToken + Realtime.
+ * - Handles offline "network_error" safely so the app never crashes.
  */
 export function useClerkSupabaseClient() {
   const { getToken, isSignedIn } = useAuth();
 
+  // 1) Keep Supabase's accessToken getter in sync with Clerk
   useEffect(() => {
+    let cancelled = false;
+
     if (!isSignedIn) {
       setSupabaseTokenGetter(null);
       supabase.realtime.setAuth("");
       return;
     }
 
-    // Supply Supabase with a token getter that always calls Clerk
+    // Called by Supabase whenever it needs an access token
     setSupabaseTokenGetter(async () => {
+      if (cancelled) return null;
+
       try {
-        const token = await getToken(); // no template — new integration
+        const token = await getToken();
         return token ?? null;
-      } catch (err) {
-        console.warn("Error getting Clerk token:", err);
+      } catch (err: unknown) {
+        if (isClerkRuntimeError(err) && err.code === "network_error") {
+          console.log("[useClerkSupabaseClient] Network error getting token, returning null");
+          return null;
+        }
+
+        console.warn("[useClerkSupabaseClient] Unexpected error getting token", err);
         return null;
       }
     });
 
-    // Immediately set Realtime auth (needed for subscriptions)
+    // Also set Realtime auth once up front
     (async () => {
-      const token = await getToken();
-      supabase.realtime.setAuth(token ?? "");
+      try {
+        const token = await getToken();
+        if (!cancelled) {
+          supabase.realtime.setAuth(token ?? "");
+        }
+      } catch (err: unknown) {
+        if (isClerkRuntimeError(err) && err.code === "network_error") {
+          console.log(
+            "[useClerkSupabaseClient] Network error setting realtime auth, leaving Realtime unauthenticated"
+          );
+        } else {
+          console.warn("[useClerkSupabaseClient] Unexpected error setting realtime auth", err);
+        }
+      }
     })();
 
-    // Clean up when user signs out
     return () => {
+      cancelled = true;
       setSupabaseTokenGetter(null);
       supabase.realtime.setAuth("");
     };
-  }, [isSignedIn, getToken]);
+  }, [getToken, isSignedIn]);
+
+  // 2) Refresh Realtime token when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (state) => {
+      if (state !== "active" || !isSignedIn) return;
+
+      try {
+        const token = await getToken();
+        supabase.realtime.setAuth(token ?? "");
+      } catch (err: unknown) {
+        if (isClerkRuntimeError(err) && err.code === "network_error") {
+          console.log(
+            "[useClerkSupabaseClient] Network error refreshing realtime token; keeping existing auth"
+          );
+        } else {
+          console.warn("[useClerkSupabaseClient] Unexpected error refreshing realtime token", err);
+        }
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [getToken, isSignedIn]);
 
   return supabase;
 }

@@ -1,3 +1,4 @@
+// utils/supabase/supaLegend.ts
 import { observable } from "@legendapp/state";
 import { observablePersistAsyncStorage } from "@legendapp/state/persist-plugins/async-storage";
 import { configureSynced } from "@legendapp/state/sync";
