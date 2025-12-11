@@ -3,7 +3,7 @@ import {
   deleteDriverDocument,
   getDriverDocumentUrl,
   uploadDriverDocument,
-} from "@/db/driverProfile";
+} from "@/db/online/driverProfile";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";

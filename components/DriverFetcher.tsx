@@ -1,4 +1,4 @@
-import { fetchDrivers } from "@/db/fetchDrivers";
+import { fetchDrivers } from "@/db/online/fetchDrivers";
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";

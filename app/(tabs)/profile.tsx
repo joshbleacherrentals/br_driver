@@ -8,7 +8,7 @@ import {
   updateDriverProfile,
   upsertAddress,
   upsertVehicle,
-} from "@/db/driverProfile";
+} from "@/db/online/driverProfile";
 import { DriverWithDetails } from "@/types/driver";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { useAuth, useUser } from "@clerk/clerk-expo";

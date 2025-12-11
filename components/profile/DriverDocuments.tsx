@@ -3,7 +3,7 @@ import {
   deleteDriverDocument,
   getDriverDocumentUrl,
   uploadDriverDocument,
-} from "@/db/documentOperations";
+} from "@/db/online/documentOperations";
 import { SupabaseClient } from "@supabase/supabase-js";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";

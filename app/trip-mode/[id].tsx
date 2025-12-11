@@ -1,5 +1,5 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import { fetchWorkTrackersForClerkUser } from "@/db/workTrackers";
+import { fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { formatPayment } from "@/utils/workTrackerUtils";
 import { useAuth } from "@clerk/clerk-expo";

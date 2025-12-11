@@ -1,4 +1,4 @@
-import { todos$ } from "@/utils/supabase/supaLegend";
+import { todos$ } from "@/db/todos";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { syncState } from "@legendapp/state";
 import { observer } from "@legendapp/state/react";

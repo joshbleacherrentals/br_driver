@@ -1,4 +1,4 @@
-import { EnrichedWorkTracker } from "@/db/workTrackers";
+import { EnrichedWorkTracker } from "@/db/online/workTrackers";
 import { formatDateWithOrdinal } from "@/utils/dateUtils";
 import React from "react";
 import { FlatList, Text, View } from "react-native";

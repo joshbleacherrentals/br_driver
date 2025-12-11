@@ -1,4 +1,4 @@
-import { todos$ } from "@/utils/supabase/supaLegend";
+import { todos$ } from "@/db/todos";
 import { syncState } from "@legendapp/state";
 import NetInfo from "@react-native-community/netinfo";
 import { useEffect } from "react";

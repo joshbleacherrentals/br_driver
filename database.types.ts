@@ -565,24 +565,27 @@ export type Database = {
           created_at: string | null;
           deleted: boolean | null;
           done: boolean | null;
-          id: string;
+          legend_base_uuid: string;
           text: string | null;
+          todo_id: number;
           updated_at: string | null;
         };
         Insert: {
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
-          id?: string;
+          legend_base_uuid?: string;
           text?: string | null;
+          todo_id?: number;
           updated_at?: string | null;
         };
         Update: {
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
-          id?: string;
+          legend_base_uuid?: string;
           text?: string | null;
+          todo_id?: number;
           updated_at?: string | null;
         };
         Relationships: [];

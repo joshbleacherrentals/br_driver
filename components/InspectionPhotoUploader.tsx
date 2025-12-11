@@ -3,7 +3,7 @@ import {
   deleteInspectionPhoto,
   getPhotoPublicUrl,
   uploadInspectionPhoto,
-} from "@/db/inspectionPhotos";
+} from "@/db/online/inspectionPhotos";
 import { InspectionPhoto } from "@/types/inspectionPhoto";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

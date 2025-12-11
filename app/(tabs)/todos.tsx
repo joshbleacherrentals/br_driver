@@ -1,4 +1,4 @@
-import { todos$ as _todos$, addTodo, deleteTodo, toggleDone } from "@/utils/supabase/supaLegend";
+import { todos$ as _todos$, addTodo, deleteTodo, toggleDone } from "@/db/todos";
 import { observer } from "@legendapp/state/react";
 import { useState } from "react";
 import {
@@ -18,7 +18,7 @@ const NOT_DONE_ICON = String.fromCodePoint(0x1f7e0);
 const DONE_ICON = String.fromCodePoint(0x2705);
 
 type Todo = {
-  id: string;
+  legend_base_uuid: string;
   text: string | null;
   done: boolean | null;
   created_at?: string | null;
@@ -58,11 +58,11 @@ const NewTodo = () => {
 // A single todo component, either 'not done' or 'done': press to toggle.
 const TodoItem = ({ todo }: { todo: Todo }) => {
   const handlePress = () => {
-    toggleDone(todo.id);
+    toggleDone(todo.legend_base_uuid);
   };
 
   const handleDelete = () => {
-    deleteTodo(todo.id);
+    deleteTodo(todo.legend_base_uuid);
   };
 
   return (
@@ -106,7 +106,7 @@ const TodosList = observer(({ todos$ }: { todos$: typeof _todos$ }) => {
     <FlatList
       data={todoList}
       renderItem={renderItem}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item.legend_base_uuid}
       style={styles.list}
       contentContainerStyle={styles.listContent}
     />

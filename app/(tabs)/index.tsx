@@ -1,6 +1,6 @@
 import TripsList from "@/components/TripsList";
 import TripsSegmentedControl from "@/components/TripsSegmentedControl";
-import { EnrichedWorkTracker, fetchWorkTrackersForClerkUser } from "@/db/workTrackers";
+import { EnrichedWorkTracker, fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
 import { TripFilter, useFilteredTrips } from "@/hooks/useFilteredTrips";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { useAuth } from "@clerk/clerk-expo";

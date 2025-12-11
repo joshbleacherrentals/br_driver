@@ -1,4 +1,4 @@
-import { EnrichedWorkTracker } from "@/db/workTrackers";
+import { EnrichedWorkTracker } from "@/db/online/workTrackers";
 import { getTodayAtMidnight, parseLocalDate } from "@/utils/dateUtils";
 import { useMemo } from "react";
 

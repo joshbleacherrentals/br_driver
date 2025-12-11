@@ -1,5 +1,8 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import { createAndLinkPostTripInspection, createAndLinkPreTripInspection } from "@/db/inspections";
+import {
+  createAndLinkPostTripInspection,
+  createAndLinkPreTripInspection,
+} from "@/db/online/inspections";
 import { InspectionData } from "@/types/inspection";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { completeTrip } from "@/utils/tripActions";
