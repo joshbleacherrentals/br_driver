@@ -1,4 +1,5 @@
 // app/_layout.tsx
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import TripModeLockGuard from "@/components/TripModeLockGuard";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
@@ -35,6 +36,7 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <TripModeLockGuard />
+        <SyncStatusIndicator />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />

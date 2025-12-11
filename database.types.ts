@@ -562,7 +562,6 @@ export type Database = {
       };
       Todos: {
         Row: {
-          counter: number;
           created_at: string | null;
           deleted: boolean | null;
           done: boolean | null;
@@ -571,7 +570,6 @@ export type Database = {
           updated_at: string | null;
         };
         Insert: {
-          counter?: number;
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
@@ -580,7 +578,6 @@ export type Database = {
           updated_at?: string | null;
         };
         Update: {
-          counter?: number;
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
