@@ -24,17 +24,7 @@ const customSynced = configureSynced(syncedSupabase, {
   changesSince: "last-sync",
   fieldCreatedAt: "created_at",
   fieldUpdatedAt: "updated_at",
-  // Optionally enable soft deletes
   fieldDeleted: "deleted",
-  onError: (error) => {
-    // console.error("Supabase sync error:", error);
-    // const errorMessage = error instanceof Error ? error.message : String(error);
-    // if (errorMessage.includes("JWT expired")) {
-    //   Alert.alert("Session Expired", errorMessage, [{ text: "OK" }]);
-    // } else {
-    //   Alert.alert("Sync Error", errorMessage, [{ text: "OK" }]);
-    // }
-  },
 });
 
 // The synced todos collection
@@ -42,7 +32,7 @@ export const todos$ = observable(
   customSynced({
     supabase,
     collection: "Todos", // <-- must match Database["public"]["Tables"]
-    select: (from: any) => from.select("id,counter,text,done,created_at,updated_at,deleted"),
+    select: (from: any) => from.select("id,text,done,created_at,updated_at,deleted"),
     actions: ["read", "create", "update", "delete"],
     realtime: true,
     // Persist data and pending changes locally
@@ -66,7 +56,7 @@ export function addTodo(text: string) {
   todos$[id].assign({
     id,
     text,
-    // counter/done/deleted will use defaults from the server if omitted
+    // /done/deleted will use defaults from the server if omitted
   });
 }
 
