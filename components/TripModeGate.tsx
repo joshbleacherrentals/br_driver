@@ -8,11 +8,10 @@ export function TripModeGate() {
   const pathname = usePathname();
   const activeTrip = useSelector(() => activeTrip$.get());
 
-  // Wait until the navigation container is ready
   if (!navState?.key) return null;
 
   const inTripMode = pathname.startsWith("/trip-mode");
-  const hasActiveTrip = activeTrip !== null;
+  const hasActiveTrip = !!activeTrip;
 
   // If a trip becomes active (insert/update via realtime), jump in immediately
   if (hasActiveTrip && !inTripMode) {

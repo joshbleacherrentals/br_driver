@@ -1,138 +1,112 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import {
-  deleteInspectionPhoto,
-  getPhotoPublicUrl,
-  uploadInspectionPhoto,
-} from "@/db/online/inspectionPhotos";
-import { InspectionPhoto } from "@/types/inspectionPhoto";
-import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { currentDriver$ } from "@/state/stores/drivers.store";
+import { inspectionPhotos$ } from "@/state/stores/inspectionPhotos.store";
+import { inspectionPhotoUploadQueue$ } from "@/state/stores/inspectionPhotoUploadQueue.store";
+import { supabase } from "@/utils/supabase/supabaseClient";
+import { generateId } from "@/utils/supabase/supaLegend/util";
+import { useSelector } from "@legendapp/state/react";
+import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React from "react";
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-interface InspectionPhotoUploaderProps {
-  inspectionId: number | null; // null before inspection is created
-  existingPhotos?: InspectionPhoto[];
-  onPhotosChange?: (photos: InspectionPhoto[]) => void;
-  onPendingPhotosChange?: (pendingUris: string[]) => void;
+function getPhotoPublicUrl(storagePath: string): string {
+  const { data } = supabase.storage.from("inspection-photos").getPublicUrl(storagePath);
+  return data.publicUrl;
+}
+
+async function copyToAppStorage(photoUuid: string, originalUri: string, ext = "jpg") {
+  const dir = new Directory(Paths.document, "inspection-photos");
+  dir.create({ intermediates: true, idempotent: true });
+
+  const localFile = new File(dir, `${photoUuid}.${ext}`);
+
+  // originalUri from ImagePicker is usually a file:// URI -> can be wrapped in File
+  const src = new File(originalUri);
+  src.copy(localFile);
+
+  return localFile.uri; // file://...
 }
 
 export default function InspectionPhotoUploader({
-  inspectionId,
-  existingPhotos = [],
-  onPhotosChange,
-  onPendingPhotosChange,
-}: InspectionPhotoUploaderProps) {
-  const supabase = useClerkSupabaseClient();
-  const queryClient = useQueryClient();
-  const [photos, setPhotos] = useState<InspectionPhoto[]>(existingPhotos);
-  const [pendingPhotos, setPendingPhotos] = useState<string[]>([]); // Local URIs before inspection is created
+  inspectionUuid,
+}: {
+  inspectionUuid: string | null;
+}) {
+  const driverId = currentDriver$.driver_id.get();
 
-  // Notify parent of pending photos changes
-  React.useEffect(() => {
-    onPendingPhotosChange?.(pendingPhotos);
-  }, [pendingPhotos]);
-
-  // Upload mutation
-  const uploadMutation = useMutation({
-    mutationFn: async (fileUri: string) => {
-      if (!inspectionId) {
-        throw new Error("Inspection must be created before uploading photos");
-      }
-      return await uploadInspectionPhoto(supabase, inspectionId, fileUri);
-    },
-    onSuccess: (newPhoto) => {
-      console.log("Photo uploaded successfully:", newPhoto);
-      const updatedPhotos = [...photos, newPhoto];
-      setPhotos(updatedPhotos);
-      onPhotosChange?.(updatedPhotos);
-      queryClient.invalidateQueries({ queryKey: ["inspectionPhotos", inspectionId] });
-    },
-    onError: (error) => {
-      console.error("Photo upload error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      Alert.alert("Upload Failed", `Failed to upload photo: ${error.message || "Unknown error"}`);
-    },
+  const photosForThisInspection = useSelector(() => {
+    if (!inspectionUuid) return [];
+    const all = inspectionPhotos$.get() || {};
+    return Object.values(all)
+      .filter((p: any) => p && !p.deleted && p.inspection_uuid === inspectionUuid)
+      .sort((a: any, b: any) => (a.created_at || "").localeCompare(b.created_at || ""));
   });
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (photo: InspectionPhoto) => {
-      await deleteInspectionPhoto(supabase, photo.photo_id, photo.storage_path);
-    },
-    onSuccess: (_, deletedPhoto) => {
-      const updatedPhotos = photos.filter((p) => p.photo_id !== deletedPhoto.photo_id);
-      setPhotos(updatedPhotos);
-      onPhotosChange?.(updatedPhotos);
-      queryClient.invalidateQueries({ queryKey: ["inspectionPhotos", inspectionId] });
-    },
-    onError: (error) => {
-      console.error("Photo delete error:", error);
-      Alert.alert("Delete Failed", "Failed to delete photo. Please try again.");
-    },
-  });
-
-  // Request permissions and pick image
   const pickImage = async (source: "camera" | "gallery") => {
-    try {
-      let result: ImagePicker.ImagePickerResult;
+    if (!inspectionUuid) {
+      Alert.alert(
+        "Create Inspection First",
+        "Submit the inspection (or generate its UUID on open) before adding photos."
+      );
+      return;
+    }
+    if (!driverId) {
+      Alert.alert("Error", "Missing driver.");
+      return;
+    }
 
-      if (source === "camera") {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission Denied", "Camera access is required to take photos.");
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ["images"],
-          allowsEditing: false,
-          quality: 0.1,
-          exif: false,
-        });
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission Denied", "Photo library access is required.");
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          allowsEditing: false,
-          allowsMultipleSelection: true,
-          quality: 0.1,
-          exif: false,
-        });
-      }
+    let result: ImagePicker.ImagePickerResult;
 
-      if (!result.canceled && result.assets.length > 0) {
-        const selectedUris = result.assets.map((asset) => asset.uri);
-        console.log(`${selectedUris.length} photo(s) selected:`, selectedUris);
-        console.log("Inspection ID:", inspectionId);
+    if (source === "camera") {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted")
+        return Alert.alert("Permission Denied", "Camera access is required.");
+      result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.1,
+        exif: false,
+      });
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted")
+        return Alert.alert("Permission Denied", "Photo library access is required.");
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        quality: 0.1,
+        exif: false,
+      });
+    }
 
-        if (inspectionId) {
-          // Upload immediately if inspection exists
-          console.log("Uploading photos immediately...");
-          selectedUris.forEach((uri) => uploadMutation.mutate(uri));
-        } else {
-          // Store locally if inspection doesn't exist yet
-          console.log("Storing photos as pending...");
-          const newPendingPhotos = [...pendingPhotos, ...selectedUris];
-          setPendingPhotos(newPendingPhotos);
-        }
-      }
-    } catch (error) {
-      console.error("Image picker error:", error);
-      Alert.alert("Error", "Failed to select photo. Please try again.");
+    if (result.canceled || !result.assets?.length) return;
+
+    for (const asset of result.assets) {
+      const originalUri = asset.uri;
+      const photoUuid = generateId();
+
+      // 1) Copy into persistent local folder so it survives app restarts
+      const localPath = await copyToAppStorage(photoUuid, originalUri);
+
+      // 2) Create DB row locally (Legend will sync later)
+      inspectionPhotos$[photoUuid].assign({
+        inspection_photo_uuid: photoUuid,
+        inspection_uuid: inspectionUuid,
+        storage_path: "",
+        upload_status: "pending",
+        last_error: null,
+        deleted: false,
+      });
+
+      // 3) Enqueue upload (persisted queue)
+      inspectionPhotoUploadQueue$[photoUuid].assign({
+        inspection_photo_uuid: photoUuid,
+        inspection_uuid: inspectionUuid,
+        local_path: localPath,
+        mime: "image/jpeg",
+        attempts: 0,
+        status: "queued",
+      });
     }
   };
 
@@ -144,94 +118,43 @@ export default function InspectionPhotoUploader({
     ]);
   };
 
-  const handleDeletePhoto = (photo: InspectionPhoto) => {
-    Alert.alert("Delete Photo", "Are you sure you want to delete this photo?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(photo) },
-    ]);
-  };
-
-  const handleDeletePendingPhoto = (uri: string) => {
-    setPendingPhotos(pendingPhotos.filter((p) => p !== uri));
-  };
-
-  // Allow uploading pending photos once inspection is created
-  const uploadPendingPhotos = async () => {
-    if (!inspectionId || pendingPhotos.length === 0) return;
-
-    for (const uri of pendingPhotos) {
-      uploadMutation.mutate(uri);
+  const renderUriForPhoto = (p: any) => {
+    if (p.upload_status !== "uploaded") {
+      const q = inspectionPhotoUploadQueue$[p.inspection_photo_uuid].get();
+      return q?.local_path ?? null;
     }
-    setPendingPhotos([]);
+    if (!p.storage_path) return null;
+    return getPhotoPublicUrl(p.storage_path);
   };
-
-  // Auto-upload pending photos when inspectionId becomes available
-  React.useEffect(() => {
-    if (inspectionId && pendingPhotos.length > 0) {
-      uploadPendingPhotos();
-    }
-  }, [inspectionId]);
-
-  const isUploading = uploadMutation.isPending;
-  const isDeleting = deleteMutation.isPending;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Inspection Photos</Text>
-        <TouchableOpacity
-          style={[styles.addButton, isUploading && styles.addButtonDisabled]}
-          onPress={showImageSourceOptions}
-          disabled={isUploading}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={showImageSourceOptions}>
           <Text style={styles.addButtonText}>+ Add Photo</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
-        {/* Pending photos (not yet uploaded) */}
-        {pendingPhotos.map((uri, index) => (
-          <View key={`pending-${index}`} style={styles.photoWrapper}>
-            <Image source={{ uri }} style={styles.photo} />
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeletePendingPhoto(uri)}
-            >
-              <Text style={styles.deleteButtonText}>×</Text>
-            </TouchableOpacity>
-            <View style={styles.pendingBadge}>
-              <Text style={styles.pendingBadgeText}>Pending</Text>
+        {photosForThisInspection.map((p: any) => {
+          const uri = renderUriForPhoto(p);
+          if (!uri) return null;
+
+          return (
+            <View key={p.inspection_photo_uuid} style={styles.photoWrapper}>
+              <Image source={{ uri }} style={styles.photo} />
+              {p.upload_status !== "uploaded" && (
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>{p.upload_status}</Text>
+                </View>
+              )}
             </View>
-          </View>
-        ))}
-
-        {/* Uploaded photos */}
-        {photos.map((photo) => (
-          <View key={photo.photo_id} style={styles.photoWrapper}>
-            <Image
-              source={{ uri: getPhotoPublicUrl(supabase, photo.storage_path) }}
-              style={styles.photo}
-            />
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeletePhoto(photo)}
-              disabled={isDeleting}
-            >
-              <Text style={styles.deleteButtonText}>×</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-
-        {/* Loading indicator */}
-        {isUploading && (
-          <View style={styles.loadingWrapper}>
-            <ActivityIndicator size="large" color={PRIMARY} />
-            <Text style={styles.loadingText}>Uploading...</Text>
-          </View>
-        )}
+          );
+        })}
       </ScrollView>
 
-      {photos.length === 0 && pendingPhotos.length === 0 && !isUploading && (
+      {photosForThisInspection.length === 0 && (
         <Text style={styles.emptyText}>No photos added yet</Text>
       )}
     </View>

@@ -2,6 +2,7 @@
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { TripModeGate } from "@/components/TripModeGate";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { startInspectionPhotoUploadWorker } from "@/state/workers/inspectionPhotoUpload.worker";
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
 import "@/utils/supabase/supaLegend/init";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
@@ -15,6 +16,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -33,6 +35,9 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
   const supabase = useClerkSupabaseClient();
   useResyncTodosOnReconnect();
   useSyncClerkToLegend();
+  useEffect(() => {
+    startInspectionPhotoUploadWorker();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

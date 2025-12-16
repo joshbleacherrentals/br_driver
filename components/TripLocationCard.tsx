@@ -31,8 +31,8 @@ export default function TripLocationCard({ type, onStartInspection }: TripLocati
   const poc = isPickup ? activeTrip.pickup_poc : activeTrip.dropoff_poc;
 
   // Inspection status
-  const hasPreTripInspection = !!activeTrip.pre_inspection_id;
-  const hasPostTripInspection = !!activeTrip.post_inspection_id;
+  const hasPreTripInspection = !!activeTrip.pre_inspection_uuid;
+  const hasPostTripInspection = !!activeTrip.post_inspection_uuid;
   const inspectionCompleted = isPickup ? hasPreTripInspection : hasPostTripInspection;
   const inspectionDisabled = !isPickup && !hasPreTripInspection;
 

@@ -24,8 +24,8 @@ export interface WorkTracker {
   started_at: string | null;
   completed_at: string | null;
   released_at: string | null;
-  pre_inspection_id: number | null;
-  post_inspection_id: number | null;
+  pre_inspection_uuid: string | null;
+  post_inspection_uuid: string | null;
   legend_state_uuid: string | null;
   pickup_address_uuid: string | null;
   dropoff_address_uuid: string | null;

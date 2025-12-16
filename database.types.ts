@@ -289,7 +289,7 @@ export type Database = {
           tax: number;
           updated_at: string | null;
           user_id: number;
-          vehicle_id: number | null;
+          vehicle_uuid: string | null;
         };
         Insert: {
           account_manager_id?: number | null;
@@ -309,7 +309,7 @@ export type Database = {
           tax?: number;
           updated_at?: string | null;
           user_id: number;
-          vehicle_id?: number | null;
+          vehicle_uuid?: string | null;
         };
         Update: {
           account_manager_id?: number | null;
@@ -329,7 +329,7 @@ export type Database = {
           tax?: number;
           updated_at?: string | null;
           user_id?: number;
-          vehicle_id?: number | null;
+          vehicle_uuid?: string | null;
         };
         Relationships: [
           {
@@ -354,11 +354,11 @@ export type Database = {
             referencedColumns: ["user_id"];
           },
           {
-            foreignKeyName: "Drivers_vehicle_id_fkey";
-            columns: ["vehicle_id"];
+            foreignKeyName: "Drivers_vehicle_uuid_fkey";
+            columns: ["vehicle_uuid"];
             isOneToOne: false;
             referencedRelation: "Vehicles";
-            referencedColumns: ["vehicle_id"];
+            referencedColumns: ["vehicle_uuid"];
           }
         ];
       };
@@ -463,33 +463,42 @@ export type Database = {
       };
       InspectionPhotos: {
         Row: {
-          caption: string | null;
           created_at: string;
-          inspection_id: number;
-          photo_id: number;
+          deleted: boolean | null;
+          inspection_photo_uuid: string;
+          inspection_uuid: string;
+          last_error: string | null;
           storage_path: string;
+          updated_at: string | null;
+          upload_status: string;
         };
         Insert: {
-          caption?: string | null;
           created_at?: string;
-          inspection_id: number;
-          photo_id?: number;
+          deleted?: boolean | null;
+          inspection_photo_uuid?: string;
+          inspection_uuid: string;
+          last_error?: string | null;
           storage_path: string;
+          updated_at?: string | null;
+          upload_status?: string;
         };
         Update: {
-          caption?: string | null;
           created_at?: string;
-          inspection_id?: number;
-          photo_id?: number;
+          deleted?: boolean | null;
+          inspection_photo_uuid?: string;
+          inspection_uuid?: string;
+          last_error?: string | null;
           storage_path?: string;
+          updated_at?: string | null;
+          upload_status?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "InspectionPhotos_inspection_id_fkey";
-            columns: ["inspection_id"];
+            foreignKeyName: "InspectionPhotos_inspection_uuid_fkey";
+            columns: ["inspection_uuid"];
             isOneToOne: false;
             referencedRelation: "WorkTrackerInspections";
-            referencedColumns: ["inspection_id"];
+            referencedColumns: ["inspection_uuid"];
           }
         ];
       };
@@ -740,25 +749,31 @@ export type Database = {
       Vehicles: {
         Row: {
           created_at: string;
+          deleted: boolean | null;
           make: string;
           model: string;
-          vehicle_id: number;
+          updated_at: string | null;
+          vehicle_uuid: string;
           vin_number: string | null;
           year: number;
         };
         Insert: {
           created_at?: string;
+          deleted?: boolean | null;
           make: string;
           model: string;
-          vehicle_id?: number;
+          updated_at?: string | null;
+          vehicle_uuid?: string;
           vin_number?: string | null;
           year: number;
         };
         Update: {
           created_at?: string;
+          deleted?: boolean | null;
           make?: string;
           model?: string;
-          vehicle_id?: number;
+          updated_at?: string | null;
+          vehicle_uuid?: string;
           vin_number?: string | null;
           year?: number;
         };
@@ -766,73 +781,31 @@ export type Database = {
       };
       WorkTrackerInspections: {
         Row: {
-          all_spindles_present: boolean;
-          any_broken_parts: boolean;
-          are_lights_functioning: boolean;
-          are_lights_in_place: boolean;
-          are_safety_chains_attached: boolean;
-          are_safety_pins_attached: boolean;
           created_at: string;
-          e_brake_pin_works: boolean;
-          electric_trailer_brake_works: boolean;
-          handrails_present: boolean;
-          inspection_id: number;
-          is_bleacher_clean: boolean;
-          is_cylinder_sleeve_in_place: boolean;
-          is_safety_chain_condition_good: boolean;
-          is_spare_tire_present: boolean;
-          is_sticker_condition_good: boolean;
-          is_tire_condition_good: boolean;
-          locking_tabs_present: boolean;
+          deleted: boolean | null;
+          has_issues: boolean;
+          inspection_uuid: string;
           notes: string | null;
-          opens_closes_smoothly: boolean;
-          overall_rating: number | null;
+          updated_at: string | null;
+          walk_around_complete: boolean | null;
         };
         Insert: {
-          all_spindles_present: boolean;
-          any_broken_parts: boolean;
-          are_lights_functioning: boolean;
-          are_lights_in_place: boolean;
-          are_safety_chains_attached: boolean;
-          are_safety_pins_attached: boolean;
           created_at?: string;
-          e_brake_pin_works: boolean;
-          electric_trailer_brake_works: boolean;
-          handrails_present: boolean;
-          inspection_id?: number;
-          is_bleacher_clean: boolean;
-          is_cylinder_sleeve_in_place: boolean;
-          is_safety_chain_condition_good: boolean;
-          is_spare_tire_present: boolean;
-          is_sticker_condition_good: boolean;
-          is_tire_condition_good: boolean;
-          locking_tabs_present: boolean;
+          deleted?: boolean | null;
+          has_issues: boolean;
+          inspection_uuid?: string;
           notes?: string | null;
-          opens_closes_smoothly: boolean;
-          overall_rating?: number | null;
+          updated_at?: string | null;
+          walk_around_complete?: boolean | null;
         };
         Update: {
-          all_spindles_present?: boolean;
-          any_broken_parts?: boolean;
-          are_lights_functioning?: boolean;
-          are_lights_in_place?: boolean;
-          are_safety_chains_attached?: boolean;
-          are_safety_pins_attached?: boolean;
           created_at?: string;
-          e_brake_pin_works?: boolean;
-          electric_trailer_brake_works?: boolean;
-          handrails_present?: boolean;
-          inspection_id?: number;
-          is_bleacher_clean?: boolean;
-          is_cylinder_sleeve_in_place?: boolean;
-          is_safety_chain_condition_good?: boolean;
-          is_spare_tire_present?: boolean;
-          is_sticker_condition_good?: boolean;
-          is_tire_condition_good?: boolean;
-          locking_tabs_present?: boolean;
+          deleted?: boolean | null;
+          has_issues?: boolean;
+          inspection_uuid?: string;
           notes?: string | null;
-          opens_closes_smoothly?: boolean;
-          overall_rating?: number | null;
+          updated_at?: string | null;
+          walk_around_complete?: boolean | null;
         };
         Relationships: [];
       };
@@ -857,8 +830,8 @@ export type Database = {
           pickup_address_uuid: string | null;
           pickup_poc: string | null;
           pickup_time: string | null;
-          post_inspection_id: number | null;
-          pre_inspection_id: number | null;
+          post_inspection_uuid: string | null;
+          pre_inspection_uuid: string | null;
           released_at: string | null;
           started_at: string | null;
           status: Database["public"]["Enums"]["worktracker_status"];
@@ -886,8 +859,8 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_poc?: string | null;
           pickup_time?: string | null;
-          post_inspection_id?: number | null;
-          pre_inspection_id?: number | null;
+          post_inspection_uuid?: string | null;
+          pre_inspection_uuid?: string | null;
           released_at?: string | null;
           started_at?: string | null;
           status?: Database["public"]["Enums"]["worktracker_status"];
@@ -915,8 +888,8 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_poc?: string | null;
           pickup_time?: string | null;
-          post_inspection_id?: number | null;
-          pre_inspection_id?: number | null;
+          post_inspection_uuid?: string | null;
+          pre_inspection_uuid?: string | null;
           released_at?: string | null;
           started_at?: string | null;
           status?: Database["public"]["Enums"]["worktracker_status"];
@@ -968,18 +941,18 @@ export type Database = {
             referencedColumns: ["legend_state_uuid"];
           },
           {
-            foreignKeyName: "WorkTrackers_post_inspection_id_fkey";
-            columns: ["post_inspection_id"];
+            foreignKeyName: "WorkTrackers_post_inspection_uuid_fkey";
+            columns: ["post_inspection_uuid"];
             isOneToOne: false;
             referencedRelation: "WorkTrackerInspections";
-            referencedColumns: ["inspection_id"];
+            referencedColumns: ["inspection_uuid"];
           },
           {
-            foreignKeyName: "WorkTrackers_pre_inspection_id_fkey";
-            columns: ["pre_inspection_id"];
+            foreignKeyName: "WorkTrackers_pre_inspection_uuid_fkey";
+            columns: ["pre_inspection_uuid"];
             isOneToOne: false;
             referencedRelation: "WorkTrackerInspections";
-            referencedColumns: ["inspection_id"];
+            referencedColumns: ["inspection_uuid"];
           },
           {
             foreignKeyName: "worktrackers_user_id_fkey";

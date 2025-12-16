@@ -42,8 +42,8 @@ export default function TripModePage() {
   }, []);
 
   // Check inspection status early - check for FK IDs instead of JSONB data
-  const hasPreTripInspection = !!workTracker?.pre_inspection_id;
-  const hasPostTripInspection = !!workTracker?.post_inspection_id;
+  const hasPreTripInspection = !!workTracker?.pre_inspection_uuid;
+  const hasPostTripInspection = !!workTracker?.post_inspection_uuid;
 
   // If both inspections are complete, trip is finished - redirect
   useEffect(() => {
@@ -73,7 +73,7 @@ export default function TripModePage() {
     return (
       <SafeAreaView style={styles.container}>
         <InspectionForm
-          workTrackerId={workTracker.work_tracker_id}
+          workTrackerKey={workTracker.legend_state_uuid}
           type="pre-trip"
           onComplete={() => setInspectionMode("none")}
           onCancel={() => setInspectionMode("none")}
@@ -86,11 +86,17 @@ export default function TripModePage() {
     return (
       <SafeAreaView style={styles.container}>
         <InspectionForm
-          workTrackerId={workTracker.work_tracker_id}
+          workTrackerKey={workTracker.legend_state_uuid}
           type="post-trip"
           onComplete={() => {
             Alert.alert("Trip Complete", "Your trip has been completed successfully!", [
-              { text: "OK", onPress: () => router.replace("/(tabs)") },
+              {
+                text: "OK",
+                onPress: () => {
+                  router.replace("/(tabs)");
+                  workTrackers$[workTracker.legend_state_uuid].status.set("completed");
+                },
+              },
             ]);
           }}
           onCancel={() => setInspectionMode("none")}
