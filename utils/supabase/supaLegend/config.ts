@@ -20,7 +20,7 @@ export const customSynced = configureSynced(syncedSupabase, {
   supabase,
   updatePartial: true,
   fieldId: "legend_state_uuid",
-  changesSince: "last-sync",
+  changesSince: "all",
   fieldCreatedAt: "created_at",
   fieldUpdatedAt: "updated_at",
   fieldDeleted: "deleted",

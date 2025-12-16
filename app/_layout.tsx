@@ -1,5 +1,6 @@
 // app/_layout.tsx
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { TripModeGate } from "@/components/TripModeGate";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
 import "@/utils/supabase/supaLegend/init";
@@ -33,19 +34,16 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
   useResyncTodosOnReconnect();
   useSyncClerkToLegend();
 
-  // const queryClient = new QueryClient();
-
   return (
-    // <SupabaseAuthSync>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        {/* <TripModeLockGuard /> */}
+        <TripModeGate />
         <SyncStatusIndicator />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen
-            name="trip-mode/[id]"
+            name="trip-mode"
             options={{
               headerShown: false,
               gestureEnabled: false,
@@ -56,7 +54,6 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
         <StatusBar style="auto" />
       </ThemeProvider>
     </QueryClientProvider>
-    // </SupabaseAuthSync>
   );
 }
 
@@ -67,10 +64,8 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    // console.log("Fonts not loaded yet");
     return null;
   }
-  // console.log("Fonts loaded");
 
   return (
     <RootErrorBoundary>

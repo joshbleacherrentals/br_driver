@@ -1,40 +1,45 @@
 // import { fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
-import { useEnrichedWorkTrackers } from "@/hooks/useEnrichedWorkTrackers";
-import { isTripInProgress } from "@/utils/workTrackerUtils";
-import { useAuth } from "@clerk/clerk-expo";
+import { workTrackers$ } from "@/state/stores/workTrackers.store";
 import { observer } from "@legendapp/state/react";
-import { useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { usePathname, useRouter } from "expo-router";
+import { useEffect, useRef } from "react";
 
 /**
  * Global guard that redirects to trip mode if there's an active trip
  * Prevents users from accessing other screens while a trip is in progress
  */
-function TripModeLockGuardInner() {
-  const { isSignedIn } = useAuth();
+export const TripModeLockGuard = observer(() => {
   const router = useRouter();
-  const segments = useSegments();
+  const pathname = usePathname();
+  const lastNavigatedTo = useRef<string | null>(null);
 
-  const workTrackers = useEnrichedWorkTrackers();
+  const wts = workTrackers$.get();
+
+  // Find active trip directly without useMemo (observer handles reactivity)
+  let activeTripId: number | null = null;
+  if (wts) {
+    const active = Object.values(wts).find(
+      (wt) => wt && !wt.deleted && wt.status === "in_progress"
+    );
+    activeTripId = active?.work_tracker_id ?? null;
+  }
 
   useEffect(() => {
-    if (!isSignedIn) return;
-
-    const inProgressTrip = workTrackers.find((t) => isTripInProgress(t));
-
-    // Check if we're already on the trip-mode screen for this trip
-    const isOnTripMode = segments[0] === "trip-mode";
-    const currentTripId = (segments as string[])[1];
-
-    if (inProgressTrip) {
-      // If not on trip mode, or on wrong trip, redirect
-      if (!isOnTripMode || currentTripId !== String(inProgressTrip.work_tracker_id)) {
-        router.replace(`/trip-mode/${inProgressTrip.work_tracker_id}`);
-      }
+    if (!activeTripId) {
+      lastNavigatedTo.current = null;
+      return;
     }
-  }, [isSignedIn, segments, router, workTrackers]);
 
-  return null; // This component doesn't render anything
-}
+    const target = `/trip-mode/${activeTripId}`;
 
-export default observer(TripModeLockGuardInner);
+    // Avoid replace loops: skip if already there or just navigated there
+    if (pathname === target || lastNavigatedTo.current === target) {
+      return;
+    }
+
+    lastNavigatedTo.current = target;
+    router.replace(target);
+  }, [activeTripId, pathname, router]);
+
+  return null;
+});

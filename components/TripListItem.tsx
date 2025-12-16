@@ -24,7 +24,7 @@ type Props = {
   dropoffTime?: string;
   dropoffPoc?: string;
   notes?: string | null;
-  onTripStart?: () => void; // Callback when trip is started (enters trip mode)
+  onTripStart?: (uuid: string) => void; // Callback when trip is started (enters trip mode)
 };
 
 export default function TripsListItem({
@@ -46,9 +46,9 @@ export default function TripsListItem({
     acceptTrip(legendStateUuid);
   };
 
-  const handleStart = () => {
-    // startMutation.mutate();
-  };
+  // const handleStart = () => {
+  //   onTripStart && onTripStart();
+  // };
 
   const content = (
     <View style={styles.card}>
@@ -121,25 +121,16 @@ export default function TripsListItem({
           onPress={handleAccept}
           // disabled={acceptMutation.isPending}
         >
-          {/* {acceptMutation.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.actionButtonText}>Accept Trip</Text>
-          )} */}
+          <Text style={styles.actionButtonText}>Accept Trip</Text>
         </TouchableOpacity>
       )}
 
       {canStartTrip({ status, date } as any) && (
         <TouchableOpacity
           style={[styles.actionButton, styles.startButton]}
-          onPress={handleStart}
-          // disabled={startMutation.isPending}
+          onPress={() => onTripStart?.(legendStateUuid)}
         >
-          {/* {startMutation.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.actionButtonText}>Start Trip</Text>
-          )} */}
+          <Text style={styles.actionButtonText}>Start Trip</Text>
         </TouchableOpacity>
       )}
 

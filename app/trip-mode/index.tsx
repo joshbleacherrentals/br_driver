@@ -1,8 +1,10 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import { useEnrichedWorkTrackers } from "@/hooks/useEnrichedWorkTrackers";
+import { enrichedWorkTrackers$ } from "@/state/computes/enrichedWorkTrackers";
+import { activeTripId$ } from "@/state/session/activeTrip";
+import { workTrackers$ } from "@/state/stores/workTrackers.store";
 import { formatPayment } from "@/utils/workTrackerUtils";
-import { observer } from "@legendapp/state/react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useValue } from "@legendapp/state/react";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -20,14 +22,14 @@ import TripLocationCard from "../../components/TripLocationCard";
 
 type InspectionMode = "none" | "pre-trip" | "post-trip";
 
-function TripModeScreenInner() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function TripModePage() {
+  const activeTripId = useValue(activeTripId$);
   const router = useRouter();
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
 
   // Get work trackers from Legend State
-  const workTrackers = useEnrichedWorkTrackers();
-  const workTracker = workTrackers.find((wt) => wt.work_tracker_id === parseInt(id || "0"));
+  const workTrackers = enrichedWorkTrackers$.get();
+  const workTracker = workTrackers.find((wt) => wt.work_tracker_id === activeTripId!);
 
   // Disable back button/gesture to prevent leaving trip mode
   useEffect(() => {
@@ -132,6 +134,13 @@ function TripModeScreenInner() {
           bleacherNumber={bleacherStr}
           notes={workTracker.notes || undefined}
         />
+        <TouchableOpacity
+          style={[styles.button]}
+          onPress={() => workTrackers$[workTracker.legend_state_uuid].status.set("accepted")}
+          // disabled={inspectionDisabled}
+        >
+          <Text style={[styles.buttonText]}>Back</Text>
+        </TouchableOpacity>
 
         {/* Pickup Card - Always enabled */}
         <TripLocationCard
@@ -230,5 +239,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
-export default observer(TripModeScreenInner);
