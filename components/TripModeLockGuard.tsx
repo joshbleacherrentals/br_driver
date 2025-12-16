@@ -1,8 +1,8 @@
-import { fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
-import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
+// import { fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
+import { useEnrichedWorkTrackers } from "@/hooks/useEnrichedWorkTrackers";
 import { isTripInProgress } from "@/utils/workTrackerUtils";
 import { useAuth } from "@clerk/clerk-expo";
-import { useQuery } from "@tanstack/react-query";
+import { observer } from "@legendapp/state/react";
 import { useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 
@@ -10,25 +10,16 @@ import { useEffect } from "react";
  * Global guard that redirects to trip mode if there's an active trip
  * Prevents users from accessing other screens while a trip is in progress
  */
-export default function TripModeLockGuard() {
-  const { userId, isSignedIn } = useAuth();
-  const supabase = useClerkSupabaseClient();
+function TripModeLockGuardInner() {
+  const { isSignedIn } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["workTrackers", userId],
-    enabled: !!isSignedIn && !!userId,
-    queryFn: async () => {
-      return await fetchWorkTrackersForClerkUser(supabase, userId);
-    },
-    refetchInterval: 10000, // Check every 10 seconds for active trips
-  });
+  const workTrackers = useEnrichedWorkTrackers();
 
   useEffect(() => {
-    if (!isSignedIn || isLoading) return;
+    if (!isSignedIn) return;
 
-    const workTrackers = data?.workTrackers ?? [];
     const inProgressTrip = workTrackers.find((t) => isTripInProgress(t));
 
     // Check if we're already on the trip-mode screen for this trip
@@ -41,7 +32,9 @@ export default function TripModeLockGuard() {
         router.replace(`/trip-mode/${inProgressTrip.work_tracker_id}`);
       }
     }
-  }, [data, isLoading, isSignedIn, segments, router]);
+  }, [isSignedIn, segments, router, workTrackers]);
 
   return null; // This component doesn't render anything
 }
+
+export default observer(TripModeLockGuardInner);

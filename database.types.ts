@@ -37,24 +37,33 @@ export type Database = {
           address_id: number;
           city: string;
           created_at: string;
+          deleted: boolean | null;
+          legend_state_uuid: string;
           state_province: string;
           street: string;
+          updated_at: string | null;
           zip_postal: string | null;
         };
         Insert: {
           address_id?: number;
           city: string;
           created_at?: string;
+          deleted?: boolean | null;
+          legend_state_uuid?: string;
           state_province: string;
           street: string;
+          updated_at?: string | null;
           zip_postal?: string | null;
         };
         Update: {
           address_id?: number;
           city?: string;
           created_at?: string;
+          deleted?: boolean | null;
+          legend_state_uuid?: string;
           state_province?: string;
           street?: string;
+          updated_at?: string | null;
           zip_postal?: string | null;
         };
         Relationships: [];
@@ -115,7 +124,9 @@ export type Database = {
           bleacher_seats: number;
           created_at: string;
           created_by: string | null;
+          deleted: boolean | null;
           home_base_id: number;
+          legend_state_uuid: string;
           linxup_device_id: string | null;
           summer_account_manager_id: number | null;
           updated_at: string | null;
@@ -130,7 +141,9 @@ export type Database = {
           bleacher_seats: number;
           created_at?: string;
           created_by?: string | null;
+          deleted?: boolean | null;
           home_base_id: number;
+          legend_state_uuid?: string;
           linxup_device_id?: string | null;
           summer_account_manager_id?: number | null;
           updated_at?: string | null;
@@ -145,7 +158,9 @@ export type Database = {
           bleacher_seats?: number;
           created_at?: string;
           created_by?: string | null;
+          deleted?: boolean | null;
           home_base_id?: number;
+          legend_state_uuid?: string;
           linxup_device_id?: string | null;
           summer_account_manager_id?: number | null;
           updated_at?: string | null;
@@ -260,9 +275,11 @@ export type Database = {
           account_manager_id: number | null;
           address_id: number | null;
           created_at: string;
+          deleted: boolean | null;
           driver_id: number;
           insurance_photo_path: string | null;
           is_active: boolean;
+          legend_state_uuid: string;
           license_photo_path: string | null;
           medical_card_photo_path: string | null;
           pay_currency: string;
@@ -270,6 +287,7 @@ export type Database = {
           pay_rate_cents: number;
           phone_number: string | null;
           tax: number;
+          updated_at: string | null;
           user_id: number;
           vehicle_id: number | null;
         };
@@ -277,9 +295,11 @@ export type Database = {
           account_manager_id?: number | null;
           address_id?: number | null;
           created_at?: string;
+          deleted?: boolean | null;
           driver_id?: number;
           insurance_photo_path?: string | null;
           is_active?: boolean;
+          legend_state_uuid?: string;
           license_photo_path?: string | null;
           medical_card_photo_path?: string | null;
           pay_currency?: string;
@@ -287,6 +307,7 @@ export type Database = {
           pay_rate_cents?: number;
           phone_number?: string | null;
           tax?: number;
+          updated_at?: string | null;
           user_id: number;
           vehicle_id?: number | null;
         };
@@ -294,9 +315,11 @@ export type Database = {
           account_manager_id?: number | null;
           address_id?: number | null;
           created_at?: string;
+          deleted?: boolean | null;
           driver_id?: number;
           insurance_photo_path?: string | null;
           is_active?: boolean;
+          legend_state_uuid?: string;
           license_photo_path?: string | null;
           medical_card_photo_path?: string | null;
           pay_currency?: string;
@@ -304,6 +327,7 @@ export type Database = {
           pay_rate_cents?: number;
           phone_number?: string | null;
           tax?: number;
+          updated_at?: string | null;
           user_id?: number;
           vehicle_id?: number | null;
         };
@@ -565,7 +589,7 @@ export type Database = {
           created_at: string | null;
           deleted: boolean | null;
           done: boolean | null;
-          legend_base_uuid: string;
+          legend_state_uuid: string;
           text: string | null;
           todo_id: number;
           updated_at: string | null;
@@ -574,7 +598,7 @@ export type Database = {
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
-          legend_base_uuid?: string;
+          legend_state_uuid?: string;
           text?: string | null;
           todo_id?: number;
           updated_at?: string | null;
@@ -583,7 +607,7 @@ export type Database = {
           created_at?: string | null;
           deleted?: boolean | null;
           done?: boolean | null;
-          legend_base_uuid?: string;
+          legend_state_uuid?: string;
           text?: string | null;
           todo_id?: number;
           updated_at?: string | null;
@@ -649,39 +673,48 @@ export type Database = {
           avatar_image_url: string | null;
           clerk_user_id: string | null;
           created_at: string;
+          deleted: boolean | null;
           email: string;
           first_name: string | null;
           is_admin: boolean;
           last_name: string | null;
+          legend_state_uuid: string;
           phone: string | null;
           role: number | null;
           status: number;
+          updated_at: string | null;
           user_id: number;
         };
         Insert: {
           avatar_image_url?: string | null;
           clerk_user_id?: string | null;
           created_at?: string;
+          deleted?: boolean | null;
           email: string;
           first_name?: string | null;
           is_admin?: boolean;
           last_name?: string | null;
+          legend_state_uuid?: string;
           phone?: string | null;
           role?: number | null;
           status?: number;
+          updated_at?: string | null;
           user_id?: number;
         };
         Update: {
           avatar_image_url?: string | null;
           clerk_user_id?: string | null;
           created_at?: string;
+          deleted?: boolean | null;
           email?: string;
           first_name?: string | null;
           is_admin?: boolean;
           last_name?: string | null;
+          legend_state_uuid?: string;
           phone?: string | null;
           role?: number | null;
           status?: number;
+          updated_at?: string | null;
           user_id?: number;
         };
         Relationships: [];
@@ -810,14 +843,18 @@ export type Database = {
           completed_at: string | null;
           created_at: string;
           date: string | null;
+          deleted: boolean | null;
           driver_id: number | null;
           dropoff_address_id: number | null;
+          dropoff_address_uuid: string | null;
           dropoff_poc: string | null;
           dropoff_time: string | null;
           internal_notes: string | null;
+          legend_state_uuid: string;
           notes: string | null;
           pay_cents: number | null;
           pickup_address_id: number | null;
+          pickup_address_uuid: string | null;
           pickup_poc: string | null;
           pickup_time: string | null;
           post_inspection_id: number | null;
@@ -825,7 +862,7 @@ export type Database = {
           released_at: string | null;
           started_at: string | null;
           status: Database["public"]["Enums"]["worktracker_status"];
-          updated_at: string;
+          updated_at: string | null;
           user_id: number | null;
           work_tracker_id: number;
         };
@@ -835,14 +872,18 @@ export type Database = {
           completed_at?: string | null;
           created_at?: string;
           date?: string | null;
+          deleted?: boolean | null;
           driver_id?: number | null;
           dropoff_address_id?: number | null;
+          dropoff_address_uuid?: string | null;
           dropoff_poc?: string | null;
           dropoff_time?: string | null;
           internal_notes?: string | null;
+          legend_state_uuid?: string;
           notes?: string | null;
           pay_cents?: number | null;
           pickup_address_id?: number | null;
+          pickup_address_uuid?: string | null;
           pickup_poc?: string | null;
           pickup_time?: string | null;
           post_inspection_id?: number | null;
@@ -850,7 +891,7 @@ export type Database = {
           released_at?: string | null;
           started_at?: string | null;
           status?: Database["public"]["Enums"]["worktracker_status"];
-          updated_at?: string;
+          updated_at?: string | null;
           user_id?: number | null;
           work_tracker_id?: number;
         };
@@ -860,14 +901,18 @@ export type Database = {
           completed_at?: string | null;
           created_at?: string;
           date?: string | null;
+          deleted?: boolean | null;
           driver_id?: number | null;
           dropoff_address_id?: number | null;
+          dropoff_address_uuid?: string | null;
           dropoff_poc?: string | null;
           dropoff_time?: string | null;
           internal_notes?: string | null;
+          legend_state_uuid?: string;
           notes?: string | null;
           pay_cents?: number | null;
           pickup_address_id?: number | null;
+          pickup_address_uuid?: string | null;
           pickup_poc?: string | null;
           pickup_time?: string | null;
           post_inspection_id?: number | null;
@@ -875,7 +920,7 @@ export type Database = {
           released_at?: string | null;
           started_at?: string | null;
           status?: Database["public"]["Enums"]["worktracker_status"];
-          updated_at?: string;
+          updated_at?: string | null;
           user_id?: number | null;
           work_tracker_id?: number;
         };
@@ -902,11 +947,25 @@ export type Database = {
             referencedColumns: ["address_id"];
           },
           {
+            foreignKeyName: "worktrackers_dropoff_address_uuid_fkey";
+            columns: ["dropoff_address_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Addresses";
+            referencedColumns: ["legend_state_uuid"];
+          },
+          {
             foreignKeyName: "worktrackers_pickup_address_id_fkey";
             columns: ["pickup_address_id"];
             isOneToOne: false;
             referencedRelation: "Addresses";
             referencedColumns: ["address_id"];
+          },
+          {
+            foreignKeyName: "worktrackers_pickup_address_uuid_fkey";
+            columns: ["pickup_address_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Addresses";
+            referencedColumns: ["legend_state_uuid"];
           },
           {
             foreignKeyName: "WorkTrackers_post_inspection_id_fkey";

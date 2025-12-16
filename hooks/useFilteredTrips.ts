@@ -1,4 +1,4 @@
-import { EnrichedWorkTracker } from "@/db/online/workTrackers";
+import { EnrichedWorkTracker } from "@/types/workTracker";
 import { getTodayAtMidnight, parseLocalDate } from "@/utils/dateUtils";
 import { useMemo } from "react";
 
@@ -11,7 +11,10 @@ export interface FilteredTrips {
 }
 
 export function useFilteredTrips(workTrackers: EnrichedWorkTracker[]): FilteredTrips {
+  console.log("[useFilteredTrips] Hook called with", workTrackers?.length, "trackers");
+
   return useMemo(() => {
+    console.log("[useFilteredTrips] useMemo recalculating with", workTrackers?.length, "trackers");
     const today = getTodayAtMidnight();
     const todayTime = today.getTime();
 
@@ -38,6 +41,14 @@ export function useFilteredTrips(workTrackers: EnrichedWorkTracker[]): FilteredT
       }
     }
 
+    console.log(
+      "[useFilteredTrips] Returning - today:",
+      todayTrips.length,
+      "upcoming:",
+      upcoming.length,
+      "past:",
+      past.length
+    );
     return { upcoming, today: todayTrips, past };
   }, [workTrackers]);
 }

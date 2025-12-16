@@ -1,10 +1,11 @@
 // app/_layout.tsx
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
-import TripModeLockGuard from "@/components/TripModeLockGuard";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
+import "@/utils/supabase/supaLegend/init";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
 import { useResyncTodosOnReconnect } from "@/utils/supabase/useResyncTodosOnReconnect";
+import { useSyncClerkToLegend } from "@/utils/supabase/useSyncClerkToLegend";
 import { ClerkLoaded, ClerkProvider } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -22,20 +23,23 @@ if (!publishableKey) {
   );
 }
 
+export const queryClient = new QueryClient();
+
 // 👇 This lives *inside* ClerkProvider
 function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | undefined }) {
   // This is now safe: useSession() sees ClerkProvider above it
-  console.log("AppShell rendered, setting up Supabase client with Clerk auth");
-  useClerkSupabaseClient();
+  // console.log("AppShell rendered, setting up Supabase client with Clerk auth");
+  const supabase = useClerkSupabaseClient();
   useResyncTodosOnReconnect();
+  useSyncClerkToLegend();
 
-  const queryClient = new QueryClient();
+  // const queryClient = new QueryClient();
 
   return (
     // <SupabaseAuthSync>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <TripModeLockGuard />
+        {/* <TripModeLockGuard /> */}
         <SyncStatusIndicator />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -63,10 +67,10 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    console.log("Fonts not loaded yet");
+    // console.log("Fonts not loaded yet");
     return null;
   }
-  console.log("Fonts loaded");
+  // console.log("Fonts loaded");
 
   return (
     <RootErrorBoundary>

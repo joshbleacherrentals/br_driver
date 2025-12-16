@@ -26,6 +26,10 @@ export interface WorkTracker {
   released_at: string | null;
   pre_inspection_id: number | null;
   post_inspection_id: number | null;
+  legend_state_uuid: string | null;
+  pickup_address_uuid: string | null;
+  dropoff_address_uuid: string | null;
+  deleted: boolean;
 }
 
 export interface Address {

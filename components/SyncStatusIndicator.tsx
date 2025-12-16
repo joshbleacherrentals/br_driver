@@ -1,6 +1,5 @@
-import { todos$ } from "@/db/todos";
+import { getAllSyncEntries } from "@/utils/supabase/supaLegend/util";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { syncState } from "@legendapp/state";
 import { observer } from "@legendapp/state/react";
 import NetInfo from "@react-native-community/netinfo";
 import { ComponentProps, useEffect, useState } from "react";
@@ -49,11 +48,48 @@ export const SyncStatusIndicator = observer(() => {
   const [isOnline, setIsOnline] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const state$ = syncState(todos$);
-  const state = state$.get();
+  // Static list of entries; the *contents* are reactive via .get()
+  const entries = getAllSyncEntries();
+  const snapshots = entries.map((entry) => entry.state$.get());
+  // const snapshotsforLogging = entries.map((entry) => {
+  //   const s = entry.state$.get();
+  //   return {
+  //     name: entry.name,
+  //     isGetting: !!s?.isGetting,
+  //     isSetting: !!s?.isSetting,
+  //     isLoaded: !!s?.isLoaded,
+  //     lastSync: s?.lastSync,
+  //     numPendingSets: s?.numPendingSets ?? 0,
+  //     pending: s?.getPendingChanges?.() ? Object.keys(s.getPendingChanges() ?? {}).length : 0,
+  //   };
+  // });
 
-  const pendingChanges = state?.getPendingChanges?.();
-  const hasPendingChanges = pendingChanges && Object.keys(pendingChanges).length > 0;
+  // console.log("Sync snapshots:", JSON.stringify(snapshotsforLogging, null, 2));
+
+  // Aggregate pending + error + busy across all stores
+  const totalPending = snapshots.reduce((sum, state) => {
+    const pc = state?.getPendingChanges?.();
+    return sum + (pc ? Object.keys(pc).length : 0);
+  }, 0);
+  const hasPendingChanges = totalPending > 0;
+
+  const anyError = snapshots.find((s) => s?.error);
+  // const anyBusy = snapshots.some(
+  //   (s) => !!s?.isGetting || !!s?.isSetting || (s?.numPendingSets ?? 0) > 0
+  // );
+  const anyBusy = snapshots.some(
+    // (s) => !!s?.isGetting || !!s?.isSetting
+    (s) => !!s?.isLoaded === false
+    // If you really want numPendingSets, guard it with "has pending":
+    // || ((s?.numPendingSets ?? 0) > 0 && s?.getPendingChanges && Object.keys(s.getPendingChanges()).length > 0)
+  );
+
+  const latestSyncTs = snapshots.reduce<number>((max, s) => {
+    const ts = s?.lastSync ? new Date(s.lastSync).getTime() : 0;
+    return ts > max ? ts : max;
+  }, 0);
+
+  const lastSync = latestSyncTs ? new Date(latestSyncTs).toLocaleTimeString() : "Never";
 
   // Monitor network status
   useEffect(() => {
@@ -63,48 +99,35 @@ export const SyncStatusIndicator = observer(() => {
     return () => unsubscribe();
   }, []);
 
-  // Clear stale error once we know everything is synced & online
+  // Clear global error once we’re online, idle and fully synced
   useEffect(() => {
-    const isBusy = !!state?.isGetting || !!state?.isSetting || (state?.numPendingSets ?? 0) > 0;
+    if (!isOnline) return;
+    if (anyBusy) return;
+    if (totalPending > 0) return;
+    // Clear errors on all states
+    entries.forEach((entry) => {
+      const s$ = entry.state$;
+      const s = s$.get();
+      if (s?.error) {
+        s$.error.set(undefined as any);
+      }
+    });
+  }, [isOnline, anyBusy, totalPending]);
 
-    if (isOnline && !isBusy && !hasPendingChanges && state?.error) {
-      // Clear last error – purely for UI
-      state$.error.set(undefined as any);
-    }
-  }, [isOnline, hasPendingChanges, state?.isGetting, state?.isSetting, state?.numPendingSets]);
-
-  // Determine current sync status
   const getStatus = (): SyncStatus => {
-    const err = state?.error as Error | undefined;
-
-    const pendingChanges = state?.getPendingChanges?.();
-    const hasPendingChanges = pendingChanges && Object.keys(pendingChanges).length > 0;
-
-    const isBusy = !!state?.isGetting || !!state?.isSetting || (state?.numPendingSets ?? 0) > 0;
-
     if (!isOnline) return "offline";
 
-    // 1️⃣ If we’re actively doing work, always show "syncing"
-    if (isBusy) return "syncing";
+    if (anyBusy) return "syncing";
 
-    // 2️⃣ If we’re *not* busy, but we have an error and pending changes,
-    //    that means "we tried and failed" -> show error.
-    if (err && hasPendingChanges) return "error";
+    if (anyError && totalPending > 0) return "error";
 
-    // 3️⃣ No error, but still pending -> queued changes waiting for retry
-    if (hasPendingChanges) return "pending";
+    if (totalPending > 0) return "pending";
 
-    // 4️⃣ Everything clean
     return "synced";
   };
 
   const status = getStatus();
   const config = STATUS_CONFIG[status];
-
-  // Get pending count from both sources
-  // const pendingChanges = state?.getPendingChanges?.();
-  const pendingCount = pendingChanges ? Object.keys(pendingChanges).length : 0;
-  const lastSync = state?.lastSync ? new Date(state.lastSync).toLocaleTimeString() : "Never";
 
   return (
     <>
@@ -159,16 +182,31 @@ export const SyncStatusIndicator = observer(() => {
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Pending Changes</Text>
-                <Text style={styles.infoValue}>{pendingCount}</Text>
+                <Text style={styles.infoValue}>{totalPending}</Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Last Sync</Text>
                 <Text style={styles.infoValue}>{lastSync}</Text>
               </View>
-              {state?.error && (
+              {/* Optional: show per-store info */}
+              {entries.map((entry) => {
+                const s = entry.state$.get();
+                const pc = s?.getPendingChanges?.();
+                const pending = pc ? Object.keys(pc).length : 0;
+                return (
+                  <View key={entry.name} style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { fontStyle: "italic" }]}>{entry.name}</Text>
+                    <Text style={styles.infoValue}>
+                      {pending} pending{s?.error ? " (error)" : ""}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {anyError && (
                 <View style={styles.errorBox}>
                   <Text style={styles.errorLabel}>Error</Text>
-                  <Text style={styles.errorText}>{state.error.message}</Text>
+                  <Text style={styles.errorText}>{(anyError.error as Error).message}</Text>
                 </View>
               )}
             </View>

@@ -8,25 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2DCECCCD0633CCDA4DEE7E94 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 434C94AA6598333867C6A971 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		A43430E7013D3C8FB5D0C276 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E6F73861D003B70A11F73D /* ExpoModulesProvider.swift */; };
+		84C6FBA033B2CF7448302729 /* libPods-BleacherRentalsDriver.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5C5FA36C49B53569083157CE /* libPods-BleacherRentalsDriver.a */; };
+		84D2B9D4CFDCAE6130F09FD9 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDBAA5557E644F8AB0D9E92 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		E88B7092E56AE74216F100C1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2C0378926999BBF54A0E307E /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		FEA34C6955918F17D1E362E6 /* libPods-BleacherRentalsDriver.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D87D154881F06D73F6D5C4A /* libPods-BleacherRentalsDriver.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0937FDB4DA10D979243451FA /* Pods-BleacherRentalsDriver.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BleacherRentalsDriver.release.xcconfig"; path = "Target Support Files/Pods-BleacherRentalsDriver/Pods-BleacherRentalsDriver.release.xcconfig"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* BleacherRentalsDriver.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BleacherRentalsDriver.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = BleacherRentalsDriver/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = BleacherRentalsDriver/Info.plist; sourceTree = "<group>"; };
-		1D87D154881F06D73F6D5C4A /* libPods-BleacherRentalsDriver.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BleacherRentalsDriver.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		2C0378926999BBF54A0E307E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = BleacherRentalsDriver/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		8C7B6092B7C899353DEE9EAB /* Pods-BleacherRentalsDriver.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BleacherRentalsDriver.release.xcconfig"; path = "Target Support Files/Pods-BleacherRentalsDriver/Pods-BleacherRentalsDriver.release.xcconfig"; sourceTree = "<group>"; };
-		8DB54546DB509BD7C0ABAED2 /* Pods-BleacherRentalsDriver.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BleacherRentalsDriver.debug.xcconfig"; path = "Target Support Files/Pods-BleacherRentalsDriver/Pods-BleacherRentalsDriver.debug.xcconfig"; sourceTree = "<group>"; };
-		A0E6F73861D003B70A11F73D /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-BleacherRentalsDriver/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		434C94AA6598333867C6A971 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = BleacherRentalsDriver/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5C5FA36C49B53569083157CE /* libPods-BleacherRentalsDriver.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BleacherRentalsDriver.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = BleacherRentalsDriver/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AEDBAA5557E644F8AB0D9E92 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-BleacherRentalsDriver/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		DBEE7B0245C8F8B46015FE27 /* Pods-BleacherRentalsDriver.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BleacherRentalsDriver.debug.xcconfig"; path = "Target Support Files/Pods-BleacherRentalsDriver/Pods-BleacherRentalsDriver.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = BleacherRentalsDriver/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* BleacherRentalsDriver-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "BleacherRentalsDriver-Bridging-Header.h"; path = "BleacherRentalsDriver/BleacherRentalsDriver-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -37,29 +37,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FEA34C6955918F17D1E362E6 /* libPods-BleacherRentalsDriver.a in Frameworks */,
+				84C6FBA033B2CF7448302729 /* libPods-BleacherRentalsDriver.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		08B7B7C8C422714D0A954F78 /* BleacherRentalsDriver */ = {
-			isa = PBXGroup;
-			children = (
-				A0E6F73861D003B70A11F73D /* ExpoModulesProvider.swift */,
-			);
-			name = BleacherRentalsDriver;
-			sourceTree = "<group>";
-		};
-		0BCBB23EDFCC8DEDFFC4A416 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				08B7B7C8C422714D0A954F78 /* BleacherRentalsDriver */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* BleacherRentalsDriver */ = {
 			isa = PBXGroup;
 			children = (
@@ -69,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				2C0378926999BBF54A0E307E /* PrivacyInfo.xcprivacy */,
+				434C94AA6598333867C6A971 /* PrivacyInfo.xcprivacy */,
 			);
 			name = BleacherRentalsDriver;
 			sourceTree = "<group>";
@@ -78,9 +62,17 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				1D87D154881F06D73F6D5C4A /* libPods-BleacherRentalsDriver.a */,
+				5C5FA36C49B53569083157CE /* libPods-BleacherRentalsDriver.a */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5DA214E9EB878DF4183E2427 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				832C536C784FB2F9A4009A60 /* BleacherRentalsDriver */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -90,6 +82,14 @@
 			name = Libraries;
 			sourceTree = "<group>";
 		};
+		832C536C784FB2F9A4009A60 /* BleacherRentalsDriver */ = {
+			isa = PBXGroup;
+			children = (
+				AEDBAA5557E644F8AB0D9E92 /* ExpoModulesProvider.swift */,
+			);
+			name = BleacherRentalsDriver;
+			sourceTree = "<group>";
+		};
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
@@ -97,8 +97,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				A000430D3D3265F675352B9D /* Pods */,
-				0BCBB23EDFCC8DEDFFC4A416 /* ExpoModulesProviders */,
+				DE95DC2D13C502F0CA2238B3 /* Pods */,
+				5DA214E9EB878DF4183E2427 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -113,16 +113,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A000430D3D3265F675352B9D /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				8DB54546DB509BD7C0ABAED2 /* Pods-BleacherRentalsDriver.debug.xcconfig */,
-				8C7B6092B7C899353DEE9EAB /* Pods-BleacherRentalsDriver.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -130,6 +120,16 @@
 			);
 			name = Supporting;
 			path = BleacherRentalsDriver/Supporting;
+			sourceTree = "<group>";
+		};
+		DE95DC2D13C502F0CA2238B3 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				DBEE7B0245C8F8B46015FE27 /* Pods-BleacherRentalsDriver.debug.xcconfig */,
+				0937FDB4DA10D979243451FA /* Pods-BleacherRentalsDriver.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "BleacherRentalsDriver" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				03C05F6651CDD52B3AA57905 /* [Expo] Configure project */,
+				0E36D1884FA767B063104AD6 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				979C0E5499167F3ADF9C228F /* [CP] Embed Pods Frameworks */,
+				93A06425A529CD279A3C8ED1 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -166,9 +166,7 @@
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
-						DevelopmentTeam = Y6RB8NQTFF;
 						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -198,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				E88B7092E56AE74216F100C1 /* PrivacyInfo.xcprivacy in Resources */,
+				2DCECCCD0633CCDA4DEE7E94 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -222,7 +220,29 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		03C05F6651CDD52B3AA57905 /* [Expo] Configure project */ = {
+		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-BleacherRentalsDriver-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		0E36D1884FA767B063104AD6 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -245,28 +265,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-BleacherRentalsDriver/expo-configure-project.sh\"\n";
-		};
-		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-BleacherRentalsDriver-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -304,7 +302,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-BleacherRentalsDriver/Pods-BleacherRentalsDriver-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		979C0E5499167F3ADF9C228F /* [CP] Embed Pods Frameworks */ = {
+		93A06425A529CD279A3C8ED1 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -334,7 +332,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				A43430E7013D3C8FB5D0C276 /* ExpoModulesProvider.swift in Sources */,
+				84D2B9D4CFDCAE6130F09FD9 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -343,15 +341,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8DB54546DB509BD7C0ABAED2 /* Pods-BleacherRentalsDriver.debug.xcconfig */;
+			baseConfigurationReference = DBEE7B0245C8F8B46015FE27 /* Pods-BleacherRentalsDriver.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = BleacherRentalsDriver/BleacherRentalsDriver.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y6RB8NQTFF;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -382,15 +377,12 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8C7B6092B7C899353DEE9EAB /* Pods-BleacherRentalsDriver.release.xcconfig */;
+			baseConfigurationReference = 0937FDB4DA10D979243451FA /* Pods-BleacherRentalsDriver.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = BleacherRentalsDriver/BleacherRentalsDriver.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y6RB8NQTFF;
 				INFOPLIST_FILE = BleacherRentalsDriver/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

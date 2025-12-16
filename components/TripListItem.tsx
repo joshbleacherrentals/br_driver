@@ -1,19 +1,17 @@
+import { acceptTrip } from "@/state/stores/workTrackers.store";
 import { WorkTrackerStatus } from "@/types/workTracker";
 import { openInMaps } from "@/utils/mapsUtils";
-import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
-import { acceptTrip, startTrip } from "@/utils/tripActions";
 import {
   canAcceptTrip,
   canStartTrip,
   getStatusColor,
   getStatusLabel,
 } from "@/utils/workTrackerUtils";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
-  workTrackerId: number;
+  legendStateUuid: string;
   status: WorkTrackerStatus;
   date: string;
   // Header
@@ -30,7 +28,7 @@ type Props = {
 };
 
 export default function TripsListItem({
-  workTrackerId,
+  legendStateUuid,
   status,
   date,
   headerTitle,
@@ -44,40 +42,12 @@ export default function TripsListItem({
   notes,
   onTripStart,
 }: Props) {
-  const supabase = useClerkSupabaseClient();
-  const queryClient = useQueryClient();
-
-  const acceptMutation = useMutation({
-    mutationFn: () => acceptTrip(supabase, workTrackerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
-    },
-    onError: (error) => {
-      console.error("Accept trip error:", error);
-      Alert.alert("Error", "Failed to accept trip. Please try again.");
-    },
-  });
-
-  const startMutation = useMutation({
-    mutationFn: () => startTrip(supabase, workTrackerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workTrackers"] });
-      if (onTripStart) {
-        onTripStart();
-      }
-    },
-    onError: (error) => {
-      console.error("Start trip error:", error);
-      Alert.alert("Error", "Failed to start trip. Please try again.");
-    },
-  });
-
   const handleAccept = () => {
-    acceptMutation.mutate();
+    acceptTrip(legendStateUuid);
   };
 
   const handleStart = () => {
-    startMutation.mutate();
+    // startMutation.mutate();
   };
 
   const content = (
@@ -149,13 +119,13 @@ export default function TripsListItem({
         <TouchableOpacity
           style={[styles.actionButton, styles.acceptButton]}
           onPress={handleAccept}
-          disabled={acceptMutation.isPending}
+          // disabled={acceptMutation.isPending}
         >
-          {acceptMutation.isPending ? (
+          {/* {acceptMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.actionButtonText}>Accept Trip</Text>
-          )}
+          )} */}
         </TouchableOpacity>
       )}
 
@@ -163,13 +133,13 @@ export default function TripsListItem({
         <TouchableOpacity
           style={[styles.actionButton, styles.startButton]}
           onPress={handleStart}
-          disabled={startMutation.isPending}
+          // disabled={startMutation.isPending}
         >
-          {startMutation.isPending ? (
+          {/* {startMutation.isPending ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.actionButtonText}>Start Trip</Text>
-          )}
+          )} */}
         </TouchableOpacity>
       )}
 

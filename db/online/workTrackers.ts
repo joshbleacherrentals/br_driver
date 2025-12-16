@@ -13,6 +13,7 @@ export async function fetchWorkTrackersForClerkUser(
   supabase: SupabaseClient<Database>,
   clerkUserId: string | undefined | null
 ): Promise<FetchWorkTrackersResult> {
+  console.log("Fetching work trackers for clerk user id", clerkUserId);
   if (!clerkUserId) return { workTrackers: null };
 
   // 1. Resolve internal user_id from Users table via clerk_user_id
@@ -21,7 +22,7 @@ export async function fetchWorkTrackersForClerkUser(
     .select("user_id")
     .eq("clerk_user_id", clerkUserId)
     .single();
-
+  console.log("Resolved internal user row:", userRow, "error:", userError);
   if (userError || !userRow) {
     console.warn("No matching user for clerk id", clerkUserId, userError?.message);
     return { workTrackers: [] };
@@ -35,6 +36,7 @@ export async function fetchWorkTrackersForClerkUser(
     .eq("user_id", userId)
     .neq("status", "draft") // Exclude drafts
     .order("date", { ascending: true });
+  console.log("Fetched work trackers:", trackers, "error:", trackersError);
 
   if (trackersError) {
     console.warn("Failed to fetch WorkTrackers", trackersError.message);
@@ -92,6 +94,8 @@ export async function fetchWorkTrackersForClerkUser(
     dropoff_address: t.dropoff_address_id ? dropoffMap.get(t.dropoff_address_id) : undefined,
     bleacher: t.bleacher_id ? bleacherMap.get(t.bleacher_id) : undefined,
   }));
-
+  console.log(
+    `Fetched ${enriched.length} work trackers for clerk user ${clerkUserId} (internal user ${userId})`
+  );
   return { workTrackers: enriched };
 }

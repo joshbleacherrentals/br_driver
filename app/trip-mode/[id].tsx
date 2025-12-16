@@ -1,13 +1,10 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import { fetchWorkTrackersForClerkUser } from "@/db/online/workTrackers";
-import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
+import { useEnrichedWorkTrackers } from "@/hooks/useEnrichedWorkTrackers";
 import { formatPayment } from "@/utils/workTrackerUtils";
-import { useAuth } from "@clerk/clerk-expo";
-import { useQuery } from "@tanstack/react-query";
+import { observer } from "@legendapp/state/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   BackHandler,
   ScrollView,
@@ -23,12 +20,14 @@ import TripLocationCard from "../../components/TripLocationCard";
 
 type InspectionMode = "none" | "pre-trip" | "post-trip";
 
-export default function TripModeScreen() {
+function TripModeScreenInner() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { userId } = useAuth();
-  const supabase = useClerkSupabaseClient();
   const router = useRouter();
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
+
+  // Get work trackers from Legend State
+  const workTrackers = useEnrichedWorkTrackers();
+  const workTracker = workTrackers.find((wt) => wt.work_tracker_id === parseInt(id || "0"));
 
   // Disable back button/gesture to prevent leaving trip mode
   useEffect(() => {
@@ -45,29 +44,21 @@ export default function TripModeScreen() {
     return () => backHandler.remove();
   }, []);
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["workTrackers", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      return await fetchWorkTrackersForClerkUser(supabase, userId);
-    },
-  });
-
-  const workTracker = data?.workTrackers?.find((wt) => wt.work_tracker_id === parseInt(id || "0"));
-
   // Check inspection status early - check for FK IDs instead of JSONB data
   const hasPreTripInspection = !!workTracker?.pre_inspection_id;
   const hasPostTripInspection = !!workTracker?.post_inspection_id;
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" style={{ marginTop: 100 }} />
-      </SafeAreaView>
-    );
-  }
+  // If both inspections are complete, trip is finished - redirect
+  useEffect(() => {
+    if (hasPreTripInspection && hasPostTripInspection) {
+      const timer = setTimeout(() => {
+        router.replace("/(tabs)");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasPreTripInspection, hasPostTripInspection, router]);
 
-  if (isError || !workTracker) {
+  if (!workTracker) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -79,16 +70,6 @@ export default function TripModeScreen() {
       </SafeAreaView>
     );
   }
-
-  // If both inspections are complete, trip is finished - redirect
-  useEffect(() => {
-    if (hasPreTripInspection && hasPostTripInspection) {
-      const timer = setTimeout(() => {
-        router.replace("/(tabs)");
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [hasPreTripInspection, hasPostTripInspection, router]);
 
   // Show inspection forms first, before main view
   if (inspectionMode === "pre-trip") {
@@ -249,3 +230,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+export default observer(TripModeScreenInner);
