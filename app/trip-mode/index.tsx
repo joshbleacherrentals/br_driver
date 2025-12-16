@@ -1,9 +1,7 @@
 import { PRIMARY } from "@/constants/AuthStyles";
-import { enrichedWorkTrackers$ } from "@/state/computes/enrichedWorkTrackers";
-import { activeTripId$ } from "@/state/session/activeTrip";
+import { activeTrip$ } from "@/state/session/activeTrip";
 import { workTrackers$ } from "@/state/stores/workTrackers.store";
-import { formatPayment } from "@/utils/workTrackerUtils";
-import { useValue } from "@legendapp/state/react";
+import { useSelector } from "@legendapp/state/react";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -23,18 +21,15 @@ import TripLocationCard from "../../components/TripLocationCard";
 type InspectionMode = "none" | "pre-trip" | "post-trip";
 
 export default function TripModePage() {
-  const activeTripId = useValue(activeTripId$);
   const router = useRouter();
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
 
-  // Get work trackers from Legend State
-  const workTrackers = enrichedWorkTrackers$.get();
-  const workTracker = workTrackers.find((wt) => wt.work_tracker_id === activeTripId!);
+  // Get the active trip directly from the computed observable
+  const workTracker = useSelector(() => activeTrip$.get());
 
   // Disable back button/gesture to prevent leaving trip mode
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Return true to prevent default back behavior
       Alert.alert(
         "Trip in Progress",
         "You must complete the trip before returning to the trips list.",
@@ -64,9 +59,9 @@ export default function TripModePage() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Trip not found</Text>
-          <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-            <Text style={styles.buttonText}>Go Back</Text>
+          <Text style={styles.errorText}>No active trip</Text>
+          <TouchableOpacity style={styles.button} onPress={() => router.replace("/(tabs)")}>
+            <Text style={styles.buttonText}>Go to Trips</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -104,66 +99,28 @@ export default function TripModePage() {
     );
   }
 
-  // Format data
-  const payStr = formatPayment(workTracker.pay_cents);
-  const bleacherStr = workTracker.bleacher?.bleacher_number
-    ? `Bleacher #${workTracker.bleacher.bleacher_number}`
-    : "";
-
-  const pickupAddr = workTracker.pickup_address
-    ? `${workTracker.pickup_address.street}, ${workTracker.pickup_address.city}, ${
-        workTracker.pickup_address.state_province
-      }${workTracker.pickup_address.zip_postal ? " " + workTracker.pickup_address.zip_postal : ""}`
-    : "";
-
-  const dropoffAddr = workTracker.dropoff_address
-    ? `${workTracker.dropoff_address.street}, ${workTracker.dropoff_address.city}, ${
-        workTracker.dropoff_address.state_province
-      }${
-        workTracker.dropoff_address.zip_postal ? " " + workTracker.dropoff_address.zip_postal : ""
-      }`
-    : "";
+  // Format data - no longer needed, components pull from activeTrip$ directly
 
   // Main trip mode view
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header with Pay, Bleacher, Notes */}
-        <TripHeader
-          payAmount={payStr}
-          bleacherNumber={bleacherStr}
-          notes={workTracker.notes || undefined}
-        />
+        <TripHeader />
+
+        {/* DEV: Back button to exit trip mode */}
         <TouchableOpacity
-          style={[styles.button]}
+          style={styles.button}
           onPress={() => workTrackers$[workTracker.legend_state_uuid].status.set("accepted")}
-          // disabled={inspectionDisabled}
         >
-          <Text style={[styles.buttonText]}>Back</Text>
+          <Text style={styles.buttonText}>Back (Dev)</Text>
         </TouchableOpacity>
 
         {/* Pickup Card - Always enabled */}
-        <TripLocationCard
-          type="pickup"
-          stepNumber={1}
-          address={pickupAddr}
-          time={workTracker.pickup_time || undefined}
-          poc={workTracker.pickup_poc || undefined}
-          inspectionCompleted={hasPreTripInspection}
-          onStartInspection={() => setInspectionMode("pre-trip")}
-        />
+        <TripLocationCard type="pickup" onStartInspection={() => setInspectionMode("pre-trip")} />
 
         {/* Dropoff Card - Disabled until pre-trip complete */}
-        <TripLocationCard
-          type="dropoff"
-          stepNumber={2}
-          address={dropoffAddr}
-          time={workTracker.dropoff_time || undefined}
-          poc={workTracker.dropoff_poc || undefined}
-          inspectionCompleted={hasPostTripInspection}
-          inspectionDisabled={!hasPreTripInspection}
-          onStartInspection={() => setInspectionMode("post-trip")}
-        />
+        <TripLocationCard type="dropoff" onStartInspection={() => setInspectionMode("post-trip")} />
 
         {/* Both Inspections Complete */}
         {hasPreTripInspection && hasPostTripInspection && (

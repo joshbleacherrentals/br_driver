@@ -1,32 +1,40 @@
 import { PRIMARY, PRIMARY_LIGHT } from "@/constants/AuthStyles";
+import { activeTrip$ } from "@/state/session/activeTrip";
 import { openInMaps } from "@/utils/mapsUtils";
+import { useSelector } from "@legendapp/state/react";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface TripLocationCardProps {
   type: "pickup" | "dropoff";
-  stepNumber: number;
-  address: string;
-  time?: string | null;
-  poc?: string | null;
-  inspectionCompleted?: boolean;
-  inspectionDisabled?: boolean;
   onStartInspection: () => void;
 }
 
-export default function TripLocationCard({
-  type,
-  stepNumber,
-  address,
-  time,
-  poc,
-  inspectionCompleted,
-  inspectionDisabled,
-  onStartInspection,
-}: TripLocationCardProps) {
-  const title = type === "pickup" ? "Pickup Location" : "Drop-off Location";
-  const inspectionLabel =
-    type === "pickup" ? "Start Pre-Trip Inspection" : "Start Post-Trip Inspection";
+export default function TripLocationCard({ type, onStartInspection }: TripLocationCardProps) {
+  const activeTrip = useSelector(() => activeTrip$.get());
+
+  if (!activeTrip) return null;
+
+  const isPickup = type === "pickup";
+  const stepNumber = isPickup ? 1 : 2;
+  const title = isPickup ? "Pickup Location" : "Drop-off Location";
+  const inspectionLabel = isPickup ? "Start Pre-Trip Inspection" : "Start Post-Trip Inspection";
+
+  // Get the right address based on type
+  const addressData = isPickup ? activeTrip.pickup_address : activeTrip.dropoff_address;
+  const address = addressData
+    ? `${addressData.street}, ${addressData.city}, ${addressData.state_province}${
+        addressData.zip_postal ? " " + addressData.zip_postal : ""
+      }`
+    : "";
+  const time = isPickup ? activeTrip.pickup_time : activeTrip.dropoff_time;
+  const poc = isPickup ? activeTrip.pickup_poc : activeTrip.dropoff_poc;
+
+  // Inspection status
+  const hasPreTripInspection = !!activeTrip.pre_inspection_id;
+  const hasPostTripInspection = !!activeTrip.post_inspection_id;
+  const inspectionCompleted = isPickup ? hasPreTripInspection : hasPostTripInspection;
+  const inspectionDisabled = !isPickup && !hasPreTripInspection;
 
   return (
     <View style={[styles.card, inspectionDisabled && styles.cardDisabled]}>

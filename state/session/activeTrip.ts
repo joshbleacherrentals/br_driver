@@ -1,23 +1,17 @@
-import { observable } from "@legendapp/state";
-import { workTrackers$ } from "../stores/workTrackers.store";
+import { computed } from "@legendapp/state";
+import { EnrichedWorkTracker, enrichedWorkTrackers$ } from "../computes/enrichedWorkTrackers";
 
-type WorkTracker = {
-  work_tracker_id: number;
-  status: string | null;
-  deleted?: boolean | null;
-};
+/**
+ * Returns the currently active (in_progress) enriched work tracker, or null if none.
+ * This is a computed observable that automatically updates when workTrackers$ changes.
+ */
+export const activeTrip$ = computed<EnrichedWorkTracker | null>(() => {
+  const enrichedTrackers = enrichedWorkTrackers$.get();
 
-export const activeTripId$ = observable<number | null>(() => {
-  const wts = workTrackers$.get();
+  if (!enrichedTrackers || enrichedTrackers.length === 0) return null;
 
-  if (!wts) return null;
+  // Find the first in_progress trip
+  const activeTrip = enrichedTrackers.find((wt) => wt.status === "in_progress");
 
-  const list = Object.values(wts);
-
-  for (const wt of list) {
-    if (!wt || wt.deleted) continue;
-    if (wt.status === "in_progress") return wt.work_tracker_id;
-  }
-
-  return null;
+  return activeTrip ?? null;
 });

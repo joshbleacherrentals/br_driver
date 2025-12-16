@@ -1,20 +1,26 @@
 import { PRIMARY } from "@/constants/AuthStyles";
+import { activeTrip$ } from "@/state/session/activeTrip";
+import { formatPayment } from "@/utils/workTrackerUtils";
+import { useSelector } from "@legendapp/state/react";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-interface TripHeaderProps {
-  payAmount: string;
-  bleacherNumber?: string;
-  notes?: string | null;
-}
+export default function TripHeader() {
+  const activeTrip = useSelector(() => activeTrip$.get());
 
-export default function TripHeader({ payAmount, bleacherNumber, notes }: TripHeaderProps) {
+  if (!activeTrip) return null;
+
+  const payAmount = formatPayment(activeTrip.pay_cents);
+  const bleacherNumber = activeTrip.bleacher?.bleacher_number
+    ? `Bleacher #${activeTrip.bleacher.bleacher_number}`
+    : "";
+  const notes = activeTrip.notes;
+
   return (
     <View style={styles.container}>
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           {payAmount ? <Text style={styles.payAmount}>{payAmount}</Text> : null}
-          {/* {bleacherNumber ? <Text style={styles.bleacherNumber}>{bleacherNumber}</Text> : null} */}
         </View>
         <Text style={styles.bleacherNumber}>{`Deliver ${bleacherNumber}`}</Text>
 
