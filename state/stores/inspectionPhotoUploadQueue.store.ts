@@ -1,5 +1,6 @@
 import { cacheVersion } from "@/constants/cache";
 import { persistPluginLocal } from "@/utils/supabase/supaLegend/persistPlugin";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { observable } from "@legendapp/state";
 import { syncObservable } from "@legendapp/state/sync";
 
@@ -21,3 +22,5 @@ syncObservable(inspectionPhotoUploadQueue$, {
     plugin: persistPluginLocal,
   },
 });
+
+registerSyncedStore("inspectionPhotoUploadQueue", inspectionPhotoUploadQueue$);

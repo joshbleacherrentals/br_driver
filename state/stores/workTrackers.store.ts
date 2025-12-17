@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { observable, syncState } from "@legendapp/state";
 import { currentDriver$ } from "./drivers.store";
 
@@ -25,9 +26,11 @@ export const workTrackers$ = observable(
       delay: 1000,
       maxDelay: 30000,
     },
-    waitFor: () => !!currentDriver$.driver_id.get(),
+    // waitFor: () => !!currentDriver$.driver_id.get(),
   })
 );
+
+registerSyncedStore("workTrackers", workTrackers$);
 
 const wtState$ = syncState(workTrackers$);
 export function acceptTrip(id: string) {

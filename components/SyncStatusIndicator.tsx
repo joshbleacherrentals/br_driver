@@ -3,7 +3,15 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { observer } from "@legendapp/state/react";
 import NetInfo from "@react-native-community/netinfo";
 import { ComponentProps, useEffect, useState } from "react";
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type SyncStatus = "offline" | "syncing" | "pending" | "synced" | "error";
 type MaterialIconName = ComponentProps<typeof MaterialIcons>["name"];
@@ -44,45 +52,69 @@ const STATUS_CONFIG: Record<
   },
 };
 
+type StoreStatus = {
+  name: string;
+  pendingCount: number;
+  isLoading: boolean;
+  hasError: boolean;
+  errorMessage: string | null;
+  lastSync: string | null;
+};
+
+type ExpandedStoreInfo = {
+  name: string;
+  error: string | null;
+  isLoaded: boolean;
+  isPersistLoaded: boolean;
+  isPersistEnabled: boolean;
+  isSyncEnabled: boolean;
+  lastSync: string | null;
+  syncCount: number | null;
+  isGetting: boolean;
+  isSetting: boolean;
+  numPendingGets: number | null;
+  numPendingSets: number | null;
+  numPendingRemoteLoads: number | null;
+  pendingChanges: Record<string, { p: any; v?: any }> | null;
+};
+
+const isNetworkError = (error: any): boolean => {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Network request failed");
+};
+
 export const SyncStatusIndicator = observer(() => {
   const [isOnline, setIsOnline] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [expandedStore, setExpandedStore] = useState<ExpandedStoreInfo | null>(null);
 
   // Static list of entries; the *contents* are reactive via .get()
   const entries = getAllSyncEntries();
   const snapshots = entries.map((entry) => entry.state$.get());
-  // const snapshotsforLogging = entries.map((entry) => {
-  //   const s = entry.state$.get();
-  //   return {
-  //     name: entry.name,
-  //     isGetting: !!s?.isGetting,
-  //     isSetting: !!s?.isSetting,
-  //     isLoaded: !!s?.isLoaded,
-  //     lastSync: s?.lastSync,
-  //     numPendingSets: s?.numPendingSets ?? 0,
-  //     pending: s?.getPendingChanges?.() ? Object.keys(s.getPendingChanges() ?? {}).length : 0,
-  //   };
-  // });
 
-  // console.log("Sync snapshots:", JSON.stringify(snapshotsforLogging, null, 2));
+  const storeStatuses: StoreStatus[] = entries.map((entry, index) => {
+    const s = snapshots[index];
+    const pc = s?.getPendingChanges?.();
+    const pendingCount = pc ? Object.keys(pc).length : 0;
+    const error = s?.error;
+    const errorMessage = error ? (error instanceof Error ? error.message : String(error)) : null;
+    const isRealError = error && !(isNetworkError(error) && !isOnline);
 
-  // Aggregate pending + error + busy across all stores
-  const totalPending = snapshots.reduce((sum, state) => {
-    const pc = state?.getPendingChanges?.();
-    return sum + (pc ? Object.keys(pc).length : 0);
-  }, 0);
-  const hasPendingChanges = totalPending > 0;
+    return {
+      name: entry.name,
+      pendingCount,
+      isLoading: s?.isLoaded === false,
+      hasError: !!isRealError,
+      errorMessage,
+      lastSync: s?.lastSync ? new Date(s.lastSync).toLocaleTimeString() : null,
+    };
+  });
 
-  const anyError = snapshots.find((s) => s?.error);
-  // const anyBusy = snapshots.some(
-  //   (s) => !!s?.isGetting || !!s?.isSetting || (s?.numPendingSets ?? 0) > 0
-  // );
-  const anyBusy = snapshots.some(
-    // (s) => !!s?.isGetting || !!s?.isSetting
-    (s) => !!s?.isLoaded === false
-    // If you really want numPendingSets, guard it with "has pending":
-    // || ((s?.numPendingSets ?? 0) > 0 && s?.getPendingChanges && Object.keys(s.getPendingChanges()).length > 0)
-  );
+  const totalPending = storeStatuses.reduce((sum, s) => sum + s.pendingCount, 0);
+  const storesWithErrors = storeStatuses.filter((s) => s.hasError);
+  const anyError = storesWithErrors.length > 0;
+  const anyLoading = storeStatuses.some((s) => s.isLoading);
 
   const latestSyncTs = snapshots.reduce<number>((max, s) => {
     const ts = s?.lastSync ? new Date(s.lastSync).getTime() : 0;
@@ -101,9 +133,10 @@ export const SyncStatusIndicator = observer(() => {
 
   // Clear global error once we’re online, idle and fully synced
   useEffect(() => {
-    if (!isOnline) return;
-    if (anyBusy) return;
+    if (anyLoading) return;
     if (totalPending > 0) return;
+    if (anyError) return;
+    if (!isOnline) return;
     // Clear errors on all states
     entries.forEach((entry) => {
       const s$ = entry.state$;
@@ -112,22 +145,63 @@ export const SyncStatusIndicator = observer(() => {
         s$.error.set(undefined as any);
       }
     });
-  }, [isOnline, anyBusy, totalPending]);
+  }, [isOnline, anyLoading, totalPending]);
 
   const getStatus = (): SyncStatus => {
-    if (!isOnline) return "offline";
-
-    if (anyBusy) return "syncing";
-
-    if (anyError && totalPending > 0) return "error";
-
+    if (anyLoading) return "syncing";
+    if (anyError) return "error";
     if (totalPending > 0) return "pending";
-
+    if (!isOnline) return "offline";
     return "synced";
   };
 
   const status = getStatus();
   const config = STATUS_CONFIG[status];
+
+  const handleStorePress = (entryName: string, s: any) => {
+    const pendingChanges = s?.getPendingChanges?.() ?? null;
+
+    const info: ExpandedStoreInfo = {
+      name: entryName,
+      error: s?.error ? (s.error instanceof Error ? s.error.message : String(s.error)) : null,
+      isLoaded: s?.isLoaded ?? false,
+      isPersistLoaded: s?.isPersistLoaded ?? false,
+      isPersistEnabled: s?.isPersistEnabled ?? false,
+      isSyncEnabled: s?.isSyncEnabled ?? false,
+      lastSync: s?.lastSync ? new Date(s.lastSync).toISOString() : null,
+      syncCount: s?.syncCount ?? null,
+      isGetting: s?.isGetting ?? false,
+      isSetting: s?.isSetting ?? false,
+      numPendingGets: s?.numPendingGets ?? null,
+      numPendingSets: s?.numPendingSets ?? null,
+      numPendingRemoteLoads: s?.numPendingRemoteLoads ?? null,
+      pendingChanges: pendingChanges,
+    };
+
+    // Use JSON.stringify with a replacer to handle circular references and show full objects/arrays
+    try {
+      console.warn(
+        "[SyncStatusIndicator] Expanded store info:",
+        JSON.stringify(
+          info,
+          (key, value) => {
+            if (typeof value === "object" && value !== null) {
+              if (Array.isArray(value)) return value;
+              // Avoid circular reference
+              if (value._visited) return "[Circular]";
+              Object.defineProperty(value, "_visited", { value: true, enumerable: false });
+            }
+            return value;
+          },
+          2
+        )
+      );
+    } catch (err) {
+      console.warn("[SyncStatusIndicator] Expanded store info (raw):", info);
+    }
+
+    setExpandedStore(info);
+  };
 
   return (
     <>
@@ -151,12 +225,19 @@ export const SyncStatusIndicator = observer(() => {
         animationType="fade"
         onRequestClose={() => setModalVisible(false)}
       >
-        <TouchableOpacity
+        <View
           style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setModalVisible(false)}
+          // activeOpacity={1}
+          // onPress={() => {
+          //   // setModalVisible(false);
+          //   setExpandedStore(null);
+          // }}
         >
-          <View style={styles.modalContent}>
+          <View
+            style={styles.modalContent}
+            // onStartShouldSetResponder={() => true}
+            // onTouchEnd={(e) => e.stopPropagation()}
+          >
             <View style={styles.modalHeader}>
               <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
                 {status === "syncing" ? (
@@ -168,50 +249,121 @@ export const SyncStatusIndicator = observer(() => {
                   {config.label}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => {
+                  setModalVisible(false);
+                  setExpandedStore(null);
+                }}
+              >
                 <MaterialIcons name="close" size={24} color="#999" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.infoSection}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Network</Text>
-                <Text style={[styles.infoValue, { color: isOnline ? "#34C759" : "#FF3B30" }]}>
-                  {isOnline ? "Connected" : "Offline"}
-                </Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Pending Changes</Text>
-                <Text style={styles.infoValue}>{totalPending}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Last Sync</Text>
-                <Text style={styles.infoValue}>{lastSync}</Text>
-              </View>
-              {/* Optional: show per-store info */}
-              {entries.map((entry) => {
-                const s = entry.state$.get();
-                const pc = s?.getPendingChanges?.();
-                const pending = pc ? Object.keys(pc).length : 0;
-                return (
-                  <View key={entry.name} style={styles.infoRow}>
-                    <Text style={[styles.infoLabel, { fontStyle: "italic" }]}>{entry.name}</Text>
-                    <Text style={styles.infoValue}>
-                      {pending} pending{s?.error ? " (error)" : ""}
-                    </Text>
-                  </View>
-                );
-              })}
-
-              {anyError && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorLabel}>Error</Text>
-                  <Text style={styles.errorText}>{(anyError.error as Error).message}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setExpandedStore(null);
+                }}
+              >
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Network</Text>
+                  <Text style={[styles.infoValue, { color: isOnline ? "#34C759" : "#FF3B30" }]}>
+                    {isOnline ? "Connected" : "Offline"}
+                  </Text>
                 </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Pending Changes</Text>
+                  <Text style={styles.infoValue}>{totalPending}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Last Sync</Text>
+                  <Text style={styles.infoValue}>{lastSync}</Text>
+                </View>
+              </TouchableOpacity>
+              {/* Optional: show per-store info */}
+              {expandedStore !== null ? (
+                <ScrollView style={styles.errorBox}>
+                  <View>
+                    <Text style={styles.errorText}>{JSON.stringify(expandedStore, null, 2)}</Text>
+                  </View>
+                </ScrollView>
+              ) : (
+                entries.map((entry) => {
+                  const s = entry.state$.get();
+                  const pc = s?.getPendingChanges?.();
+                  const pending = pc ? Object.keys(pc).length : 0;
+                  const isLoading = s?.isLoaded === false;
+                  const error = s.error?.message ?? null;
+                  const isRealError = error && !(isNetworkError(error) && !isOnline);
+                  return (
+                    <TouchableOpacity
+                      key={entry.name}
+                      onPress={() => handleStorePress(entry.name, s)}
+                    >
+                      <View key={entry.name} style={styles.infoRow}>
+                        <Text style={[styles.infoLabel, { fontStyle: "italic" }]}>
+                          {entry.name}
+                        </Text>
+                        {!!isRealError ? (
+                          <View
+                            style={[
+                              styles.storeStatusCircle,
+                              { backgroundColor: STATUS_CONFIG.error.bgColor },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="error"
+                              size={14}
+                              color={STATUS_CONFIG.error.bgColor}
+                            />
+                          </View>
+                        ) : pending > 0 ? (
+                          <View
+                            style={[
+                              styles.storeStatusCircle,
+                              { backgroundColor: STATUS_CONFIG.pending.bgColor },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.storeStatusCount,
+                                { color: STATUS_CONFIG.pending.color },
+                              ]}
+                            >
+                              {pending}
+                            </Text>
+                          </View>
+                        ) : isLoading ? (
+                          <View
+                            style={[
+                              styles.storeStatusCircle,
+                              { backgroundColor: STATUS_CONFIG.syncing.bgColor },
+                            ]}
+                          >
+                            <ActivityIndicator size="small" color={STATUS_CONFIG.syncing.color} />
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.storeStatusCircle,
+                              { backgroundColor: STATUS_CONFIG.synced.bgColor },
+                            ]}
+                          >
+                            <MaterialIcons
+                              name="check"
+                              size={14}
+                              color={STATUS_CONFIG.synced.color}
+                            />
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </>
   );
@@ -297,6 +449,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "#FFCDD2",
+    height: 400,
   },
   errorLabel: {
     fontSize: 12,
@@ -343,5 +496,16 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     marginRight: 2,
+  },
+  storeStatusCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  storeStatusCount: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

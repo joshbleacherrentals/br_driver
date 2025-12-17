@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { observable, observe } from "@legendapp/state";
 import { session$ } from "../session/session";
 
@@ -23,10 +24,12 @@ export const currentUser$ = observable(
       name: `currentUser_${cacheVersion}`,
       retrySync: true, // Persist pending changes and retry
     },
-    waitFor: () => !!session$.clerkUserId.get() != null,
-    onError: (error) => console.error("Synced Supabase error:", error),
+    // waitFor: () => !!session$.clerkUserId.get() != null,
+    // onError: (error) => console.error("Synced Supabase error:", error),
   })
 );
+
+registerSyncedStore("currentUser", currentUser$);
 
 console.log("CurrentUser store initialized");
 

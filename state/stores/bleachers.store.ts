@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { computed, observable, observe, syncState } from "@legendapp/state";
 import { workTrackers$ } from "./workTrackers.store";
 
@@ -44,9 +45,11 @@ export const bleachers$ = observable(
       name: `driverBleachers_${cacheVersion}}`,
       retrySync: true,
     },
-    waitFor: () => bleacherIds$.get().length > 0,
+    // waitFor: () => bleacherIds$.get().length > 0,
   })
 );
+
+registerSyncedStore("bleachers", bleachers$);
 
 const bleachersSync = syncState(bleachers$);
 observe(() => {

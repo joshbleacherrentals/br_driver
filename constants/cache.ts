@@ -1,3 +1,3 @@
-const cacheVersionNum: number = 49;
+const cacheVersionNum: number = 53;
 
 export const cacheVersion = `v${cacheVersionNum}`;

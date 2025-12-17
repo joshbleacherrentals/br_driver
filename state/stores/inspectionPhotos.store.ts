@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { computed, observable } from "@legendapp/state";
 import { workTrackerInspections$ } from "./workTrackerInspections.store";
 
@@ -45,6 +46,8 @@ export const inspectionPhotos$ = observable(
       delay: 1000,
       maxDelay: 30000,
     },
-    waitFor: () => inspectionPhotoUuids$.get().length > 0,
+    // waitFor: () => inspectionPhotoUuids$.get().length > 0,
   })
 );
+
+registerSyncedStore("inspectionPhotos", inspectionPhotos$);

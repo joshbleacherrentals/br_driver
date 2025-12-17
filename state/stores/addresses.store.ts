@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { computed, observable, observe } from "@legendapp/state";
 import { workTrackers$ } from "./workTrackers.store";
 
@@ -49,9 +50,11 @@ export const addresses$ = observable(
       name: `addresses_uuid_${cacheVersion}`,
       retrySync: true,
     },
-    waitFor: () => addressUuids$.get().length > 0,
+    // waitFor: () => addressUuids$.get().length > 0,
   })
 );
+
+registerSyncedStore("addresses", addresses$);
 
 observe(() => {
   addresses$.get();

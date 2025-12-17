@@ -6,6 +6,9 @@ import "@/state/stores/inspectionPhotos.store";
 import "@/state/stores/users.store";
 import "@/state/stores/workTrackerInspections.store";
 import "@/state/stores/workTrackers.store";
+import { resyncOnForground } from "./appLifeCycle";
 import "./config";
+
+resyncOnForground();
 
 console.log("[supaLegend] init complete (stores imported)");

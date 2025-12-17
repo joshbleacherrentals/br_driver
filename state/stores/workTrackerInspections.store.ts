@@ -1,6 +1,7 @@
 import { cacheVersion } from "@/constants/cache";
 import { supabase } from "@/utils/supabase/supabaseClient";
 import { customSynced } from "@/utils/supabase/supaLegend/config";
+import { registerSyncedStore } from "@/utils/supabase/supaLegend/util";
 import { computed, observable } from "@legendapp/state";
 import { workTrackers$ } from "./workTrackers.store";
 
@@ -28,9 +29,9 @@ export const workTrackerInspections$ = observable(
     select: (from: any) => from.select("*"),
     filter: (q) => {
       const uuids = inspectionUuids$.get();
-      if (!uuids.length) {
-        return q.eq("inspection_uuid", "00000000-0000-0000-0000-000000000000");
-      }
+      //   if (!uuids.length) {
+      //     return q.eq("inspection_uuid", "00000000-0000-0000-0000-000000000000");
+      //   }
       return q.in("inspection_uuid", uuids);
     },
     actions: ["read", "create", "update", "delete"],
@@ -47,6 +48,8 @@ export const workTrackerInspections$ = observable(
       delay: 1000,
       maxDelay: 30000,
     },
-    waitFor: () => inspectionUuids$.get().length > 0,
+    // waitFor: () => inspectionUuids$.get().length > 0,
   })
 );
+
+registerSyncedStore("workTrackerInspections", workTrackerInspections$);
