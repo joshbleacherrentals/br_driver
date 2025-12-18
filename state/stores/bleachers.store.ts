@@ -27,7 +27,7 @@ export const bleachers$ = observable(
     supabase,
     collection: "Bleachers",
     select: (from: any) => from.select("*"),
-    filter: (q) => {
+    filter: (q: any) => {
       const ids = bleacherIds$.get();
       console.log("[bleachers$] filter called with ids:", ids);
 
@@ -45,7 +45,7 @@ export const bleachers$ = observable(
       name: `driverBleachers_${cacheVersion}}`,
       retrySync: true,
     },
-    // waitFor: () => bleacherIds$.get().length > 0,
+    waitFor: () => bleacherIds$.get().length > 0,
   })
 );
 

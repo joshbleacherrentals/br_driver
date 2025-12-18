@@ -10,7 +10,7 @@ export const currentUser$ = observable(
     supabase,
     collection: "Users", // <-- must match Database["public"]["Tables"]
     select: (from: any) => from.select("*"),
-    filter: (q) => {
+    filter: (q: any) => {
       const clerkId = session$.clerkUserId.get();
       if (!clerkId) return q.eq("user_id", -1); // guaranteed no rows
       return q.eq("clerk_user_id", clerkId);
@@ -24,7 +24,7 @@ export const currentUser$ = observable(
       name: `currentUser_${cacheVersion}`,
       retrySync: true, // Persist pending changes and retry
     },
-    // waitFor: () => !!session$.clerkUserId.get() != null,
+    waitFor: () => !!session$.clerkUserId.get() != null,
     // onError: (error) => console.error("Synced Supabase error:", error),
   })
 );

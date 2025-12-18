@@ -27,7 +27,7 @@ export const workTrackerInspections$ = observable(
     collection: "WorkTrackerInspections",
     fieldId: "inspection_uuid",
     select: (from: any) => from.select("*"),
-    filter: (q) => {
+    filter: (q: any) => {
       const uuids = inspectionUuids$.get();
       //   if (!uuids.length) {
       //     return q.eq("inspection_uuid", "00000000-0000-0000-0000-000000000000");
@@ -48,7 +48,7 @@ export const workTrackerInspections$ = observable(
       delay: 1000,
       maxDelay: 30000,
     },
-    // waitFor: () => inspectionUuids$.get().length > 0,
+    waitFor: () => inspectionUuids$.get().length > 0,
   })
 );
 

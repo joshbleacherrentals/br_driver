@@ -6,7 +6,6 @@ import { startInspectionPhotoUploadWorker } from "@/state/workers/inspectionPhot
 import { RootErrorBoundary } from "@/utils/RootErrorBoundary";
 import "@/utils/supabase/supaLegend/init";
 import { useClerkSupabaseClient } from "@/utils/supabase/useClerkSupabaseClient";
-import { useResyncTodosOnReconnect } from "@/utils/supabase/useResyncTodosOnReconnect";
 import { useSyncClerkToLegend } from "@/utils/supabase/useSyncClerkToLegend";
 import { ClerkLoaded, ClerkProvider } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
@@ -33,7 +32,7 @@ function AppShell({ colorScheme }: { colorScheme: "light" | "dark" | null | unde
   // This is now safe: useSession() sees ClerkProvider above it
   // console.log("AppShell rendered, setting up Supabase client with Clerk auth");
   const supabase = useClerkSupabaseClient();
-  useResyncTodosOnReconnect();
+  // useResyncOnReconnect();
   useSyncClerkToLegend();
   useEffect(() => {
     startInspectionPhotoUploadWorker();

@@ -6,12 +6,12 @@ import { EnrichedWorkTracker, enrichedWorkTrackers$ } from "../computes/enriched
  * This is a computed observable that automatically updates when workTrackers$ changes.
  */
 export const activeTrip$ = computed<EnrichedWorkTracker | null>(() => {
-  const enrichedTrackers = enrichedWorkTrackers$.get();
+  const enrichedTrackers = enrichedWorkTrackers$.get() as any;
 
   if (!enrichedTrackers || enrichedTrackers.length === 0) return null;
 
   // Find the first in_progress trip
-  const activeTrip = enrichedTrackers.find((wt) => wt.status === "in_progress");
+  const activeTrip = enrichedTrackers.find((wt: any) => wt.status === "in_progress");
 
   return activeTrip ?? null;
 });

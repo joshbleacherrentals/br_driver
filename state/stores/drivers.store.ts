@@ -10,7 +10,7 @@ export const currentDriver$ = observable(
     supabase,
     collection: "Drivers", // <-- must match Database["public"]["Tables"]
     select: (from: any) => from.select("*"),
-    filter: (select) => select.eq("user_id", currentUser$.user_id.get()),
+    filter: (select: any) => select.eq("user_id", currentUser$.user_id.get()),
     // mode: "set",
     as: "value",
     actions: ["read"],
@@ -20,7 +20,7 @@ export const currentDriver$ = observable(
       name: `currentDriver_${cacheVersion}`,
       retrySync: true, // Persist pending changes and retry
     },
-    // waitFor: () => !!currentUser$.user_id.get(),
+    waitFor: () => !!currentUser$.user_id.get(),
   })
 );
 

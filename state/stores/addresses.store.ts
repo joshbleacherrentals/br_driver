@@ -30,7 +30,7 @@ export const addresses$ = observable(
       //   console.log("[workTrackerAddresses$] SELECT called with uuids:", uuids);
       return from.select("*");
     },
-    filter: (q) => {
+    filter: (q: any) => {
       const uuids = addressUuids$.get();
       //   console.log("[workTrackerAddresses$] FILTER called with uuids:", uuids);
 
@@ -50,7 +50,7 @@ export const addresses$ = observable(
       name: `addresses_uuid_${cacheVersion}`,
       retrySync: true,
     },
-    // waitFor: () => addressUuids$.get().length > 0,
+    waitFor: () => addressUuids$.get().length > 0,
   })
 );
 

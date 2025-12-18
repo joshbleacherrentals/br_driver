@@ -1,7 +1,7 @@
 import { PRIMARY } from "@/constants/AuthStyles";
 import { activeTrip$ } from "@/state/session/activeTrip";
 import { workTrackers$ } from "@/state/stores/workTrackers.store";
-import { useSelector } from "@legendapp/state/react";
+import { useValue } from "@legendapp/state/react";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -25,7 +25,7 @@ export default function TripModePage() {
   const [inspectionMode, setInspectionMode] = useState<InspectionMode>("none");
 
   // Get the active trip directly from the computed observable
-  const workTracker = useSelector(() => activeTrip$.get());
+  const workTracker = useValue(activeTrip$) as any;
 
   // Disable back button/gesture to prevent leaving trip mode
   useEffect(() => {

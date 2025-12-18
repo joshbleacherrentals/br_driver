@@ -11,7 +11,7 @@ const inspectionPhotoUuids$ = computed<string[]>(() => {
 
   const uuids = new Set<string>();
 
-  Object.values(inspections).forEach((i) => {
+  Object.values(inspections).forEach((i: any) => {
     if (!i || i.deleted) return;
     if (i.inspection_uuid) uuids.add(i.inspection_uuid);
   });
@@ -25,7 +25,7 @@ export const inspectionPhotos$ = observable(
     collection: "InspectionPhotos",
     fieldId: "inspection_photo_uuid",
     select: (from: any) => from.select("*"),
-    filter: (q) => {
+    filter: (q: any) => {
       const uuids = inspectionPhotoUuids$.get();
       if (!uuids.length) {
         return q.eq("inspection_uuid", "00000000-0000-0000-0000-000000000000");
@@ -46,7 +46,7 @@ export const inspectionPhotos$ = observable(
       delay: 1000,
       maxDelay: 30000,
     },
-    // waitFor: () => inspectionPhotoUuids$.get().length > 0,
+    waitFor: () => inspectionPhotoUuids$.get().length > 0,
   })
 );
 
