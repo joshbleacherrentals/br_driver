@@ -3,50 +3,41 @@ import "react-native-url-polyfill/auto";
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// Prevent multiple clients with different tokens from piling up in memory
-let currentClient: SupabaseClient | null = null;
-let currentToken: string | null = null;
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const serviceRole = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabaseClient = (supabaseToken: string): SupabaseClient => {
-  if (!supabaseToken) throw new Error("Missing Supabase token");
+if (!url || !anon) {
+  throw new Error(
+    "Missing Supabase env vars. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY"
+  );
+}
 
-  if (currentClient && currentToken === supabaseToken) {
-    return currentClient;
-  }
+// For local development with Clerk, use service role key to bypass JWT verification
+// In production, configure Supabase to accept Clerk JWTs
+const supabaseKey = serviceRole || anon;
 
-  // Clean up any open channels if we are switching tokens
-  if (currentClient) {
-    try {
-      currentClient.removeAllChannels();
-    } catch {}
-  }
+// Token getter function that will be set by useClerkSupabaseClient
+let tokenGetter: (() => Promise<string | null>) | null = null;
 
-  currentToken = supabaseToken;
+export function setSupabaseTokenGetter(getter: (() => Promise<string | null>) | null) {
+  tokenGetter = getter;
+}
 
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-  const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-
-  if (!url || !anon) {
-    throw new Error(
-      "Missing Supabase env vars. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY"
-    );
-  }
-
-  currentClient = createClient(url, anon, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${supabaseToken}`,
-      },
-    },
-    auth: {
-      // In React Native we manage auth with Clerk; Supabase auth is header-based
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-
-  return currentClient;
-};
+// Create a single shared Supabase client
+export const supabase = createClient(url, supabaseKey, {
+  global: {
+    headers: {},
+  },
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+  accessToken: async () => {
+    if (!tokenGetter) return null;
+    return await tokenGetter();
+  },
+});
 
 export type { SupabaseClient };

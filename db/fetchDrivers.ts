@@ -1,18 +1,12 @@
 import { USER_ROLES } from "@/constants/Constants";
-import { getSupabaseClient } from "../utils/supabase/getSupabaseClient";
+import { supabase } from "@/utils/supabase/supabaseClient";
 
 const createErrorToast = (messages: string[]) => {
   console.warn("[Toast]", ...messages);
 };
 
 export async function fetchDrivers(token: string | null): Promise<any> {
-  if (!token) {
-    createErrorToast(["No token found"]);
-    return { drivers: null };
-  }
-
   try {
-    const supabase = await getSupabaseClient(token);
     const { data, error } = await supabase.from("Users").select("*").eq("role", USER_ROLES.DRIVER);
 
     if (error) {

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/utils/supabase/getSupabaseClient";
+import { supabase } from "@/utils/supabase/supabaseClient";
 
 export interface WorkTracker {
   work_tracker_id: number;
@@ -45,8 +45,11 @@ export async function fetchWorkTrackersForClerkUser(
   token: string | null,
   clerkUserId: string | undefined | null
 ): Promise<FetchWorkTrackersResult> {
-  if (!token || !clerkUserId) return { workTrackers: null };
-  const supabase = await getSupabaseClient(token);
+  if (!clerkUserId) return { workTrackers: null };
+
+  // Debug: Log the token to see if it's being passed
+  console.log("[WorkTrackers] Fetching for Clerk user:", clerkUserId);
+  console.log("[WorkTrackers] Token available:", !!token, token?.substring(0, 20) + "...");
 
   // 1. Resolve internal user_id from Users table via clerk_user_id
   const { data: userRow, error: userError } = await supabase
@@ -56,7 +59,8 @@ export async function fetchWorkTrackersForClerkUser(
     .single();
 
   if (userError || !userRow) {
-    console.warn("No matching user for clerk id", clerkUserId, userError?.message);
+    console.warn("No matching user for clerk id", clerkUserId);
+    console.warn("Error details:", JSON.stringify(userError, null, 2));
     return { workTrackers: [] };
   }
   const userId = userRow.user_id;
