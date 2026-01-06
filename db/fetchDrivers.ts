@@ -1,5 +1,5 @@
 import { USER_ROLES } from "@/constants/Constants";
-import { supabase } from "@/utils/supabase/supabaseClient";
+import { supabase } from "@/library/supabase/supabaseClient";
 
 const createErrorToast = (messages: string[]) => {
   console.warn("[Toast]", ...messages);

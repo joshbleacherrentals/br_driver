@@ -1,4 +1,4 @@
-import { supabase } from "@/utils/supabase/supabaseClient";
+import { supabase } from "@/library/supabase/supabaseClient";
 
 export interface WorkTracker {
   work_tracker_id: number;
