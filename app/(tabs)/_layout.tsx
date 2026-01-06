@@ -6,11 +6,17 @@ import { HapticTab } from "@/components/HapticTab";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useSystem } from "@/utils/powersync/system";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const system = useSystem();
+
+  React.useEffect(() => {
+    system.init();
+  }, []);
 
   return (
     <>
@@ -37,6 +43,13 @@ export default function TabLayout() {
               tabBarIcon: ({ color }) => (
                 <FontAwesome6 name="truck-pickup" size={24} color={color} />
               ),
+            }}
+          />
+          <Tabs.Screen
+            name="todos"
+            options={{
+              title: "Todos",
+              tabBarIcon: ({ color }) => <FontAwesome6 name="list-check" size={24} color={color} />,
             }}
           />
           <Tabs.Screen

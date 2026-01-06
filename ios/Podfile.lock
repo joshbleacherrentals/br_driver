@@ -1,7 +1,7 @@
 PODS:
-  - EXApplication (7.0.7):
+  - EXApplication (7.0.8):
     - ExpoModulesCore
-  - EXConstants (18.0.10):
+  - EXConstants (18.0.12):
     - ExpoModulesCore
   - Expo (54.0.23):
     - ExpoModulesCore
@@ -34,7 +34,7 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (15.0.7):
     - ExpoModulesCore
-  - ExpoCrypto (15.0.7):
+  - ExpoCrypto (15.0.8):
     - ExpoModulesCore
   - ExpoFileSystem (19.0.17):
     - ExpoModulesCore
@@ -54,7 +54,7 @@ PODS:
     - SDWebImageWebPCoder (~> 0.14.6)
   - ExpoKeepAwake (15.0.7):
     - ExpoModulesCore
-  - ExpoLinking (8.0.8):
+  - ExpoLinking (8.0.11):
     - ExpoModulesCore
   - ExpoModulesCore (3.0.25):
     - hermes-engine
@@ -87,7 +87,7 @@ PODS:
     - ExpoModulesCore
   - ExpoSystemUI (6.0.8):
     - ExpoModulesCore
-  - ExpoWebBrowser (15.0.9):
+  - ExpoWebBrowser (15.0.10):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
   - hermes-engine (0.81.5):
@@ -110,6 +110,54 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
+  - op-sqlite (15.1.16):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - powersync-op-sqlite (0.7.17):
+    - hermes-engine
+    - powersync-sqlite-core (~> 0.4.10)
+    - RCTRequired
+    - RCTTypeSafety
+    - React
+    - React-callinvoker
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - powersync-sqlite-core (0.4.10)
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -1502,6 +1550,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-worklets-core (1.6.2):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - React-NativeModulesApple (0.81.5):
     - hermes-engine
     - React-callinvoker
@@ -1874,7 +1944,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNReanimated (4.1.5):
+  - RNReanimated (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1896,10 +1966,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNReanimated/reanimated (= 4.1.5)
+    - RNReanimated/reanimated (= 4.1.6)
     - RNWorklets
     - Yoga
-  - RNReanimated/reanimated (4.1.5):
+  - RNReanimated/reanimated (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1921,10 +1991,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNReanimated/reanimated/apple (= 4.1.5)
+    - RNReanimated/reanimated/apple (= 4.1.6)
     - RNWorklets
     - Yoga
-  - RNReanimated/reanimated/apple (4.1.5):
+  - RNReanimated/reanimated/apple (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1995,7 +2065,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNWorklets (0.6.1):
+  - RNWorklets (0.7.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2017,9 +2087,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNWorklets/worklets (= 0.6.1)
+    - RNWorklets/worklets (= 0.7.1)
     - Yoga
-  - RNWorklets/worklets (0.6.1):
+  - RNWorklets/worklets (0.7.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2041,9 +2111,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNWorklets/worklets/apple (= 0.6.1)
+    - RNWorklets/worklets/apple (= 0.7.1)
     - Yoga
-  - RNWorklets/worklets/apple (0.6.1):
+  - RNWorklets/worklets/apple (0.7.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2080,7 +2150,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
-  - EXApplication (from `../node_modules/expo-auth-session/node_modules/expo-application/ios`)
+  - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAppleAuthentication (from `../node_modules/expo-apple-authentication/ios`)
@@ -2102,6 +2172,8 @@ DEPENDENCIES:
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - "op-sqlite (from `../node_modules/@op-engineering/op-sqlite`)"
+  - "powersync-op-sqlite (from `../node_modules/@powersync/op-sqlite`)"
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTTypeSafety (from `../node_modules/react-native/Libraries/TypeSafety`)
@@ -2139,6 +2211,7 @@ DEPENDENCIES:
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-webview (from `../node_modules/react-native-webview`)
+  - react-native-worklets-core (from `../node_modules/react-native-worklets-core`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
   - React-perflogger (from `../node_modules/react-native/ReactCommon/reactperflogger`)
@@ -2181,6 +2254,7 @@ SPEC REPOS:
     - libavif
     - libdav1d
     - libwebp
+    - powersync-sqlite-core
     - SDWebImage
     - SDWebImageAVIFCoder
     - SDWebImageSVGCoder
@@ -2188,7 +2262,7 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   EXApplication:
-    :path: "../node_modules/expo-auth-session/node_modules/expo-application/ios"
+    :path: "../node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   Expo:
@@ -2232,6 +2306,10 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-2025-07-07-RNv0.81.0-e0fc67142ec0763c6b6153ca2bf96df815539782
+  op-sqlite:
+    :path: "../node_modules/@op-engineering/op-sqlite"
+  powersync-op-sqlite:
+    :path: "../node_modules/@powersync/op-sqlite"
   RCTDeprecation:
     :path: "../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -2304,6 +2382,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-webview:
     :path: "../node_modules/react-native-webview"
+  react-native-worklets-core:
+    :path: "../node_modules/react-native-worklets-core"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-oscompat:
@@ -2378,31 +2458,34 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  EXApplication: a9d1c46d473d36f61302a9a81db2379441f3f094
-  EXConstants: e6e50cdfcb4524f40121d1fdcff24e97b7dcd2fd
+  EXApplication: 13420f8139864183f8a04fd6099077bdf8cfb186
+  EXConstants: 6c818a84354d194cb4d5d78990108a7c0f590e30
   Expo: 38470d89b7f4a9c365ea5bd4cdfd6ebf89cd76c7
   ExpoAppleAuthentication: 414e4316f8e25a2afbc3943cf725579c910f24b8
   ExpoAsset: 3c3b7dd9b1318846a02ef05ce420e63d542aeb9f
   ExpoBlur: b5b7a26572b3c33a11f0b2aa2f95c17c4c393b76
-  ExpoCrypto: 4c50a152f5939e16a2ca10be77b002a3a391c4d3
+  ExpoCrypto: 4d23a9ff67c25e2ed23ca792d81e58817a7ea1b9
   ExpoFileSystem: 56f081328f5b48a6dcc8302eee51d4f2d9d0049b
   ExpoFont: b881d43057dceb7b31ff767b24f612609e80f60f
   ExpoHaptics: b48d913e7e5f23816c6f130e525c9a6501b160b5
   ExpoHead: aa5f5a8afaa9bd4969bfdd6d5b76681e2490fe5b
   ExpoImage: 6eb842cd07817402640545c41884dd7f5fbfbca5
   ExpoKeepAwake: 3f5e3ac53627849174f3603271df8e08f174ed4a
-  ExpoLinking: f5c171877e118e792cb9a77e5ade0b080d899b14
+  ExpoLinking: ebf543fd411d56375cb4eee07f6ab4e31c7ad959
   ExpoModulesCore: 4daa3e24768f152a3b3d84259150fedb5013f561
   ExpoSecureStore: f44dee1354536bdb3d7fab8cc451ee737c41beca
   ExpoSplashScreen: 9d2ff8fa08f2c00336a83f93bebffed3a8312519
   ExpoSymbols: ef7b8ac77ac2d496b1bc3f0f7daf5e19c3a9933a
   ExpoSystemUI: 9441d46a8efbf9224d1b2e6b18042452ffd0ed79
-  ExpoWebBrowser: 35223474c19e261c0661ecc7caa513d054244ab5
+  ExpoWebBrowser: 88b116cd378d9609c776c0903fe4070fca461588
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
+  op-sqlite: 4b1b1e8577f9a94e0eec11119253bc1a4283e7a3
+  powersync-op-sqlite: e76b625d16db5992fe48665d021914badf8b4ab2
+  powersync-sqlite-core: b30017e077c91915d53faebc5f7245384df78275
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c
@@ -2439,6 +2522,7 @@ SPEC CHECKSUMS:
   react-native-get-random-values: f807b3ccb892fe265aeba89ef37f96dfdfc587eb
   react-native-safe-area-context: 53f796cb6c814661bbe99fbdfd0585d07b996cdd
   react-native-webview: a4f0775a31b73cf13cfc3d2d2b119aa94ec76e49
+  react-native-worklets-core: 5357708fd3915bf1c870a03ff969578c69bd3909
   React-NativeModulesApple: 1664340b8750d64e0ef3907c5e53d9481f74bcbd
   React-oscompat: ce47230ed20185e91de62d8c6d139ae61763d09c
   React-perflogger: b1af3cfb3f095f819b2814910000392a8e17ba9f
@@ -2471,9 +2555,9 @@ SPEC CHECKSUMS:
   ReactCommon: e6e232202a447d353e5531f2be82f50f47cbaa9a
   ReactNativeDependencies: 71ce9c28beb282aa720ea7b46980fff9669f428a
   RNGestureHandler: 6a488ce85c88e82d8610db1108daf04e9b2d5162
-  RNReanimated: 00771d2ba7c810124852092eb29c0d1edf50cc58
+  RNReanimated: 43f611f1c85c90e0273df7399bf1536f8e2bd125
   RNScreens: dd61bc3a3e6f6901ad833efa411917d44827cf51
-  RNWorklets: 83609071441ac7d623f1e0e63b9043f4f345e2a2
+  RNWorklets: e2b9423934700160135e216d8a2e6cb7b194846c
   SDWebImage: f84b0feeb08d2d11e6a9b843cb06d75ebf5b8868
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c

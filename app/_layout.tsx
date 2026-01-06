@@ -1,3 +1,4 @@
+import { SupabaseAuthTest } from "@/components/SupabaseAuthTest";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -31,6 +32,8 @@ export default function RootLayout() {
   return (
     <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
       <QueryClientProvider client={queryClient}>
+        <SupabaseAuthTest />
+        {/* <PowerSyncProvider> */}
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -39,6 +42,7 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>
+        {/* </PowerSyncProvider> */}
       </QueryClientProvider>
     </ClerkProvider>
   );

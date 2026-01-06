@@ -56,7 +56,7 @@ export async function fetchWorkTrackersForClerkUser(
     .single();
 
   if (userError || !userRow) {
-    console.warn("No matching user for clerk id", clerkUserId, userError?.message);
+    console.warn("No matching user for clerk idss", clerkUserId, userError?.message);
     return { workTrackers: [] };
   }
   const userId = userRow.user_id;
