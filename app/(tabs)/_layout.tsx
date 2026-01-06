@@ -40,6 +40,15 @@ export default function TabLayout() {
             }}
           />
           <Tabs.Screen
+            name="test"
+            options={{
+              title: "Testing Powersync",
+              tabBarIcon: ({ color }) => (
+                <FontAwesome6 name="truck-pickup" size={24} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="profile"
             options={{
               title: "Profile",
