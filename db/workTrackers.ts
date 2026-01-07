@@ -13,6 +13,7 @@ export interface WorkTracker {
   dropoff_poc: string | null;
   pay_cents: number | null;
   notes: string | null;
+  status: string | null;
   bleacher_id: number | null;
   internal_notes: string | null;
 }
