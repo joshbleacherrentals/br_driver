@@ -29,6 +29,7 @@ const Inspections = new Table(
     issues_found: column.integer,
     issue_description: column.text,
     optional_photo_ids: column.text,
+    photo_id: column.text,
   },
   { indexes: { list: ["inspection_id"] } }
 );

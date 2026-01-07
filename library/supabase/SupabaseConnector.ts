@@ -39,40 +39,25 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     this.storage = new SupabaseStorageAdapter({ client: this.client });
   }
 
-  async login(username: string, password: string) {
-    const { error } = await this.client.auth.signInWithPassword({
-      email: username,
-      password: password,
-    });
-
-    if (error) {
-      throw error;
-    }
-  }
-
-  async userId() {
-    const {
-      data: { session },
-    } = await this.client.auth.getSession();
-
-    return session?.user.id;
-  }
-
   async fetchCredentials() {
-    const {
-      data: { session },
-      error,
-    } = await this.client.auth.getSession();
+    const clerk = getClerkInstance();
 
-    if (!session || error) {
-      throw new Error(`Could not fetch Supabase credentials: ${error}`);
+    if (!clerk.session) {
+      throw new Error("No active Clerk session");
     }
 
-    console.debug("session expires at", session.expires_at);
+    // Get the Supabase JWT from Clerk
+    const token = await clerk.session.getToken({ template: "powersync" });
+
+    if (!token) {
+      throw new Error("Could not fetch Supabase token from Clerk");
+    }
+
+    console.debug("Fetched PowerSync credentials from Clerk");
 
     return {
       endpoint: AppConfig.powersyncUrl,
-      token: session.access_token ?? "",
+      token: token,
     } satisfies PowerSyncCredentials;
   }
 
