@@ -25,13 +25,21 @@ const Inspections = new Table(
   {
     inspection_id: column.text,
     walk_around_complete: column.integer,
-    mandatory_photo_id: column.text,
+    // mandatory_photo_id: column.text,
     issues_found: column.integer,
     issue_description: column.text,
     optional_photo_ids: column.text,
-    photo_id: column.text,
+    // photo_id: column.text,
   },
   { indexes: { list: ["inspection_id"] } }
+);
+
+const InspectionPhotos = new Table(
+  {
+    storage_path: column.text,
+    inspection_id: column.text,
+  },
+  { indexes: { inspection: ["inspection_id"] } }
 );
 
 // worktracker
@@ -70,6 +78,7 @@ const workTracker = new Table(
 
 export const AppSchema = new Schema({
   Inspections,
+  InspectionPhotos,
   workTracker,
   lists,
   attachments: new AttachmentTable({
@@ -80,3 +89,4 @@ export const AppSchema = new Schema({
 export type Database = (typeof AppSchema)["types"];
 export type InspectionTable = Database["Inspections"];
 export type ListRecord = Database["lists"];
+export type InspectionPhotosTable = Database["InspectionPhotos"];
