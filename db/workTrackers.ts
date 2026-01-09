@@ -8,6 +8,8 @@ export interface WorkTracker {
   pickup_time: string | null;
   pickup_address_id: number | null;
   pickup_poc: string | null;
+  pre_inspection_id: number | null;
+  post_inspection_id: number | null;
   dropoff_time: string | null;
   dropoff_address_id: number | null;
   dropoff_poc: string | null;

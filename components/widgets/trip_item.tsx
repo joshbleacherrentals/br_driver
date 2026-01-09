@@ -2,17 +2,16 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking, Platform } from 'react-native';
 import { EnrichedWorkTracker } from '@/db/workTrackers';
 
-type WorkTrackerStatus = 'draft' | 'released' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
-
 interface TripItemProps {
-  workTracker: EnrichedWorkTracker & { status?: WorkTrackerStatus };
+  workTracker: EnrichedWorkTracker;
   onAccept?: (workTrackerId: number) => void;
   onStartTrip?: (workTrackerId: number) => void;
   onSkip?: (workTrackerId: number) => void;
   onArrived?: (workTrackerId: number) => void;
+  onStartInspection?: (workTrackerId: number, inspectionType: 'pickup' | 'dropoff') => void;
 }
 
-export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, onArrived }: TripItemProps) {
+export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, onArrived, onStartInspection }: TripItemProps) {
   const { status = 'released', pickup_address, dropoff_address, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher, pay_cents, notes } = workTracker;
 
   // Don't render draft items
@@ -94,18 +93,24 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
   const getStatusBadge = () => {
     switch (status) {
-      case 'released':
-        return { text: 'INCOMPLETE', color: '#34C759' };
-      case 'accepted':
-        return { text: 'ACCEPTED', color: '#34C759' };
-      case 'in_progress':
-        return { text: 'EN ROUTE', color: '#FF9500' };
-      case 'completed':
-        return { text: 'COMPLETED', color: '#8E8E93' };
-      case 'cancelled':
-        return { text: 'CANCELLED', color: '#FF3B30' };
-      default:
-        return null;
+        case 'released':
+            return { text: 'PENDING ACCEPTANCE', color: '#34C759' };
+        case 'accepted':
+            return { text: 'ACCEPTED', color: '#34C759' };
+        case 'dest_pickup':
+            return { text: 'EN ROUTE', color: '#FF9500' };
+        case 'pickup_inspection':
+            return { text: 'EN ROUTE', color: '#FF9500' };
+        case 'dest_dropoff':
+            return { text: 'EN ROUTE', color: '#FF9500' };
+        case 'dropoff_inspection':
+            return { text: 'EN ROUTE', color: '#FF9500' };
+        case 'completed':
+            return { text: 'COMPLETED', color: '#8E8E93' };
+        case 'cancelled':
+            return { text: 'CANCELLED', color: '#FF3B30' };
+        default:
+            return null;
     }
   };
 
@@ -114,13 +119,20 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   return (
     <View style={styles.card}>
       {/* Top Header: Bleacher & Pay */}
-      <View style={styles.topHeader}>
-        <Text style={styles.mainTitle}>
-          {bleacher && `Bleacher #${bleacher.bleacher_number}`}
-          {bleacher && pay_cents !== null && ' - '}
-          {pay_cents !== null && formatPay(pay_cents)}
-        </Text>
-        <Text style={styles.dateText}>{formatDate(date)}</Text>
+      <View style={styles.topHeaderRow}>
+        <View style={styles.topHeader}>
+          <Text style={styles.mainTitle}>
+            {bleacher && `Bleacher #${bleacher.bleacher_number}`}
+            {bleacher && pay_cents !== null && ' - '}
+            {pay_cents !== null && formatPay(pay_cents)}
+          </Text>
+          <Text style={styles.dateText}>{formatDate(date)}</Text>
+        </View>
+        {badge && (
+          <View style={[styles.statusBadge, { backgroundColor: badge.color }]}>
+            <Text style={styles.statusText}>{badge.text}</Text>
+          </View>
+        )}
       </View>
 
       {/* Notes Section - Right under header */}
@@ -149,9 +161,35 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           <Text style={styles.addressText}>{formatAddress(pickup_address)}</Text>
         </TouchableOpacity>
         {pickup_poc && (
-          <Text style={styles.detailText}>{pickup_poc}</Text>
+          <Text style={styles.detailText}>POC: {pickup_poc}</Text>
         )}
       </View>
+
+      {status === 'dest_pickup' && (
+        <View style={styles.buttonRow}>
+            <TouchableOpacity
+                style={styles.skipButton}
+                onPress={() => onSkip?.(workTracker.work_tracker_id)}
+            >
+                <Text style={styles.skipButtonText}>Skip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => onArrived?.(workTracker.work_tracker_id)}
+            >
+                <Text style={styles.primaryButtonText}>I've Arrived</Text>
+            </TouchableOpacity>
+        </View>
+      )}
+
+      {status === 'pickup_inspection' && (
+        <TouchableOpacity
+          style={styles.inspectionButton}
+          onPress={() => onStartInspection?.(workTracker.work_tracker_id, 'pickup')}
+        >
+          <Text style={styles.inspectionButtonText}>Start Pickup Inspection</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.divider} />
 
@@ -171,7 +209,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           <Text style={styles.addressText}>{formatAddress(dropoff_address)}</Text>
         </TouchableOpacity>
         {dropoff_poc && (
-          <Text style={styles.detailText}>{dropoff_poc}</Text>
+          <Text style={styles.detailText}>POC: {dropoff_poc}</Text>
         )}
       </View>
 
@@ -202,7 +240,16 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         </View>
       )}
 
-      {status === 'in_progress' && (
+      {status === 'dropoff_inspection' && (
+        <TouchableOpacity
+          style={styles.inspectionButton}
+          onPress={() => onStartInspection?.(workTracker.work_tracker_id, 'dropoff')}
+        >
+          <Text style={styles.inspectionButtonText}>Start Dropoff Inspection</Text>
+        </TouchableOpacity>
+      )}
+
+      {status === 'dest_dropoff' && (
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.skipButton}
@@ -235,8 +282,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  topHeader: {
+  topHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  topHeader: {
+    flex: 1,
   },
   mainTitle: {
     fontSize: 24,
@@ -248,6 +301,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#8E8E93',
     fontWeight: '500',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 12,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   notesBox: {
     backgroundColor: '#F8F8F8',
@@ -346,6 +411,42 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   acceptButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  startButton: {
+    backgroundColor: '#0A84FF',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  startButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  arrivedButton: {
+    backgroundColor: '#0A84FF',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  arrivedButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  inspectionButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  inspectionButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',

@@ -24,12 +24,11 @@ const lists = new Table({
 const Inspections = new Table(
   {
     inspection_id: column.text,
+    created_at: column.text,
     walk_around_complete: column.integer,
-    // mandatory_photo_id: column.text,
     issues_found: column.integer,
     issue_description: column.text,
-    optional_photo_ids: column.text,
-    // photo_id: column.text,
+    inspection_photos__table_id: column.text,
   },
   { indexes: { list: ["inspection_id"] } }
 );
