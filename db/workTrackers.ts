@@ -16,6 +16,9 @@ export interface WorkTracker {
   pay_cents: number | null;
   notes: string | null;
   status: string | null;
+  accepted_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   bleacher_id: number | null;
   internal_notes: string | null;
 }

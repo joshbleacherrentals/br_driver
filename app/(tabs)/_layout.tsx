@@ -45,6 +45,15 @@ export default function TabLayout() {
             }}
           />
           <Tabs.Screen
+            name="completedTrips"
+            options={{
+              title: "History",
+              tabBarIcon: ({ color }) => (
+                <FontAwesome6 name="clock-rotate-left" size={24} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="test"
             options={{
               title: "Testing Powersync",

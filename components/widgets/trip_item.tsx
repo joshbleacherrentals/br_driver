@@ -15,7 +15,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   const { status = 'released', pickup_address, dropoff_address, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher, pay_cents, notes } = workTracker;
 
   // Don't render draft items
-  if (status === 'draft') {
+  if (status === 'draft' || status === 'completed') {
     return null;
   }
 
