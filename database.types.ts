@@ -1,0 +1,1029 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  public: {
+    Tables: {
+      AccountManagers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          user_uuid: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          user_uuid?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          user_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "AccountManagers_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Addresses: {
+        Row: {
+          city: string
+          created_at: string
+          id: string
+          state_province: string
+          street: string
+          zip_postal: string | null
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          id?: string
+          state_province: string
+          street: string
+          zip_postal?: string | null
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          id?: string
+          state_province?: string
+          street?: string
+          zip_postal?: string | null
+        }
+        Relationships: []
+      }
+      BleacherEvents: {
+        Row: {
+          bleacher_uuid: string | null
+          created_at: string
+          event_uuid: string | null
+          id: string
+          setup_confirmed: boolean
+          setup_text: string | null
+          teardown_confirmed: boolean
+          teardown_text: string | null
+        }
+        Insert: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          event_uuid?: string | null
+          id?: string
+          setup_confirmed?: boolean
+          setup_text?: string | null
+          teardown_confirmed?: boolean
+          teardown_text?: string | null
+        }
+        Update: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          event_uuid?: string | null
+          id?: string
+          setup_confirmed?: boolean
+          setup_text?: string | null
+          teardown_confirmed?: boolean
+          teardown_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "BleacherEvents_bleacher_uuid_fkey"
+            columns: ["bleacher_uuid"]
+            isOneToOne: false
+            referencedRelation: "Bleachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "BleacherEvents_event_uuid_fkey"
+            columns: ["event_uuid"]
+            isOneToOne: false
+            referencedRelation: "Events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Bleachers: {
+        Row: {
+          bleacher_number: number
+          bleacher_rows: number
+          bleacher_seats: number
+          created_at: string
+          created_by: string | null
+          id: string
+          linxup_device_id: string | null
+          summer_account_manager_uuid: string | null
+          summer_home_base_uuid: string | null
+          updated_at: string | null
+          updated_by: string | null
+          winter_account_manager_uuid: string | null
+          winter_home_base_uuid: string | null
+        }
+        Insert: {
+          bleacher_number: number
+          bleacher_rows: number
+          bleacher_seats: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          linxup_device_id?: string | null
+          summer_account_manager_uuid?: string | null
+          summer_home_base_uuid?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          winter_account_manager_uuid?: string | null
+          winter_home_base_uuid?: string | null
+        }
+        Update: {
+          bleacher_number?: number
+          bleacher_rows?: number
+          bleacher_seats?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          linxup_device_id?: string | null
+          summer_account_manager_uuid?: string | null
+          summer_home_base_uuid?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          winter_account_manager_uuid?: string | null
+          winter_home_base_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Bleachers_summer_account_manager_uuid_fkey"
+            columns: ["summer_account_manager_uuid"]
+            isOneToOne: false
+            referencedRelation: "AccountManagers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bleachers_summer_home_base_uuid_fkey"
+            columns: ["summer_home_base_uuid"]
+            isOneToOne: false
+            referencedRelation: "HomeBases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Bleachers_winter_account_manager_uuid_fkey"
+            columns: ["winter_account_manager_uuid"]
+            isOneToOne: false
+            referencedRelation: "AccountManagers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bleachers_winter_home_base_uuid_fkey"
+            columns: ["winter_home_base_uuid"]
+            isOneToOne: false
+            referencedRelation: "HomeBases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      BleacherUsers: {
+        Row: {
+          bleacher_uuid: string | null
+          created_at: string
+          id: string
+          season: string
+          user_uuid: string | null
+        }
+        Insert: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          id?: string
+          season: string
+          user_uuid?: string | null
+        }
+        Update: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          id?: string
+          season?: string
+          user_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "BleacherUsers_bleacher_uuid_fkey"
+            columns: ["bleacher_uuid"]
+            isOneToOne: false
+            referencedRelation: "Bleachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "BleacherUsers_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Blocks: {
+        Row: {
+          bleacher_uuid: string | null
+          created_at: string
+          date: string | null
+          id: string
+          text: string | null
+        }
+        Insert: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          text?: string | null
+        }
+        Update: {
+          bleacher_uuid?: string | null
+          created_at?: string
+          date?: string | null
+          id?: string
+          text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Blocks_bleacher_uuid_fkey"
+            columns: ["bleacher_uuid"]
+            isOneToOne: false
+            referencedRelation: "Bleachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Drivers: {
+        Row: {
+          account_manager_uuid: string | null
+          address_uuid: string | null
+          created_at: string
+          id: string
+          insurance_photo_path: string | null
+          is_active: boolean
+          license_photo_path: string | null
+          medical_card_photo_path: string | null
+          pay_currency: string
+          pay_per_unit: string
+          pay_rate_cents: number
+          phone_number: string | null
+          tax: number
+          user_uuid: string | null
+          vehicle_uuid: string | null
+        }
+        Insert: {
+          account_manager_uuid?: string | null
+          address_uuid?: string | null
+          created_at?: string
+          id?: string
+          insurance_photo_path?: string | null
+          is_active?: boolean
+          license_photo_path?: string | null
+          medical_card_photo_path?: string | null
+          pay_currency?: string
+          pay_per_unit?: string
+          pay_rate_cents?: number
+          phone_number?: string | null
+          tax?: number
+          user_uuid?: string | null
+          vehicle_uuid?: string | null
+        }
+        Update: {
+          account_manager_uuid?: string | null
+          address_uuid?: string | null
+          created_at?: string
+          id?: string
+          insurance_photo_path?: string | null
+          is_active?: boolean
+          license_photo_path?: string | null
+          medical_card_photo_path?: string | null
+          pay_currency?: string
+          pay_per_unit?: string
+          pay_rate_cents?: number
+          phone_number?: string | null
+          tax?: number
+          user_uuid?: string | null
+          vehicle_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Drivers_account_manager_uuid_fkey"
+            columns: ["account_manager_uuid"]
+            isOneToOne: false
+            referencedRelation: "AccountManagers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Drivers_address_uuid_fkey"
+            columns: ["address_uuid"]
+            isOneToOne: false
+            referencedRelation: "Addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Drivers_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Drivers_vehicle_uuid_fkey"
+            columns: ["vehicle_uuid"]
+            isOneToOne: false
+            referencedRelation: "Vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Events: {
+        Row: {
+          address_uuid: string | null
+          booked: boolean
+          created_at: string
+          created_by_user_uuid: string | null
+          event_end: string
+          event_name: string
+          event_start: string
+          fifteen_row: number | null
+          goodshuffle_url: string | null
+          hsl_hue: number | null
+          id: string
+          lenient: boolean
+          must_be_clean: boolean
+          notes: string | null
+          setup_start: string | null
+          seven_row: number | null
+          teardown_end: string | null
+          ten_row: number | null
+          total_seats: number | null
+        }
+        Insert: {
+          address_uuid?: string | null
+          booked?: boolean
+          created_at?: string
+          created_by_user_uuid?: string | null
+          event_end: string
+          event_name: string
+          event_start: string
+          fifteen_row?: number | null
+          goodshuffle_url?: string | null
+          hsl_hue?: number | null
+          id?: string
+          lenient: boolean
+          must_be_clean?: boolean
+          notes?: string | null
+          setup_start?: string | null
+          seven_row?: number | null
+          teardown_end?: string | null
+          ten_row?: number | null
+          total_seats?: number | null
+        }
+        Update: {
+          address_uuid?: string | null
+          booked?: boolean
+          created_at?: string
+          created_by_user_uuid?: string | null
+          event_end?: string
+          event_name?: string
+          event_start?: string
+          fifteen_row?: number | null
+          goodshuffle_url?: string | null
+          hsl_hue?: number | null
+          id?: string
+          lenient?: boolean
+          must_be_clean?: boolean
+          notes?: string | null
+          setup_start?: string | null
+          seven_row?: number | null
+          teardown_end?: string | null
+          ten_row?: number | null
+          total_seats?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Events_address_uuid_fkey"
+            columns: ["address_uuid"]
+            isOneToOne: false
+            referencedRelation: "Addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Events_created_by_user_uuid_fkey"
+            columns: ["created_by_user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      HomeBases: {
+        Row: {
+          created_at: string
+          home_base_name: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          home_base_name: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          home_base_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      InspectionPhotos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          inspection_uuid: string
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          inspection_uuid: string
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          inspection_uuid?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "InspectionPhotos_inspection_uuid_fkey"
+            columns: ["inspection_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerInspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Tasks: {
+        Row: {
+          created_at: string
+          created_by_user_uuid: string | null
+          description: string
+          id: string
+          name: string
+          task_status_uuid: string | null
+          task_type_uuid: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_uuid?: string | null
+          description: string
+          id?: string
+          name: string
+          task_status_uuid?: string | null
+          task_type_uuid?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_user_uuid?: string | null
+          description?: string
+          id?: string
+          name?: string
+          task_status_uuid?: string | null
+          task_type_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Tasks_created_by_user_uuid_fkey"
+            columns: ["created_by_user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Tasks_task_status_uuid_fkey"
+            columns: ["task_status_uuid"]
+            isOneToOne: false
+            referencedRelation: "TaskStatuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Tasks_task_type_uuid_fkey"
+            columns: ["task_type_uuid"]
+            isOneToOne: false
+            referencedRelation: "TaskTypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      TaskStatuses: {
+        Row: {
+          created_at: string
+          hex: string
+          id: string
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          hex: string
+          id?: string
+          label: string
+        }
+        Update: {
+          created_at?: string
+          hex?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      TaskTypes: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      UserHomeBases: {
+        Row: {
+          created_at: string
+          home_base_uuid: string | null
+          id: string
+          user_uuid: string | null
+        }
+        Insert: {
+          created_at?: string
+          home_base_uuid?: string | null
+          id?: string
+          user_uuid?: string | null
+        }
+        Update: {
+          created_at?: string
+          home_base_uuid?: string | null
+          id?: string
+          user_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "userhomebases_home_base_uuid_fkey"
+            columns: ["home_base_uuid"]
+            isOneToOne: false
+            referencedRelation: "HomeBases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "UserHomeBases_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      UserRoles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      Users: {
+        Row: {
+          avatar_image_url: string | null
+          clerk_user_id: string | null
+          created_at: string
+          email: string
+          first_name: string | null
+          id: string
+          is_admin: boolean
+          last_name: string | null
+          phone: string | null
+          role: number | null
+          status_uuid: string | null
+        }
+        Insert: {
+          avatar_image_url?: string | null
+          clerk_user_id?: string | null
+          created_at?: string
+          email: string
+          first_name?: string | null
+          id?: string
+          is_admin?: boolean
+          last_name?: string | null
+          phone?: string | null
+          role?: number | null
+          status_uuid?: string | null
+        }
+        Update: {
+          avatar_image_url?: string | null
+          clerk_user_id?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string | null
+          id?: string
+          is_admin?: boolean
+          last_name?: string | null
+          phone?: string | null
+          role?: number | null
+          status_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Users_status_uuid_fkey"
+            columns: ["status_uuid"]
+            isOneToOne: false
+            referencedRelation: "UserStatuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      UserStatuses: {
+        Row: {
+          created_at: string
+          id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      Vehicles: {
+        Row: {
+          created_at: string
+          id: string
+          make: string
+          model: string
+          vin_number: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          make: string
+          model: string
+          vin_number?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          make?: string
+          model?: string
+          vin_number?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
+      WorkTrackerInspections: {
+        Row: {
+          created_at: string
+          id: string
+          issue_description: string | null
+          issues_found: boolean
+          walk_around_complete: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_description?: string | null
+          issues_found?: boolean
+          walk_around_complete?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_description?: string | null
+          issues_found?: boolean
+          walk_around_complete?: boolean
+        }
+        Relationships: []
+      }
+      WorkTrackers: {
+        Row: {
+          accepted_at: string | null
+          bleacher_uuid: string | null
+          completed_at: string | null
+          created_at: string
+          date: string | null
+          driver_uuid: string | null
+          dropoff_address_uuid: string | null
+          dropoff_poc: string | null
+          dropoff_time: string | null
+          id: string
+          internal_notes: string | null
+          notes: string | null
+          pay_cents: number | null
+          pickup_address_uuid: string | null
+          pickup_poc: string | null
+          pickup_time: string | null
+          post_inspection_uuid: string | null
+          pre_inspection_uuid: string | null
+          released_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["worktracker_status"]
+          updated_at: string
+          user_uuid: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          bleacher_uuid?: string | null
+          completed_at?: string | null
+          created_at?: string
+          date?: string | null
+          driver_uuid?: string | null
+          dropoff_address_uuid?: string | null
+          dropoff_poc?: string | null
+          dropoff_time?: string | null
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          pay_cents?: number | null
+          pickup_address_uuid?: string | null
+          pickup_poc?: string | null
+          pickup_time?: string | null
+          post_inspection_uuid?: string | null
+          pre_inspection_uuid?: string | null
+          released_at?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["worktracker_status"]
+          updated_at?: string
+          user_uuid?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          bleacher_uuid?: string | null
+          completed_at?: string | null
+          created_at?: string
+          date?: string | null
+          driver_uuid?: string | null
+          dropoff_address_uuid?: string | null
+          dropoff_poc?: string | null
+          dropoff_time?: string | null
+          id?: string
+          internal_notes?: string | null
+          notes?: string | null
+          pay_cents?: number | null
+          pickup_address_uuid?: string | null
+          pickup_poc?: string | null
+          pickup_time?: string | null
+          post_inspection_uuid?: string | null
+          pre_inspection_uuid?: string | null
+          released_at?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["worktracker_status"]
+          updated_at?: string
+          user_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "WorkTrackers_bleacher_uuid_fkey"
+            columns: ["bleacher_uuid"]
+            isOneToOne: false
+            referencedRelation: "Bleachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "WorkTrackers_driver_uuid_fkey"
+            columns: ["driver_uuid"]
+            isOneToOne: false
+            referencedRelation: "Drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackers_dropoff_address_uuid_fkey"
+            columns: ["dropoff_address_uuid"]
+            isOneToOne: false
+            referencedRelation: "Addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackers_pickup_address_uuid_fkey"
+            columns: ["pickup_address_uuid"]
+            isOneToOne: false
+            referencedRelation: "Addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "WorkTrackers_post_inspection_uuid_fkey"
+            columns: ["post_inspection_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerInspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "WorkTrackers_pre_inspection_uuid_fkey"
+            columns: ["pre_inspection_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerInspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "WorkTrackers_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      worktracker_status:
+        | "draft"
+        | "released"
+        | "accepted"
+        | "dest_pickup"
+        | "pickup_inspection"
+        | "dest_dropoff"
+        | "dropoff_inspection"
+        | "completed"
+        | "cancelled"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      worktracker_status: [
+        "draft",
+        "released",
+        "accepted",
+        "dest_pickup",
+        "pickup_inspection",
+        "dest_dropoff",
+        "dropoff_inspection",
+        "completed",
+        "cancelled",
+      ],
+    },
+  },
+} as const
+

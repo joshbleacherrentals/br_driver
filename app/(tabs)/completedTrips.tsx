@@ -1,32 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import CompletedTrips from "@/components/widgets/completed_trip_item";
-import { EnrichedWorkTracker, fetchWorkTrackersForClerkUser } from "@/db/workTrackers";
-import { useAuth } from "@clerk/clerk-expo";
-import { useQuery } from "@tanstack/react-query";
+import { WorkTracker, fetchWorkTrackers } from "@/db/workTrackers";
+import { useBatchAddresses } from '@/db/fetchAddress';
+import { useBatchBleachers } from '@/db/fetchBleacher';
 import { FlatList, Image, Text, View, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
 
 export default function CompletedTripsScreen() {
-  const { getToken, isSignedIn, userId } = useAuth();
-  const [selectedTrip, setSelectedTrip] = useState<EnrichedWorkTracker | null>(null);
+  const [selectedTrip, setSelectedTrip] = useState<WorkTracker | null>(null);
 
-  const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
-    queryKey: ["workTrackers", userId],
-    enabled: !!isSignedIn && !!userId,
-    queryFn: async () => {
-      const token = await getToken({ template: "supabase" });
-      return await fetchWorkTrackersForClerkUser(token ?? null, userId);
-    },
-  });
-
-  const workTrackers = (data?.workTrackers ?? []) as EnrichedWorkTracker[];
+  const workTrackers = fetchWorkTrackers().workTrackers;
   
   // Filter only completed trips
-  const completedTrips = workTrackers.filter(t => t.status === 'completed');
+  console.log("All WorkTrackers:", workTrackers);
+  const completedTrips = workTrackers ? workTrackers.filter(t => t.status === 'completed') || [] : [];
+
+  // Collect all address IDs that need to be fetched
+  const allAddressIds = useMemo(() => {
+    const ids: (string | null)[] = [];
+    completedTrips.forEach(trip => {
+      ids.push(trip.pickup_address_uuid);
+      ids.push(trip.dropoff_address_uuid);
+    });
+    return ids;
+  }, [completedTrips]);
+
+  const allAddresses = useBatchAddresses(allAddressIds);
+  const allBleachers = useBatchBleachers(
+    completedTrips.map(t => t.bleacher_uuid)
+  );
 
   const formatPay = (cents: number | null) => {
     if (cents === null) return '';
@@ -61,7 +66,7 @@ export default function CompletedTripsScreen() {
     }
   };
 
-  const handleTripPress = (trip: EnrichedWorkTracker) => {
+  const handleTripPress = (trip: WorkTracker) => {
     setSelectedTrip(trip);
   };
 
@@ -89,103 +94,101 @@ export default function CompletedTripsScreen() {
              source={logo} 
              style={{ width: 45, height: 45 }}
            />
-           <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Upcoming Trips</Text>
+           <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Completed Trips</Text>
            <View style={{ height: 8 }} />
-           <Text onPress={() => refetch()} style={{ color: "#007AFF" }}>
-             {isLoading || isRefetching ? "Refreshing…" : "Refresh"}
-           </Text>
-           {isError ? <Text style={{ color: "red" }}>{(error as Error)?.message}</Text> : null}
          </View>
 
       <FlatList
         contentContainerStyle={{ paddingBottom: 50, paddingTop: 8 }}
         data={completedTrips}
-        keyExtractor={(item) => String(item.work_tracker_id)}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleTripPress(item)}>
-            <View style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 12,
-              padding: 16,
-              marginVertical: 6,
-              marginHorizontal: 16,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
-            }}>
-              {/* Header with Badge */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: '#000', marginBottom: 4 }}>
-                    {item.bleacher && `Bleacher #${item.bleacher.bleacher_number}`}
-                    {item.bleacher && item.pay_cents && ' - '}
-                    {item.pay_cents && formatPay(item.pay_cents)}
+        renderItem={({ item }) => {
+          const pickupAddress = item.pickup_address_uuid ? allAddresses[item.pickup_address_uuid] : null;
+          const dropoffAddress = item.dropoff_address_uuid ? allAddresses[item.dropoff_address_uuid] : null;
+          const bleacher = item.bleacher_uuid ? allBleachers[item.bleacher_uuid] : null;
+
+          return (
+            <TouchableOpacity onPress={() => handleTripPress(item)}>
+              <View style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                padding: 16,
+                marginVertical: 6,
+                marginHorizontal: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+              }}>
+                {/* Header with Badge */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: '#000', marginBottom: 4 }}>
+                      {item.bleacher_uuid && `Bleacher #${bleacher?.bleacher_number}`}
+                      {item.bleacher_uuid && item.pay_cents && ' - '}
+                      {item.pay_cents && formatPay(item.pay_cents)}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#8E8E93' }}>
+                      {formatDate(item.date)}
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: '#8E8E93', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 }}>
+                      COMPLETED
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Completion Time */}
+                {item.completed_at && (
+                  <View style={{ 
+                    backgroundColor: '#F8F8F8', 
+                    borderRadius: 8, 
+                    padding: 10,
+                    marginBottom: 12
+                  }}>
+                    <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 2 }}>
+                      Completed At
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#000' }}>
+                      {formatDateTime(item.completed_at)}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Addresses Preview */}
+                <View style={{ marginBottom: 8 }}>
+                  <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
+                    📍 Pickup
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#8E8E93' }}>
-                    {formatDate(item.date)}
+                  <Text style={{ fontSize: 14, color: '#000', marginBottom: 8 }}>
+                    {pickupAddress
+                      ? `${pickupAddress.street}, ${pickupAddress.city}`
+                      : 'No address'}
+                  </Text>
+                  
+                  <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
+                    📍 Dropoff
+                  </Text>
+                  <Text style={{ fontSize: 14, color: '#000' }}>
+                    {dropoffAddress 
+                      ? `${dropoffAddress.street}, ${dropoffAddress.city}`
+                      : 'No address'}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: '#8E8E93', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 }}>
-                    COMPLETED
-                  </Text>
-                </View>
+
+                {/* View Details Link */}
+                <Text style={{ fontSize: 14, color: '#0A84FF', fontWeight: '600', marginTop: 8 }}>
+                  Tap to view full details and inspections →
+                </Text>
               </View>
-
-              {/* Completion Time */}
-              {item.completed_at && (
-                <View style={{ 
-                  backgroundColor: '#F8F8F8', 
-                  borderRadius: 8, 
-                  padding: 10,
-                  marginBottom: 12
-                }}>
-                  <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 2 }}>
-                    Completed At
-                  </Text>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#000' }}>
-                    {formatDateTime(item.completed_at)}
-                  </Text>
-                </View>
-              )}
-
-              {/* Addresses Preview */}
-              <View style={{ marginBottom: 8 }}>
-                <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
-                  📍 Pickup
-                </Text>
-                <Text style={{ fontSize: 14, color: '#000', marginBottom: 8 }}>
-                  {item.pickup_address 
-                    ? `${item.pickup_address.street}, ${item.pickup_address.city}`
-                    : 'No address'}
-                </Text>
-                
-                <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
-                  📍 Dropoff
-                </Text>
-                <Text style={{ fontSize: 14, color: '#000' }}>
-                  {item.dropoff_address 
-                    ? `${item.dropoff_address.street}, ${item.dropoff_address.city}`
-                    : 'No address'}
-                </Text>
-              </View>
-
-              {/* View Details Link */}
-              <Text style={{ fontSize: 14, color: '#0A84FF', fontWeight: '600', marginTop: 8 }}>
-                Tap to view full details and inspections →
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          );
+        }}
         ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
         ListEmptyComponent={() => (
           <View style={{ padding: 16, alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, color: "#666", textAlign: 'center' }}>
-              {isLoading ? "Loading…" : "No completed trips yet."}
-            </Text>
-            {!isLoading && completedTrips.length === 0 && (
+            {completedTrips.length === 0 && (
               <Text style={{ fontSize: 14, color: "#8E8E93", textAlign: 'center', marginTop: 8 }}>
                 Completed trips will appear here once you finish your deliveries.
               </Text>

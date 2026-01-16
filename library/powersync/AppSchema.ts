@@ -1,37 +1,82 @@
 import { AttachmentTable } from "@powersync/attachments";
 import { column, Schema, Table } from "@powersync/react-native";
+import { PowerSyncColsFor } from "./types";
 
-export const INSPECTION_TABLE = "Inspections";
-export const WORK_TRACKER_TABLE = "workTrackers";
+export const USERS_TABLE = "Users";
+export const DRIVERS_TABLE = "Drivers";
+export const INSPECTION_TABLE = "WorkTrackerInspections";
+export const WORK_TRACKER_TABLE = "WorkTrackers";
 
-export const LIST_TABLE = "lists";
 
-// create table
-//   public.lists (
-//     id uuid not null default gen_random_uuid (),
-//     created_at timestamp with time zone not null default now(),
-//     name text not null,
-//     constraint lists_pkey primary key (id)
-//   ) tablespace pg_default;
-
-const lists = new Table({
+// users
+const UsersCols = {
+  first_name: column.text,
+  last_name: column.text,
+  email: column.text,
+  phone: column.text,
+  clerk_user_id: column.text,
+  status_uuid: column.text,
+  role: column.integer,
+  avatar_image_url: column.text,
+  is_admin: column.integer,
   created_at: column.text,
-  name: column.text,
-});
+} satisfies PowerSyncColsFor<"Users">;
+const Users = new Table(UsersCols, { indexes: { status_uuid: ["status_uuid"] } });
+
+// drivers
+const DriversCols = {
+  account_manager_uuid: column.text,
+  address_uuid: column.text,
+  created_at: column.text,
+  insurance_photo_path: column.text,
+  is_active: column.integer,
+  license_photo_path: column.text,
+  medical_card_photo_path: column.text,
+  pay_currency: column.text,
+  pay_per_unit: column.text,
+  pay_rate_cents: column.integer,
+  phone_number: column.text,
+  tax: column.integer,
+  user_uuid: column.text,
+  vehicle_uuid: column.text
+} satisfies PowerSyncColsFor<"Drivers">;
+const Drivers = new Table(DriversCols, { indexes: { user_uuid: ["user_uuid"] } });
+
+// addresses
+const AddressCols = {
+  created_at: column.text,
+  street: column.text,
+  city: column.text,
+  state_province: column.text,
+  zip_postal: column.text,
+} satisfies PowerSyncColsFor<"Addresses">;
+const Addresses = new Table(AddressCols, { indexes: { id: ["id"] } });
+
+// bleachers
+const BleacherCols = {
+  created_at: column.text,
+  bleacher_number: column.text,
+  bleacher_rows: column.integer,
+  bleacher_seats: column.integer,
+  created_by: column.text,
+  updated_at: column.text,
+  updated_by: column.text,
+  linxup_device_id: column.text,
+  summer_account_manager_uuid: column.text,
+  winter_account_manager_uuid: column.text,
+  summer_home_base_uuid: column.text,
+  winter_home_base_uuid: column.text,
+} satisfies PowerSyncColsFor<"Bleachers">;
+const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 
 // inspection
-
-const Inspections = new Table(
-  {
-    inspection_id: column.text,
-    created_at: column.text,
-    walk_around_complete: column.integer,
-    issues_found: column.integer,
-    issue_description: column.text,
-    inspection_photos__table_id: column.text,
-  },
-  { indexes: { list: ["inspection_id"] } }
-);
+const WorkTrackerInspectionsCols = {
+  created_at: column.text,
+  walk_around_complete: column.integer,
+  issues_found: column.integer,
+  issue_description: column.text
+} satisfies PowerSyncColsFor<"WorkTrackerInspections">
+const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, { indexes: { id: ["id"] } });
 
 const InspectionPhotos = new Table(
   {
@@ -43,49 +88,62 @@ const InspectionPhotos = new Table(
 
 // worktracker
 
-const workTracker = new Table(
-  {
-    work_tracker_id: column.text,
-    created_at: column.text,
-    user_id: column.text,
-    date: column.text,
-    pickup_time: column.text,
-    pickup_address_id: column.text,
-    pickup_poc: column.text,
-    dropoff_time: column.text,
-    dropoff_address_id: column.text,
-    dropoff_poc: column.text,
-    pay_cents: column.text,
-    notes: column.text,
-    bleacher_id: column.text,
-    internal_notes: column.text,
-    status: column.text,
-    released_at: column.text,
-    accepted_at: column.text,
-    started_at: column.text,
-    completed_at: column.text,
-    updated_at: column.text,
-    pre_inspection_id: column.text,
-    post_inspection_id: column.text,
-  },
-  { indexes: { list: ["work_tracker_id"] } }
-);
+const WorkTrackersCols = {
+  created_at: column.text,
+  updated_at: column.text,
 
-// user
+  date: column.text,
 
-// driver
+  pickup_time: column.text,
+  pickup_poc: column.text,
+
+  dropoff_time: column.text,
+  dropoff_poc: column.text,
+
+  pay_cents: column.integer,
+
+  notes: column.text,
+  internal_notes: column.text,
+
+  pickup_address_uuid: column.text,
+  dropoff_address_uuid: column.text,
+
+  bleacher_uuid: column.text,
+  driver_uuid: column.text,
+  user_uuid: column.text,
+
+  status: column.text,
+
+  released_at: column.text,
+  accepted_at: column.text,
+  started_at: column.text,
+  completed_at: column.text,
+
+  pre_inspection_uuid: column.text,
+  post_inspection_uuid: column.text,
+  } satisfies PowerSyncColsFor<"WorkTrackers">;
+const WorkTrackers = new Table(WorkTrackersCols, {
+  indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
+});
 
 export const AppSchema = new Schema({
-  Inspections,
+  Users,
+  Drivers,
+  Bleachers,
+  Addresses,
+  WorkTrackerInspections,
   InspectionPhotos,
-  workTracker,
-  lists,
+  WorkTrackers,
   attachments: new AttachmentTable({
     name: "attachments",
   }),
 });
 
-export type Database = (typeof AppSchema)["types"];
-export type InspectionTable = Database["Inspections"];
-export type ListRecord = Database["lists"];
-export type InspectionPhotosTable = Database["InspectionPhotos"];
+export type PowerSyncDB = (typeof AppSchema)["types"];
+export type DriverRecord = PowerSyncDB["Drivers"];
+export type UserRecord = PowerSyncDB["Users"];
+export type BleacherRecord = PowerSyncDB["Bleachers"];
+export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
+export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
+export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
+export type AddressRecord = PowerSyncDB["Addresses"];

@@ -1,26 +1,39 @@
+// trip_item.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking, Platform } from 'react-native';
-import { EnrichedWorkTracker } from '@/db/workTrackers';
+import { WorkTracker } from '@/db/workTrackers';
+import { fetchAddreses } from '@/db/fetchAddress';
+import { fetchBleacher } from '@/db/fetchBleacher';
 
 interface TripItemProps {
-  workTracker: EnrichedWorkTracker;
-  onAccept?: (workTrackerId: number) => void;
-  onStartTrip?: (workTrackerId: number) => void;
-  onSkip?: (workTrackerId: number) => void;
-  onArrived?: (workTrackerId: number) => void;
-  onStartInspection?: (workTrackerId: number, inspectionType: 'pickup' | 'dropoff') => void;
+  workTracker: WorkTracker;
+  onAccept?: (workTrackerId: string) => void;
+  onStartTrip?: (workTrackerId: string) => void;
+  onSkip?: (workTrackerId: string) => void;
+  onArrived?: (workTrackerId: string) => void;
+  onStartInspection?: (workTrackerId: string, inspectionType: 'pickup' | 'dropoff') => void;
 }
 
 export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, onArrived, onStartInspection }: TripItemProps) {
-  const { status = 'released', pickup_address, dropoff_address, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher, pay_cents, notes } = workTracker;
+  const { status , pickup_address_uuid, dropoff_address_uuid, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher_uuid, pay_cents, notes } = workTracker;
+
+  const pickupAddressData = fetchAddreses(pickup_address_uuid);
+  const dropoffAddressData = fetchAddreses(dropoff_address_uuid);
+  const { bleacher } = fetchBleacher(bleacher_uuid);
 
   // Don't render draft items
   if (status === 'draft' || status === 'completed') {
     return null;
   }
 
-  const formatAddress = (address: typeof pickup_address) => {
+  if (!bleacher) {
+    return null;
+  }
+
+  const formatAddress = (addressType: 'pickup' | 'dropoff') => {
+    const address = addressType === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
     if (!address) return 'Address not set';
+
     return `${address.street}, ${address.city}, ${address.state_province}`;
   };
 
@@ -122,7 +135,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
           <Text style={styles.mainTitle}>
-            {bleacher && `Bleacher #${bleacher.bleacher_number}`}
+            {bleacher_uuid && `Bleacher #${bleacher.bleacher_number}`}
             {bleacher && pay_cents !== null && ' - '}
             {pay_cents !== null && formatPay(pay_cents)}
           </Text>
@@ -157,8 +170,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           )}
         </View>
 
-        <TouchableOpacity onPress={() => openInMaps(formatAddress(pickup_address))} activeOpacity={0.7}>
-          <Text style={styles.addressText}>{formatAddress(pickup_address)}</Text>
+        <TouchableOpacity onPress={() => openInMaps(formatAddress('pickup'))} activeOpacity={0.7}>
+          <Text style={styles.addressText}>{formatAddress('pickup')}</Text>
         </TouchableOpacity>
         {pickup_poc && (
           <Text style={styles.detailText}>POC: {pickup_poc}</Text>
@@ -169,13 +182,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         <View style={styles.buttonRow}>
             <TouchableOpacity
                 style={styles.skipButton}
-                onPress={() => onSkip?.(workTracker.work_tracker_id)}
+                onPress={() => onSkip?.(workTracker.id)}
             >
                 <Text style={styles.skipButtonText}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() => onArrived?.(workTracker.work_tracker_id)}
+                onPress={() => onArrived?.(workTracker.id)}
             >
                 <Text style={styles.primaryButtonText}>I've Arrived</Text>
             </TouchableOpacity>
@@ -185,7 +198,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       {status === 'pickup_inspection' && (
         <TouchableOpacity
           style={styles.inspectionButton}
-          onPress={() => onStartInspection?.(workTracker.work_tracker_id, 'pickup')}
+          onPress={() => onStartInspection?.(workTracker.id, 'pickup')}
         >
           <Text style={styles.inspectionButtonText}>Start Pickup Inspection</Text>
         </TouchableOpacity>
@@ -205,8 +218,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           )}
         </View>
 
-        <TouchableOpacity onPress={() => openInMaps(formatAddress(dropoff_address))} activeOpacity={0.7}>
-          <Text style={styles.addressText}>{formatAddress(dropoff_address)}</Text>
+        <TouchableOpacity onPress={() => openInMaps(formatAddress('dropoff'))} activeOpacity={0.7}>
+          <Text style={styles.addressText}>{formatAddress('dropoff')}</Text>
         </TouchableOpacity>
         {dropoff_poc && (
           <Text style={styles.detailText}>POC: {dropoff_poc}</Text>
@@ -217,7 +230,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       {status === 'released' && (
         <TouchableOpacity
           style={styles.acceptButton}
-          onPress={() => onAccept?.(workTracker.work_tracker_id)}
+          onPress={() => onAccept?.(workTracker.id)}
         >
           <Text style={styles.acceptButtonText}>Accept Trip</Text>
         </TouchableOpacity>
@@ -227,13 +240,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => onSkip?.(workTracker.work_tracker_id)}
+            onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => onStartTrip?.(workTracker.work_tracker_id)}
+            onPress={() => onStartTrip?.(workTracker.id)}
           >
             <Text style={styles.primaryButtonText}>Start Trip</Text>
           </TouchableOpacity>
@@ -243,7 +256,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       {status === 'dropoff_inspection' && (
         <TouchableOpacity
           style={styles.inspectionButton}
-          onPress={() => onStartInspection?.(workTracker.work_tracker_id, 'dropoff')}
+          onPress={() => onStartInspection?.(workTracker.id, 'dropoff')}
         >
           <Text style={styles.inspectionButtonText}>Start Dropoff Inspection</Text>
         </TouchableOpacity>
@@ -253,13 +266,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => onSkip?.(workTracker.work_tracker_id)}
+            onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => onArrived?.(workTracker.work_tracker_id)}
+            onPress={() => onArrived?.(workTracker.id)}
           >
             <Text style={styles.primaryButtonText}>I've Arrived</Text>
           </TouchableOpacity>
@@ -268,6 +281,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   card: {

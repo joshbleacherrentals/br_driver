@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { PowerSyncProvider } from "../library/powersync/PowerSyncProvider";
+import SystemProvider from "@/components/providers/SystemProvider";
 
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
@@ -49,9 +49,9 @@ export default function RootLayout() {
   return (
     <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
       <QueryClientProvider client={queryClient}>
-        <PowerSyncProvider>
+        <SystemProvider>
           <RootLayoutContent />
-        </PowerSyncProvider>
+        </SystemProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

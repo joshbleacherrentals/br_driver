@@ -1,137 +1,147 @@
-import { supabase } from "@/library/supabase/supabaseClient";
+import { db, powerSyncDb } from "@/components/providers/SystemProvider";
+import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { useMemo } from "react";
+import { useUser } from "@clerk/clerk-expo";
 
-export interface WorkTracker {
-  work_tracker_id: number;
-  created_at: string;
-  user_id: number | null;
-  date: string | null; // ISO date (yyyy-mm-dd)
+
+export type WorkTracker = {
+  id: string;
+  created_at: string | null;
+  updated_at: string | null;
+
+  date: string | null;
+
   pickup_time: string | null;
-  pickup_address_id: number | null;
   pickup_poc: string | null;
-  pre_inspection_id: number | null;
-  post_inspection_id: number | null;
+
   dropoff_time: string | null;
-  dropoff_address_id: number | null;
   dropoff_poc: string | null;
+
   pay_cents: number | null;
+
   notes: string | null;
+  internal_notes: string | null;
+
+  pickup_address_uuid: string | null;
+  dropoff_address_uuid: string | null;
+
+  bleacher_uuid: string | null;
+  driver_uuid: string | null;
+  user_uuid: string | null;
+
   status: string | null;
+
+  released_at: string | null;
   accepted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
-  bleacher_id: number | null;
-  internal_notes: string | null;
-}
 
-export interface Address {
-  address_id: number;
-  street: string;
-  city: string;
-  state_province: string;
-  zip_postal: string | null;
-}
+  pre_inspection_uuid: string | null;
+  post_inspection_uuid: string | null;
+};
 
-export interface Bleacher {
-  bleacher_id: number;
-  bleacher_number: number;
-}
 
-export interface EnrichedWorkTracker extends WorkTracker {
-  pickup_address?: Address;
-  dropoff_address?: Address;
-  bleacher?: Bleacher;
-}
+export type UserData = {
+  id: string;
+};
 
-export type FetchWorkTrackersResult = { workTrackers: EnrichedWorkTracker[] | null };
+export type DriverData = {
+  id: string;
+}
 
 /**
- * Fetch WorkTrackers belonging to the Clerk user (by clerk_user_id) and enrich with addresses & bleacher number.
+ * Fetch WorkTrackers belonging to the Clerk user using PowerSync
  */
-export async function fetchWorkTrackersForClerkUser(
-  token: string | null,
-  clerkUserId: string | undefined | null
-): Promise<FetchWorkTrackersResult> {
-  if (!clerkUserId) return { workTrackers: null };
+export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null } {
+  const { user } = useUser();
+  const clerkUserId = user?.id ?? null;
 
-  // Debug: Log the token to see if it's being passed
-  console.log("[WorkTrackers] Fetching for Clerk user:", clerkUserId);
-  console.log("[WorkTrackers] Token available:", !!token, token?.substring(0, 20) + "...");
+  // 1. Get user_id from Users table
+  const compiled = useMemo(() => {
+    if (!clerkUserId) return null;
 
-  // 1. Resolve internal user_id from Users table via clerk_user_id
-  const { data: userRow, error: userError } = await supabase
-    .from("Users")
-    .select("user_id")
-    .eq("clerk_user_id", clerkUserId)
-    .single();
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
 
-  if (userError || !userRow) {
-    console.warn("No matching user for clerk id", clerkUserId);
-    console.warn("Error details:", JSON.stringify(userError, null, 2));
-    return { workTrackers: [] };
-  }
-  const userId = userRow.user_id;
+  const userData = useTypedQuery(compiled, expect<UserData>());
 
-  // 2. Fetch trackers for this user
-  const { data: trackers, error: trackersError } = await supabase
-    .from("WorkTrackers")
-    .select("*")
-    .eq("user_id", userId)
-    .order("date", { ascending: true });
+  // 2. Get driver_id from Drivers table
+  const compiledDriver = useMemo(() => {
+    const userId = userData.data?.[0]?.id;
+    if (!userId) return null;
 
-  if (trackersError) {
-    console.warn("Failed to fetch WorkTrackers", trackersError.message);
+    return db
+      .selectFrom("Drivers as d")
+      .select(["d.id as id"])
+      .where("user_uuid", "=", userId)
+      .limit(1)
+      .compile();
+  }, [userData.data]);
+
+  const driverData = useTypedQuery(compiledDriver, expect<DriverData>());
+
+  // 3. Fetch WorkTrackers for this user
+  const compiledWT = useMemo(() => {
+    const driverId = driverData.data?.[0]?.id;
+    if (!driverId) return null;
+
+    return db
+      .selectFrom("WorkTrackers")
+      .select([
+        "id",
+        "created_at",
+        "updated_at",
+        "date",
+        "pickup_time",
+        "pickup_poc",
+        "dropoff_time",
+        "dropoff_poc",
+        "pay_cents",
+        "notes",
+        "internal_notes",
+        "pickup_address_uuid",
+        "dropoff_address_uuid",
+        "bleacher_uuid",
+        "driver_uuid",
+        "user_uuid",
+        "status",
+        "released_at",
+        "accepted_at",
+        "started_at",
+        "completed_at",
+        "pre_inspection_uuid",
+        "post_inspection_uuid",
+      ])
+      .where("driver_uuid", "=", driverId)
+      .orderBy("date", "asc")
+      .compile();
+  }, [driverData.data]);
+
+  // Always call the hook, but pass safe values
+  const WTData = useTypedQuery(compiledWT, expect<WorkTracker>());
+
+  // Handle the conditional logic AFTER all hooks have been called
+  if (!clerkUserId) {
+    console.log("[WorkTrackers] No clerk user ID provided");
     return { workTrackers: null };
   }
 
-  const list = (trackers as WorkTracker[]) || [];
-  if (list.length === 0) return { workTrackers: [] };
-
-  // 3. Gather unique related ids
-  const pickupIds = new Set<number>();
-  const dropoffIds = new Set<number>();
-  const bleacherIds = new Set<number>();
-  for (const t of list) {
-    if (t.pickup_address_id) pickupIds.add(t.pickup_address_id);
-    if (t.dropoff_address_id) dropoffIds.add(t.dropoff_address_id);
-    if (t.bleacher_id) bleacherIds.add(t.bleacher_id);
+  if (!compiled || !userData.data?.[0]?.id) {
+    return { workTrackers: [] };
   }
 
-  // 4. Fetch related tables in parallel (only if needed)
-  const [pickupAddressesRes, dropoffAddressesRes, bleachersRes] = await Promise.all([
-    pickupIds.size
-      ? supabase.from("Addresses").select("*").in("address_id", Array.from(pickupIds))
-      : Promise.resolve({ data: [], error: null }),
-    dropoffIds.size
-      ? supabase.from("Addresses").select("*").in("address_id", Array.from(dropoffIds))
-      : Promise.resolve({ data: [], error: null }),
-    bleacherIds.size
-      ? supabase
-          .from("Bleachers")
-          .select("bleacher_id, bleacher_number")
-          .in("bleacher_id", Array.from(bleacherIds))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  if (!compiledWT) {
+    return { workTrackers: [] };
+  }
 
-  if (pickupAddressesRes.error)
-    console.warn("Pickup addresses fetch error", pickupAddressesRes.error.message);
-  if (dropoffAddressesRes.error)
-    console.warn("Dropoff addresses fetch error", dropoffAddressesRes.error.message);
-  if (bleachersRes.error) console.warn("Bleachers fetch error", bleachersRes.error.message);
+  console.log("[WorkTrackers] Fetching for Clerk user:", clerkUserId);
+  console.log("[WorkTrackers] Compiled user data:", userData);
+  console.log("[WorkTrackers] Compiled user query:", compiledWT);
 
-  const pickupMap = new Map<number, Address>();
-  (pickupAddressesRes.data as Address[]).forEach((a) => pickupMap.set(a.address_id, a));
-  const dropoffMap = new Map<number, Address>();
-  (dropoffAddressesRes.data as Address[]).forEach((a) => dropoffMap.set(a.address_id, a));
-  const bleacherMap = new Map<number, Bleacher>();
-  (bleachersRes.data as Bleacher[]).forEach((b) => bleacherMap.set(b.bleacher_id, b));
-
-  // 5. Enrich trackers
-  const enriched: EnrichedWorkTracker[] = list.map((t) => ({
-    ...t,
-    pickup_address: t.pickup_address_id ? pickupMap.get(t.pickup_address_id) : undefined,
-    dropoff_address: t.dropoff_address_id ? dropoffMap.get(t.dropoff_address_id) : undefined,
-    bleacher: t.bleacher_id ? bleacherMap.get(t.bleacher_id) : undefined,
-  }));
-
-  return { workTrackers: enriched };
+  return { workTrackers: WTData.data };
 }

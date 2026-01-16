@@ -27,7 +27,8 @@ export function useClerkSupabaseClient() {
       if (cancelled) return null;
 
       try {
-        const token = await getToken();
+        // CRITICAL: Must specify the template to get the Supabase-formatted JWT
+        const token = await getToken({ template: "supabase" });
         return token ?? null;
       } catch (err: unknown) {
         if (isClerkRuntimeError(err) && err.code === "network_error") {
@@ -43,7 +44,7 @@ export function useClerkSupabaseClient() {
     // Also set Realtime auth once up front
     (async () => {
       try {
-        const token = await getToken();
+        const token = await getToken({ template: "supabase" });
         if (!cancelled) {
           supabase.realtime.setAuth(token ?? "");
         }
@@ -71,7 +72,7 @@ export function useClerkSupabaseClient() {
       if (state !== "active" || !isSignedIn) return;
 
       try {
-        const token = await getToken();
+        const token = await getToken({ template: "supabase" });
         supabase.realtime.setAuth(token ?? "");
       } catch (err: unknown) {
         if (isClerkRuntimeError(err) && err.code === "network_error") {

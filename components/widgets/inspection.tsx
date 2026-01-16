@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/library/supabase/supabaseClient';
 import * as ImagePicker from 'expo-image-picker';
+import { db } from '../providers/SystemProvider';
+import { executeTypedMutation, executeTypedTransaction } from '@/library/powersync/typedMutation';
+import { CompiledQuery, UpdateResult } from 'kysely';
+import { expect, useTypedQuery } from '@/library/powersync/typedQuery';
+import { WorkTracker } from '@/db/workTrackers';
+import { InspectionData } from '@/db/fetchInspection';
+
+// Simple UUID v4 generator for React Native
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 type InspectionType = 'pickup' | 'dropoff';
 
 interface InspectionScreenProps {
-  workTrackerId: number;
+  workTrackerId: string;
   inspectionType: InspectionType;
   onComplete: () => void;
   onCancel: () => void;
@@ -34,7 +48,7 @@ export default function InspectionScreen({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsMultipleSelection: true,
       quality: 0.8,
     });
@@ -68,80 +82,68 @@ export default function InspectionScreen({
 
   const handleSubmit = async () => {
     // Validation
-    // if (!walkAroundComplete) {
-    //   Alert.alert('Walk-around Required', 'Please confirm you completed the walk-around inspection');
-    //   return;
-    // }
+    if (!walkAroundComplete) {
+      Alert.alert('Walk-around Required', 'Please confirm you completed the walk-around inspection');
+      return;
+    }
 
-    // if (issuesFound && !issueDescription.trim()) {
-    //   Alert.alert('Description Required', 'Please describe the issues found');
-    //   return;
-    // }
+    if (issuesFound && !issueDescription.trim()) {
+      Alert.alert('Description Required', 'Please describe the issues found');
+      return;
+    }
 
-    // if (photos.length === 0) {
-    //   Alert.alert('Photo Required', 'Please add at least one photo for documentation');
-    //   return;
-    // }
+    if (photos.length === 0) {
+      Alert.alert('Photo Required', 'Please add at least one photo for documentation');
+      return;
+    }
 
     setIsSubmitting(true);
 
     try {
-    //   const inspectionId = `insp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    //   const photoPaths: string[] = [];
-    //   for (let i = 0; i < photos.length; i++) {
-    //     const photoUri = photos[i];
-    //     const fileName = `${inspectionId}_photo_${i}.jpg`;
-    //     const storagePath = `inspections/${workTrackerId}/${fileName}`;
-        
-    //     // TODO: Upload to Supabase Storage
-    //     photoPaths.push(storagePath);
-    //   }
-
-    //   const { error: inspectionError } = await supabase
-    //     .from('WorkTrackerInspections')
-    //     .insert({
-    //       inspection_id: inspectionId,
-    //       created_at: new Date().toISOString(),
-    //       walk_around_complete: walkAroundComplete ? 1 : 0,
-    //       issues_found: issuesFound ? 1 : 0,
-    //       issue_description: issueDescription || null,
-    //       optional_photo_ids: photoPaths.join(','),
-    //     });
-
-    //   if (inspectionError) throw inspectionError;
-
-    //   if (photoPaths.length > 0) {
-    //     const photoRecords = photoPaths.map(path => ({
-    //       storage_path: path,
-    //       inspection_id: inspectionId,
-    //     }));
-
-    //     const { error: photoError } = await supabase
-    //       .from('InspectionPhotos')
-    //       .insert(photoRecords);
-
-    //     if (photoError) throw photoError;
-    //   }
-
-    //   const updateData: any = {};
+      // Generate UUID client-side
+      const inspectionId = generateUUID();
+      const now = new Date().toISOString();
       
-    //   if (inspectionType === 'pickup') {
-    //     updateData.pre_inspection_id = inspectionId;
-    //     updateData.status = 'dest_dropoff';
-    //     updateData.pickup_completed_at = new Date().toISOString();
-    //   } else {
-    //     updateData.post_inspection_id = inspectionId;
-    //     updateData.status = 'completed';
-    //     updateData.completed_at = new Date().toISOString();
-    //   }
+      console.log('Starting inspection submission...', { inspectionId, workTrackerId, inspectionType });
 
-    //   const { error: updateError } = await supabase
-    //     .from('WorkTrackers')
-    //     .update(updateData)
-    //     .eq('work_tracker_id', workTrackerId);
+      // Execute both operations sequentially without transaction
+      // PowerSync will handle the sync ordering internally
+      
+      // 1. Insert inspection first
+      const insertQuery = db
+        .insertInto('WorkTrackerInspections')
+        .values({
+          id: inspectionId,
+          created_at: now,
+          walk_around_complete: walkAroundComplete ? 1 : 0,
+          issues_found: issuesFound ? 1 : 0,
+          issue_description: issueDescription.trim() || null,
+        })
+        .compile();
 
-    //   if (updateError) throw updateError;
+      console.log('Executing INSERT:', insertQuery.sql, insertQuery.parameters);
+      await executeTypedMutation(insertQuery);
+      console.log('INSERT completed');
+
+      // 2. Then update WorkTracker with inspection ID
+      const columnToUpdate = inspectionType === 'pickup' 
+        ? 'pre_inspection_uuid' 
+        : 'post_inspection_uuid';
+
+      const updateQuery = db
+        .updateTable('WorkTrackers')
+        .set({
+          [columnToUpdate]: inspectionId,
+          updated_at: now
+        })
+        .where('id', '=', workTrackerId)
+        .compile();
+        
+      console.log('Executing UPDATE:', updateQuery.sql, updateQuery.parameters);
+      await executeTypedMutation(updateQuery);
+      console.log('UPDATE completed');
+
+      console.log('All operations completed successfully');
 
       Alert.alert(
         'Success',
@@ -151,7 +153,8 @@ export default function InspectionScreen({
 
     } catch (error) {
       console.error('Error submitting inspection:', error);
-      Alert.alert('Error', 'Failed to submit inspection. Please try again.');
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      Alert.alert('Error', `Failed to submit inspection: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
