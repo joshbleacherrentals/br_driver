@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { db } from '../providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -252,9 +251,6 @@ export default function InspectionScreen({
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Issues or Damage</Text>
-            <View style={styles.requiredBadge}>
-              <Text style={styles.requiredText}>REQUIRED</Text>
-            </View>
           </View>
           <TouchableOpacity
             style={[styles.checkbox, issuesFound && styles.checkboxChecked]}

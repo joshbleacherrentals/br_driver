@@ -136,9 +136,9 @@ export const AppSchema = new Schema({
   WorkTrackerInspections,
   InspectionPhotos,
   WorkTrackers,
-  attachments: new AttachmentTable({
-    name: "attachments",
-  }),
+  // attachments: new AttachmentTable({
+  //   name: "attachments",
+  // }),
 });
 
 export type PowerSyncDB = (typeof AppSchema)["types"];
