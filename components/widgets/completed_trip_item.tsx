@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   View,
   Text,
   StyleSheet,
@@ -12,7 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WorkTracker } from '@/db/workTrackers';
 import { fetchAddreses } from '@/db/fetchAddress';
 import { fetchInspection } from '@/db/fetchInspection';
+import { fetchInspectionPhotos } from '@/db/fetchInspection';
 import { fetchBleacher } from '@/db/fetchBleacher';
+import { InspectionPhotosData } from '@/db/fetchInspection';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -29,7 +32,9 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const { bleacher } = fetchBleacher(workTracker.bleacher_uuid);
 
   const { inspection: preInspection } = fetchInspection(workTracker.pre_inspection_uuid);
+  const { Photos: preInspectPhotos } = fetchInspectionPhotos(workTracker.pre_inspection_uuid);
   const { inspection: postInspection } = fetchInspection(workTracker.post_inspection_uuid);
+  const { Photos: postInspectPhotos } = fetchInspectionPhotos(workTracker.post_inspection_uuid);
 
   const formatPay = (cents: number | null) =>
     cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
@@ -71,7 +76,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
     Linking.openURL(Platform.OS === "ios" ? appleUrl : googleUrlWeb);
   };
 
-  const renderInspection = (inspection: any | null, title: string) => {
+  const renderInspection = (
+    inspection: any | null,
+    title: string,
+    photos: InspectionPhotosData[] | null
+  ) => {
     if (!inspection) {
       return (
         <View style={styles.inspectionSection}>
@@ -106,6 +115,25 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           <View style={styles.issueBox}>
             <Text style={styles.issueLabel}>Issue Description:</Text>
             <Text style={styles.issueText}>{inspection.issue_description}</Text>
+          </View>
+        )}
+
+        {/* 📸 Photos */}
+        {photos && photos.length > 0 && (
+          <View style={styles.photoGrid}>
+            {photos.map(photo => 
+              photo.storage_path? (
+                <View key={photo.id} style={styles.photoContainer}>
+                  <Image
+                    source={{ uri: photo.storage_path }}
+                    style={styles.photo}
+                  />
+                  {photo.caption && (
+                    <Text style={styles.photoCaption}>{photo.caption}</Text>
+                  )}
+                </View>
+              ): null 
+            )}
           </View>
         )}
       </View>
@@ -198,7 +226,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         </View>
 
         {/* Pickup Inspection */}
-        {renderInspection(preInspection, 'Pickup Inspection')}
+        {renderInspection(preInspection, 'Pickup Inspection', preInspectPhotos)}
 
         {/* Dropoff Location */}
         <View style={styles.section}>
@@ -227,7 +255,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         </View>
 
         {/* Dropoff Inspection */}
-        {renderInspection(postInspection, 'Dropoff Inspection')}
+        {renderInspection(postInspection, 'Dropoff Inspection', postInspectPhotos)}
 
         {/* Close Button */}
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -298,4 +326,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   closeButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+
+  photoContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#eee',
+  },
+
+  photo: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+
+  photoCaption: {
+    fontSize: 12,
+    marginTop: 4,
+    color: '#555',
+    textAlign: 'center',
+  },
+
 });

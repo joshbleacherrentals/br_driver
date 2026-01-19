@@ -6,6 +6,7 @@ export const USERS_TABLE = "Users";
 export const DRIVERS_TABLE = "Drivers";
 export const INSPECTION_TABLE = "WorkTrackerInspections";
 export const WORK_TRACKER_TABLE = "WorkTrackers";
+export const PHOTO_TABLE = "InspectionPhotos"
 
 
 // users
@@ -78,13 +79,14 @@ const WorkTrackerInspectionsCols = {
 } satisfies PowerSyncColsFor<"WorkTrackerInspections">
 const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, { indexes: { id: ["id"] } });
 
-const InspectionPhotos = new Table(
-  {
-    storage_path: column.text,
-    inspection_id: column.text,
-  },
-  { indexes: { inspection: ["inspection_id"] } }
-);
+// inspectionPhotos
+const InspectionsPhotosCols = {
+  created_at: column.text,
+  inspection_uuid: column.text,
+  storage_path: column.text,
+  caption: column.text
+} satisfies PowerSyncColsFor<"InspectionPhotos">
+const InspectionPhotos = new Table(InspectionsPhotosCols, { indexes: { id: ["id"] } });
 
 // worktracker
 
