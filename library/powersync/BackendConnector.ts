@@ -20,15 +20,24 @@ const FATAL_RESPONSE_CODES = [
  */
 type TokenProvider = () => Promise<string | null>;
 
+type BackendConnectorTokenProviders = {
+  /** Token for the PowerSync service connection (must include `aud`). */
+  getPowerSyncToken: TokenProvider;
+  /** Token for Supabase PostgREST/Storage (Clerk third_party integration). */
+  getSupabaseToken: TokenProvider;
+};
+
 export class BackendConnector implements PowerSyncBackendConnector {
   client: SupabaseClient;
-  getToken: TokenProvider;
+  private getPowerSyncToken: TokenProvider;
+  private getSupabaseToken: TokenProvider;
 
   supabaseUrl: string;
   supabaseAnonKey: string;
 
-  constructor(getToken: TokenProvider) {
-    this.getToken = getToken;
+  constructor(tokens: BackendConnectorTokenProviders) {
+    this.getPowerSyncToken = tokens.getPowerSyncToken;
+    this.getSupabaseToken = tokens.getSupabaseToken;
 
     this.supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
     this.supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -39,8 +48,9 @@ export class BackendConnector implements PowerSyncBackendConnector {
       },
       global: {
         fetch: async (url, options = {}) => {
-          // Always get a fresh token for each request
-          const token = await this.getToken();
+           // Always get a fresh Supabase token for each request
+           const token = await this.getSupabaseToken();
+
 
           const headers = new Headers(options.headers);
           if (token) {
@@ -68,7 +78,8 @@ export class BackendConnector implements PowerSyncBackendConnector {
 
     // Wait until a token exists
     for (let i = 0; i < 20; i++) {
-      token = await this.getToken();
+       token = await this.getPowerSyncToken();
+
       if (token) break;
       await new Promise(res => setTimeout(res, 250));
     }
