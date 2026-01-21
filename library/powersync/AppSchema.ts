@@ -128,6 +128,16 @@ const WorkTrackers = new Table(WorkTrackersCols, {
   indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
 });
 
+// Vehicles
+const VehiclesCols = {
+  created_at: column.text,
+  make: column.text,
+  model: column.text,
+  year: column.integer,
+  vin_number: column.text,
+} satisfies PowerSyncColsFor<"Vehicles">
+const Vehicles = new Table(VehiclesCols, { indexes: { id: ["id"] } });
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -136,6 +146,7 @@ export const AppSchema = new Schema({
   WorkTrackerInspections,
   InspectionPhotos,
   WorkTrackers,
+  Vehicles
   // attachments: new AttachmentTable({
   //   name: "attachments",
   // }),

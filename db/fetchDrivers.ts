@@ -1,21 +1,116 @@
-import { USER_ROLES } from "@/constants/Constants";
-import { supabase } from "@/library/supabase/supabaseClient";
+import { db } from "@/components/providers/SystemProvider";
+import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { useMemo } from "react";
+import { useUser } from "@clerk/clerk-expo"
+import { UserData } from "./workTrackers"
 
-const createErrorToast = (messages: string[]) => {
-  console.warn("[Toast]", ...messages);
+
+export type DriverData = {
+    id: string;
+    created_at: string | null;
+    tax: number | null;
+    pay_rate_cents: number | null;
+    pay_currency: string | null;
+    pay_per_unit: string | null;
+    is_active: number | null;
+    account_manager_uuid: string | null;
+    user_uuid: string | null;
+    phone_number: string | null;
+    address_uuid: string | null;
+    license_photo_path: string | null;
+    insurance_photo_path: string | null;
+    medical_card_photo_path: string | null;
+    vehicle_uuid: string | null;
 };
 
-export async function fetchDrivers(token: string | null): Promise<any> {
-  try {
-    const { data, error } = await supabase.from("Users").select("*").eq("role", USER_ROLES.DRIVER);
+export type VehicleData = {
+  id: string;
+  created_at: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  vin_number: string | null
+};
 
-    if (error) {
-      createErrorToast(["Failed to fetch Drivers.", error.message]);
-      return { drivers: null };
-    }
-    return { drivers: data as any };
-  } catch (e: any) {
-    createErrorToast(["Unexpected error fetching Drivers", e?.message || String(e)]);
-    return { drivers: null };
-  }
+/**
+ * Fetch DriverData belonging to the user_id
+ */
+export function fetchDriver(): { driver: DriverData | null } {
+  const { user } = useUser();
+  const clerkUserId = user?.id ?? null;
+
+  // 1. Get user_id from Users table
+  const compiled = useMemo(() => {
+    if (!clerkUserId) return null;
+
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
+
+  const userData = useTypedQuery(compiled, expect<UserData>());
+
+  const compiledDriver = useMemo(() => {
+    const userId = userData.data?.[0]?.id;
+    if (!userId) return null;
+
+    return db
+    .selectFrom("Drivers")
+    .select([
+        "id",
+        "created_at",
+        "tax",
+        "pay_rate_cents",
+        "pay_currency",
+        "pay_per_unit",
+        "is_active",
+        "account_manager_uuid",
+        "user_uuid",
+        "phone_number",
+        "address_uuid",
+        "license_photo_path",
+        "insurance_photo_path",
+        "medical_card_photo_path",
+        "vehicle_uuid"
+    ])
+    .where("user_uuid", "=", userId)
+    .limit(1)
+    .compile();
+  }, [userData.data]);
+
+  const DriverData = useTypedQuery(compiledDriver, expect<DriverData>());
+
+  return { driver: DriverData.data?.[0] ?? null };
+}
+
+/**
+ * Fetch Vehicle Info belonging to the id
+ */
+export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
+
+  // 1. Get user_id from Users table
+  const compiled = useMemo(() => {
+    if (!vehicle_id) return null;
+
+    return db
+    .selectFrom("Vehicles")
+    .select([
+        "id",
+        "created_at",
+        "make",
+        "model",
+        "year",
+        "vin_number"
+    ])
+    .where("id", "=", vehicle_id)
+    .limit(1)
+    .compile();
+  }, [vehicle_id]);
+
+  const vehicleData = useTypedQuery(compiled, expect<VehicleData>());
+
+  return { vehicle: vehicleData.data?.[0] ?? null };
 }
