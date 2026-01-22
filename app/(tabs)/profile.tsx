@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
 import EditProfileDocs from "@/components/widgets/editProfileDocs"
@@ -21,8 +21,20 @@ export default function ProfileScreen() {
   const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
 
   const onLogout = async () => {
-    await signOut();
-    router.replace("/(auth)/sign-in");
+    Alert.alert(
+      "Are you sure?", 
+      "You will not be able to log back in without internet connection",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          onPress: async () => {
+            await signOut();
+            router.replace("/(auth)/sign-in");
+          },
+        },
+      ]
+    )
   };
 
   const formatPayRate = (cents: number | null) => {
