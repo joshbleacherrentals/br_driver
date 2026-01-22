@@ -58,8 +58,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         return (s as any)[(v - 20) % 10] || (s as any)[v] || s[0];
       };
       const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
-      const month = d.toLocaleDateString(undefined, { month: 'short' });
-      return `${weekday}, ${month} ${day}${ord(day)}`;
+      const month_short = d.toLocaleDateString(undefined, { month: 'short' });
+      return `${weekday}, ${month_short} ${day}${ord(day)}`;
     } catch (error) {
       return 'Invalid date';
     }
