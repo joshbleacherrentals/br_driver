@@ -172,7 +172,7 @@ export default function ProfileScreen() {
           <View style={styles.documentRow}>
             <Text style={styles.documentIcon}>🛡️</Text>
             <View style={styles.documentContent}>
-              <Text style={styles.documentText}>Insurance</Text>
+              <Text style={styles.documentText}>Certificate of Insurance</Text>
               {!driver?.insurance_photo_path && (
                 <Text style={styles.documentMissing}>Not uploaded</Text>
               )}

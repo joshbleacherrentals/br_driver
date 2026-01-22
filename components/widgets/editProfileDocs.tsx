@@ -181,7 +181,7 @@ export default function EditProfileDocs({
           )}
           
           {renderDocumentSection(
-            "Insurance",
+            "Certificate of Insurance",
             "🛡️",
             insurancePhoto,
             setInsurancePhoto
