@@ -1,9 +1,9 @@
 // trip_item.tsx
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking, Platform } from 'react-native';
-import { WorkTracker } from '@/db/workTrackers';
 import { fetchAddreses } from '@/db/fetchAddress';
 import { fetchBleacher } from '@/db/fetchBleacher';
+import { WorkTracker } from '@/db/workTrackers';
+import React from 'react';
+import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -50,7 +50,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return 'Date not set';
     try {
-      const d = new Date(dateISO);
+      const d = new Date(dateISO + 'T00:00:00');
       const day = d.getDate();
       const ord = (n: number) => {
         const s = ["th", "st", "nd", "rd"];
