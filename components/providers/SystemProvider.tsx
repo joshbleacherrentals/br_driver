@@ -2,6 +2,7 @@ import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import { useAuth } from "@clerk/clerk-expo";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
+import { OPSqliteOpenFactory } from "@powersync/op-sqlite";
 import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
 import {
   createBaseLogger,
@@ -48,11 +49,13 @@ const logger = createBaseLogger();
 logger.useDefaults();
 logger.setLevel(LogLevel.DEBUG);
 
+const openFactory = isExpoGo
+  ? new SQLJSOpenFactory({ dbFilename: "app.db" })
+  : new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
+
 export const powerSyncDb = new PowerSyncDatabase({
   schema: AppSchema,
-  database: isExpoGo
-    ? new SQLJSOpenFactory({ dbFilename: "app.db" })
-    : { dbFilename: "sqlite.db" },
+  database: openFactory,
   logger,
 });
 
