@@ -50,6 +50,7 @@ logger.setLevel(LogLevel.DEBUG);
 
 function createOpenFactory() {
   // Expo Go can't load native modules like `@powersync/op-sqlite`.
+  console.log(`[PowerSync] Execution environment: ${Constants.executionEnvironment}`);
   if (isExpoGo) {
     return new SQLJSOpenFactory({ dbFilename: "app.db" });
   }
@@ -106,7 +107,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           }
         },
       }),
-    [getToken]
+    [getToken],
   );
 
   useEffect(() => {
@@ -233,11 +234,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [isLoaded, isSignedIn, connector, getToken]);
 
-  return (
-    <PowerSyncContext.Provider value={powerSyncDb}>
-      {children}
-    </PowerSyncContext.Provider>
-  );
+  return <PowerSyncContext.Provider value={powerSyncDb}>{children}</PowerSyncContext.Provider>;
 };
 
 export default SystemProvider;
