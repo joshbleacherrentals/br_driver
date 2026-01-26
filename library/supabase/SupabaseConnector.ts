@@ -8,7 +8,6 @@ import {
 
 import { getClerkInstance } from "@clerk/clerk-expo";
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
-import { System } from "../powersync/system";
 import { SupabaseStorageAdapter } from "../storage/SupabaseStorageAdapter";
 import { AppConfig } from "./AppConfig";
 
@@ -28,7 +27,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   client: SupabaseClient;
   storage: SupabaseStorageAdapter;
 
-  constructor(protected system: System) {
+  // This connector is kept for reference/experimentation.
+  // It's currently not used by the app runtime.
+  constructor() {
     this.client = createClient(AppConfig.supabaseUrl, AppConfig.supabaseAnonKey, {
       accessToken: async () => {
         const clerk = getClerkInstance();

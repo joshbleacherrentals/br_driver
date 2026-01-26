@@ -1,8 +1,8 @@
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
+import { DebugLogger } from "@/library/debug/DebugLogger";
 import { useAuth } from "@clerk/clerk-expo";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
-import { OPSqliteOpenFactory } from "@powersync/op-sqlite";
 import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
 import {
   createBaseLogger,
@@ -12,6 +12,8 @@ import {
 } from "@powersync/react-native";
 import Constants from "expo-constants";
 import React, { useEffect, useMemo, useRef } from "react";
+
+const TAG = "PowerSync";
 
 function decodeJwtExpMs(token: string): number | null {
   try {
@@ -49,9 +51,29 @@ const logger = createBaseLogger();
 logger.useDefaults();
 logger.setLevel(LogLevel.DEBUG);
 
-const openFactory = isExpoGo
-  ? new SQLJSOpenFactory({ dbFilename: "app.db" })
-  : new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
+function createOpenFactory() {
+  // Expo Go can't load native modules like `@powersync/op-sqlite`.
+  DebugLogger.info(TAG, `Execution environment: ${Constants.executionEnvironment}`);
+  if (isExpoGo) {
+    DebugLogger.info(TAG, "Using SQLJSOpenFactory (Expo Go)");
+    return new SQLJSOpenFactory({ dbFilename: "app.db" });
+  }
+
+  // In dev-client / production builds, prefer op-sqlite when available,
+  // but fall back to SQL.js if the native module isn't present.
+  try {
+    // Lazy require so Expo Go doesn't attempt to resolve the module.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
+    DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
+    return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
+  } catch (err) {
+    DebugLogger.warn(TAG, "op-sqlite not available; falling back to SQL.js", err);
+    return new SQLJSOpenFactory({ dbFilename: "app.db" });
+  }
+}
+
+const openFactory = createOpenFactory();
 
 export const powerSyncDb = new PowerSyncDatabase({
   schema: AppSchema,
@@ -90,7 +112,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           }
         },
       }),
-    [getToken]
+    [getToken],
   );
 
   useEffect(() => {
@@ -142,9 +164,21 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           const flow = status?.dataFlowStatus;
           const downloadErr: Error | undefined = flow?.downloadError;
           const uploadErr: Error | undefined = flow?.uploadError;
+
+          // Log all status changes for debugging
+          if (downloadErr || uploadErr) {
+            DebugLogger.warn(TAG, "Status changed with errors", {
+              downloading: flow?.downloading,
+              uploading: flow?.uploading,
+              downloadError: downloadErr?.message,
+              uploadError: uploadErr?.message,
+            });
+          }
+
           const msg = `${downloadErr?.message ?? ""} ${uploadErr?.message ?? ""}`;
 
           if (/PSYNC_S2103|JWT has expired/i.test(msg)) {
+            DebugLogger.info(TAG, "JWT expired, triggering reconnect");
             void reconnect("jwt_expired");
           }
         },
@@ -153,17 +187,20 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     const connect = async () => {
       try {
-        console.log("[PowerSync] Connecting...");
+        DebugLogger.info(TAG, "Connecting...");
         await powerSyncDb.connect(connector, {
           params: { app: "mobile" },
         });
         connectedRef.current = true;
-        console.log("[PowerSync] Connected");
+        DebugLogger.info(TAG, "Connected successfully", { params: { app: "mobile" } });
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();
-      } catch (err) {
-        console.error("[PowerSync] Connect failed:", err);
+      } catch (err: any) {
+        DebugLogger.error(TAG, "Connect FAILED", {
+          error: err?.message ?? String(err),
+          stack: err?.stack?.substring(0, 300),
+        });
       }
     };
 
@@ -172,15 +209,18 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       reconnectingRef.current = true;
 
       try {
-        console.log(`[PowerSync] Reconnecting (${reason})...`);
+        DebugLogger.info(TAG, `Reconnecting (${reason})...`);
         clearRefreshTimer();
 
         await powerSyncDb.disconnect();
         connectedRef.current = false;
 
         await connect();
-      } catch (err) {
-        console.error("[PowerSync] Reconnect failed:", err);
+      } catch (err: any) {
+        DebugLogger.error(TAG, "Reconnect FAILED", {
+          reason,
+          error: err?.message ?? String(err),
+        });
       } finally {
         reconnectingRef.current = false;
       }
@@ -195,7 +235,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       clearStatusListener();
 
       if (connectedRef.current) {
-        console.log("[PowerSync] Signing out → disconnect");
+        DebugLogger.info(TAG, "Signing out → disconnect");
         powerSyncDb.disconnectAndClear?.();
         connectedRef.current = false;
       }
@@ -217,11 +257,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [isLoaded, isSignedIn, connector, getToken]);
 
-  return (
-    <PowerSyncContext.Provider value={powerSyncDb}>
-      {children}
-    </PowerSyncContext.Provider>
-  );
+  return <PowerSyncContext.Provider value={powerSyncDb}>{children}</PowerSyncContext.Provider>;
 };
 
 export default SystemProvider;

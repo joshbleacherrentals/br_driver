@@ -5,6 +5,10 @@ import {
   UpdateType,
 } from "@powersync/react-native";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { DebugLogger } from "@/library/debug/DebugLogger";
+
+const TAG = "Upload";
+const TAG_CREDS = "PowerSync";
 
 /**
  * Postgres response codes that are NOT retryable
@@ -42,25 +46,55 @@ export class BackendConnector implements PowerSyncBackendConnector {
     this.supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
     this.supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
+    DebugLogger.info(TAG_CREDS, "BackendConnector initialized", {
+      supabaseUrl: this.supabaseUrl,
+      hasAnonKey: !!this.supabaseAnonKey,
+      anonKeyPrefix: this.supabaseAnonKey?.substring(0, 20) + "...",
+    });
+
     this.client = createClient(this.supabaseUrl, this.supabaseAnonKey, {
       auth: {
         persistSession: false,
       },
       global: {
         fetch: async (url, options = {}) => {
-           // Always get a fresh Supabase token for each request
-           const token = await this.getSupabaseToken();
+          // Always get a fresh Supabase token for each request
+          const token = await this.getSupabaseToken();
 
+          DebugLogger.debug(TAG, "Supabase fetch", {
+            url: typeof url === "string" ? url : url.toString(),
+            method: options.method ?? "GET",
+            hasToken: !!token,
+            tokenLength: token?.length,
+            tokenPrefix: token?.substring(0, 30) + "...",
+          });
 
           const headers = new Headers(options.headers);
           if (token) {
-            headers.set('Authorization', `Bearer ${token}`);
+            headers.set("Authorization", `Bearer ${token}`);
           }
 
-          return fetch(url, {
-            ...options,
-            headers,
-          });
+          try {
+            const response = await fetch(url, {
+              ...options,
+              headers,
+            });
+
+            DebugLogger.debug(TAG, "Supabase fetch response", {
+              url: typeof url === "string" ? url : url.toString(),
+              status: response.status,
+              statusText: response.statusText,
+              ok: response.ok,
+            });
+
+            return response;
+          } catch (fetchError: any) {
+            DebugLogger.error(TAG, "Supabase fetch FAILED", {
+              url: typeof url === "string" ? url : url.toString(),
+              error: fetchError?.message ?? String(fetchError),
+            });
+            throw fetchError;
+          }
         },
       },
     });
@@ -70,31 +104,33 @@ export class BackendConnector implements PowerSyncBackendConnector {
    * PowerSync calls this whenever it needs credentials.
    * MUST always return a fresh JWT.
    */
-  // In BackendConnector.ts fetchCredentials():
   async fetchCredentials() {
-    console.debug("[PowerSync] fetchCredentials called");
+    DebugLogger.info(TAG_CREDS, "fetchCredentials called");
 
     let token: string | null = null;
 
     // Wait until a token exists
     for (let i = 0; i < 20; i++) {
-       token = await this.getPowerSyncToken();
-
+      token = await this.getPowerSyncToken();
       if (token) break;
-      await new Promise(res => setTimeout(res, 250));
+      await new Promise((res) => setTimeout(res, 250));
     }
 
     if (!token) {
-      console.warn("[PowerSync] Token not ready yet, retrying later");
+      DebugLogger.warn(TAG_CREDS, "Token not ready after 5s, retrying later");
       throw new Error("TEMP_NO_TOKEN"); // retryable
     }
 
-    return {
-      endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL!,
-      token,
-    };
-  }
+    const endpoint = process.env.EXPO_PUBLIC_POWERSYNC_URL!;
 
+    DebugLogger.info(TAG_CREDS, "fetchCredentials success", {
+      endpoint,
+      tokenLength: token.length,
+      tokenPrefix: token.substring(0, 30) + "...",
+    });
+
+    return { endpoint, token };
+  }
 
   /**
    * Upload local changes to Supabase
@@ -102,9 +138,18 @@ export class BackendConnector implements PowerSyncBackendConnector {
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
     const transaction = await database.getNextCrudTransaction();
 
-    if (!transaction) return;
+    if (!transaction) {
+      return;
+    }
+
+    const opCount = transaction.crud.length;
+    DebugLogger.info(TAG, `uploadData START - ${opCount} operation(s)`, {
+      transactionId: transaction.transactionId,
+      opCount,
+    });
 
     let lastOp: CrudEntry | null = null;
+    let completedOps = 0;
 
     try {
       for (const op of transaction.crud) {
@@ -112,26 +157,28 @@ export class BackendConnector implements PowerSyncBackendConnector {
         const table = this.client.from(op.table);
         let result: any;
 
-        console.log(`[uploadData] Processing ${op.op} for table ${op.table}`);
-        console.log(`[uploadData] ID: ${op.id}`);
-        console.log(`[uploadData] Data:`, op.opData);
+        DebugLogger.info(TAG, `Processing ${op.op} on ${op.table}`, {
+          op: op.op,
+          table: op.table,
+          id: op.id,
+          data: op.opData,
+        });
 
         switch (op.op) {
           case UpdateType.PUT:
             result = await table
-              .upsert({ id: op.id, ...op.opData }, { 
-                onConflict: 'id',
-                count: "exact" 
-              })
+              .upsert(
+                { id: op.id, ...op.opData },
+                {
+                  onConflict: "id",
+                  count: "exact",
+                }
+              )
               .select();
             break;
 
           case UpdateType.PATCH:
-            // Request the updated data back to verify it worked
-            result = await table
-              .update(op.opData)
-              .eq("id", op.id)
-              .select(); // Add .select() to return the updated row
+            result = await table.update(op.opData).eq("id", op.id).select();
             break;
 
           case UpdateType.DELETE:
@@ -139,36 +186,83 @@ export class BackendConnector implements PowerSyncBackendConnector {
             break;
         }
 
-        console.log(`[uploadData] ${op.op} result:`, JSON.stringify(result, null, 2));
+        // Log full result
+        DebugLogger.info(TAG, `${op.op} result`, {
+          table: op.table,
+          id: op.id,
+          status: result?.status,
+          statusText: result?.statusText,
+          count: result?.count,
+          hasError: !!result?.error,
+          error: result?.error,
+          dataCount: result?.data?.length,
+        });
 
         if (result?.error) {
-          console.error(`[uploadData] Supabase error:`, result.error);
-          throw new Error(
-            `Supabase ${op.op} failed: ${JSON.stringify(result.error)}`
-          );
+          DebugLogger.error(TAG, `Supabase error on ${op.op}`, {
+            table: op.table,
+            id: op.id,
+            error: result.error,
+            code: result.error.code,
+            message: result.error.message,
+            details: result.error.details,
+            hint: result.error.hint,
+          });
+
+          // Preserve the error code for fatal detection
+          const err: any = new Error(result.error.message ?? "Supabase error");
+          err.code = result.error.code;
+          err.details = result.error.details;
+          err.hint = result.error.hint;
+          err.table = op.table;
+          err.op = op.op;
+          err.id = op.id;
+          throw err;
         }
 
-        // Check if any rows were actually updated
-        if (op.op === UpdateType.PATCH && result.count === 0) {
-          console.error(
-            `[uploadData] RLS BLOCKED UPDATE — row exists but policy rejected it`
-          );
+        // Check if any rows were actually updated (RLS silent failure)
+        if (op.op === UpdateType.PATCH && result?.data?.length === 0) {
+          DebugLogger.warn(TAG, "RLS may have blocked update - 0 rows returned", {
+            table: op.table,
+            id: op.id,
+          });
         }
+
+        completedOps++;
       }
 
       await transaction.complete();
-      console.log("[uploadData] Transaction completed successfully");
+      DebugLogger.info(TAG, `uploadData SUCCESS - ${completedOps}/${opCount} ops completed`, {
+        transactionId: transaction.transactionId,
+      });
     } catch (ex: any) {
-      console.error("[PowerSync] Upload error:", ex);
+      DebugLogger.error(TAG, "uploadData FAILED", {
+        completedOps,
+        totalOps: opCount,
+        lastOp: lastOp
+          ? { table: lastOp.table, op: lastOp.op, id: lastOp.id }
+          : null,
+        errorMessage: ex?.message,
+        errorCode: ex?.code,
+        errorDetails: ex?.details,
+        errorHint: ex?.hint,
+        errorStack: ex?.stack?.substring(0, 500),
+      });
 
-      if (
+      const isFatal =
         typeof ex?.code === "string" &&
-        FATAL_RESPONSE_CODES.some((re) => re.test(ex.code))
-      ) {
-        console.error("[PowerSync] Discarding fatal transaction", lastOp);
+        FATAL_RESPONSE_CODES.some((re) => re.test(ex.code));
+
+      if (isFatal) {
+        DebugLogger.warn(TAG, `Discarding FATAL transaction (code: ${ex.code})`, {
+          code: ex.code,
+          lastOp: lastOp
+            ? { table: lastOp.table, op: lastOp.op, id: lastOp.id }
+            : null,
+        });
         await transaction.complete();
       } else {
-        // retryable
+        DebugLogger.info(TAG, "Error is retryable, will retry later");
         throw ex;
       }
     }
