@@ -1,7 +1,7 @@
 {
   "name": "br_driver",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
-    "@clerk/clerk-expo": "^2.12.0",
+    "@clerk/clerk-expo": "^2.19.11",
     "@expo/vector-icons": "^15.0.3",
     "@op-engineering/op-sqlite": "^14.1.4",
     "@powersync/adapter-sql-js": "^0.0.14",

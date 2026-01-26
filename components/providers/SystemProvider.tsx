@@ -2,7 +2,6 @@ import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import { useAuth } from "@clerk/clerk-expo";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
-import { OPSqliteOpenFactory } from "@powersync/op-sqlite";
 import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
 import {
   createBaseLogger,
@@ -49,9 +48,26 @@ const logger = createBaseLogger();
 logger.useDefaults();
 logger.setLevel(LogLevel.DEBUG);
 
-const openFactory = isExpoGo
-  ? new SQLJSOpenFactory({ dbFilename: "app.db" })
-  : new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
+function createOpenFactory() {
+  // Expo Go can't load native modules like `@powersync/op-sqlite`.
+  if (isExpoGo) {
+    return new SQLJSOpenFactory({ dbFilename: "app.db" });
+  }
+
+  // In dev-client / production builds, prefer op-sqlite when available,
+  // but fall back to SQL.js if the native module isn't present.
+  try {
+    // Lazy require so Expo Go doesn't attempt to resolve the module.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
+    return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
+  } catch (err) {
+    console.warn("[PowerSync] op-sqlite not available; falling back to SQL.js", err);
+    return new SQLJSOpenFactory({ dbFilename: "app.db" });
+  }
+}
+
+const openFactory = createOpenFactory();
 
 export const powerSyncDb = new PowerSyncDatabase({
   schema: AppSchema,
