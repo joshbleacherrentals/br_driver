@@ -4,8 +4,10 @@ import React, { useState } from "react";
 import { Alert, Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
+import { AddressData, fetchAddreses } from "@/db/fetchAddress";
 import EditProfileDocs from "@/components/widgets/editProfileDocs"
 import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
+import EditDriverInfo from "@/components/widgets/editDriverInfo";
 
 const DARK_BLUE = "#10365A";
 
@@ -16,9 +18,18 @@ export default function ProfileScreen() {
 
   const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
+  const [showEditDriver, setShowEditDriver] = useState(false)
 
   const { driver } = fetchDriver();
   const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
+
+  const { address } = fetchAddreses(driver?.address_uuid ?? null);
+
+  const formatAddress = (address: (AddressData | null)) => {
+    if (!address) return 'Address not set';
+
+    return `${address.street}, ${address.city}, ${address.state_province}`;
+  };
 
   const onLogout = async () => {
     Alert.alert(
@@ -98,10 +109,28 @@ export default function ProfileScreen() {
           />
         )}
 
+        {/* Edit Driver Info Modal*/}
+        {showEditDriver && (
+          <EditDriverInfo
+            driverId={driver?.id ?? null}
+            phoneNumber={driver?.phone_number ?? null}
+            addressId={driver?.address_uuid ?? null}
+            onClose={() => setShowEditDriver(false)}
+          />
+        )}
+
         {/* Driver Info Section */}
         {driver && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Driver Information</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Driver Information</Text>
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => setShowEditDriver(true)}
+              >
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Phone Number</Text>
@@ -109,8 +138,13 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Address</Text>
+              <Text style={styles.infoValue}>{address?.street}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Pay Rate</Text>
-              <Text style={styles.infoValue}>
+              <Text style={styles.infoViewOnlyValue}>
                 {formatPayRate(driver.pay_rate_cents)}
                 {driver.pay_per_unit && ` per ${driver.pay_per_unit}`}
               </Text>
@@ -119,7 +153,7 @@ export default function ProfileScreen() {
             {driver.tax !== null && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Tax Rate</Text>
-                <Text style={styles.infoValue}>{driver.tax}%</Text>
+                <Text style={styles.infoViewOnlyValue}>{driver.tax}%</Text>
               </View>
             )}
           </View>
@@ -301,6 +335,11 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 13,
     color: '#000',
+    fontWeight: '600',
+  },
+  infoViewOnlyValue: {
+    fontSize: 13,
+    color: '#8E8E93',
     fontWeight: '600',
   },
   statusBadge: {
