@@ -1,9 +1,9 @@
 // trip_item.tsx
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking, Platform } from 'react-native';
-import { WorkTracker } from '@/db/workTrackers';
 import { fetchAddreses } from '@/db/fetchAddress';
 import { fetchBleacher } from '@/db/fetchBleacher';
+import { WorkTracker } from '@/db/workTrackers';
+import React from 'react';
+import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -34,7 +34,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
     const address = addressType === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
     if (!address) return 'Address not set';
 
-    return `${address.street}, ${address.city}, ${address.state_province}`;
+    // return `${address.street}, ${address.city}, ${address.state_province}`;
+    return `${address.street}`
   };
 
   const formatPay = (cents: number | null) => {
@@ -50,7 +51,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return 'Date not set';
     try {
-      const d = new Date(dateISO);
+      const d = new Date(dateISO + 'T00:00:00');
       const day = d.getDate();
       const ord = (n: number) => {
         const s = ["th", "st", "nd", "rd"];
@@ -58,8 +59,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         return (s as any)[(v - 20) % 10] || (s as any)[v] || s[0];
       };
       const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
-      const month = d.toLocaleDateString(undefined, { month: 'short' });
-      return `${weekday}, ${month} ${day}${ord(day)}`;
+      const month_short = d.toLocaleDateString(undefined, { month: 'short' });
+      return `${weekday}, ${month_short} ${day}${ord(day)}`;
     } catch (error) {
       return 'Invalid date';
     }

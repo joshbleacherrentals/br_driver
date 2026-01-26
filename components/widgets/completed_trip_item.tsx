@@ -44,7 +44,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return 'Date not set';
     try {
-      const d = new Date(dateISO);
+      const d = new Date(dateISO + 'T00:00:00');
       const day = d.getDate();
       const ord = (n: number) => {
         const s = ["th", "st", "nd", "rd"];
@@ -52,9 +52,9 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         return (s as any)[(v - 20) % 10] || (s as any)[v] || s[0];
       };
       const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
-      const month = d.toLocaleDateString(undefined, { month: 'short' });
-      return `${weekday}, ${month} ${day}${ord(day)}`;
-    } catch {
+      const month_short = d.toLocaleDateString(undefined, { month: 'short' });
+      return `${weekday}, ${month_short} ${day}${ord(day)}`;
+    } catch (error) {
       return 'Invalid date';
     }
   };
@@ -62,7 +62,16 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const formatDateTime = (dateISO?: string | null) => {
     if (!dateISO) return '';
     try {
-      return new Date(dateISO).toLocaleString();
+      // Check if it's a date-only string (YYYY-MM-DD) or full ISO timestamp
+      if (dateISO.length === 10 && dateISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Date only - parse as local midnight
+        const [year, month, day] = dateISO.split('-').map(Number);
+        const d = new Date(year, month - 1, day);
+        return d.toLocaleString();
+      } else {
+        // Full timestamp - use as-is (it has timezone info)
+        return new Date(dateISO).toLocaleString();
+      }
     } catch {
       return dateISO ?? '';
     }
@@ -133,7 +142,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
                   )}
                 </View>
               ): null 
-            )}
+              )}
           </View>
         )}
       </View>
@@ -212,8 +221,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {pickupAddress
+              {/* {pickupAddress
                 ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
+                : 'Address not set'} */}
+                {pickupAddress
+                ? `${pickupAddress.street}`
                 : 'Address not set'}
             </Text>
           </TouchableOpacity>
@@ -241,8 +253,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {dropoffAddress
+              {/* {dropoffAddress
                 ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
+                : 'Address not set'} */}
+              {dropoffAddress
+                ? `${dropoffAddress.street}`
                 : 'Address not set'}
             </Text>
           </TouchableOpacity>

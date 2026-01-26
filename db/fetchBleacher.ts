@@ -1,7 +1,6 @@
 import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useMemo } from "react";
-import { AddressData } from "./fetchAddress";
 
 
 export type BleacherData = {
