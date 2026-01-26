@@ -91,7 +91,6 @@ export function fetchDriver(): { driver: DriverData | null } {
  */
 export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
 
-  // 1. Get user_id from Users table
   const compiled = useMemo(() => {
     if (!vehicle_id) return null;
 

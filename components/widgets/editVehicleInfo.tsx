@@ -3,7 +3,17 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert,
 import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 
+// Simple UUID v4 generator
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 interface EditVehicleInfoProps {
+  driverId: string | null;
   vehicleId: string | null;
   make: string | null;
   model: string | null;
@@ -13,6 +23,7 @@ interface EditVehicleInfoProps {
 }
 
 export default function EditVehicleInfo({
+  driverId,
   vehicleId,
   make,
   model,
@@ -26,22 +37,84 @@ export default function EditVehicleInfo({
   const [vehicleVin, setVehicleVin] = useState(vinNumber ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!vehicleId) {
-      Alert.alert('Error', 'Vehicle ID not found');
-      return;
+  const isInsert = !vehicleId;
+
+  const validate = (): number | null => {
+    const trimmedMake = vehicleMake.trim();
+    const trimmedModel = vehicleModel.trim();
+    const trimmedVin = vehicleVin.trim();
+    const yearNum = vehicleYear ? parseInt(vehicleYear, 10) : null;
+
+    if (isInsert) {
+      if (!trimmedMake || !trimmedModel || !vehicleYear || !trimmedVin) {
+        Alert.alert('Missing Fields', 'Please fill out all vehicle fields.');
+        return null;
+      }
     }
 
-    // Validate year if provided
-    const yearNum = vehicleYear ? parseInt(vehicleYear) : null;
-    if (vehicleYear && (isNaN(yearNum!) || yearNum! < 1900 || yearNum! > new Date().getFullYear() + 1)) {
-      Alert.alert('Invalid Year', 'Please enter a valid year');
-      return;
+    if (vehicleYear) {
+      if (
+        isNaN(yearNum!) ||
+        yearNum! < 1900 ||
+        yearNum! > new Date().getFullYear() + 1
+      ) {
+        Alert.alert('Invalid Year', 'Please enter a valid vehicle year.');
+        return null;
+      }
     }
+
+    if (trimmedVin && trimmedVin.length !== 17) {
+      Alert.alert('Invalid VIN', 'VIN must be exactly 17 characters.');
+      return null;
+    }
+
+    return yearNum;
+  };
+
+  const handleSubmit = async () => {
+    const yearNum = validate();
+    if (yearNum === null && vehicleYear !== '') return;
 
     setIsSubmitting(true);
 
     try {
+      if (!vehicleId) {
+        const id = generateUUID();
+
+        console.log(vehicleMake)
+        console.log(vehicleModel)
+        console.log(vehicleVin)
+        console.log(vehicleYear)
+
+        const insertVehicleQuery = db
+          .insertInto('Vehicles')
+          .values({
+            id,
+            created_at: new Date().toISOString(),
+            make: vehicleMake.trim(),
+            model: vehicleModel.trim(),
+            year: yearNum,
+            vin_number: vehicleVin.trim(),
+          })
+          .compile();
+
+        await executeTypedMutation(insertVehicleQuery);
+
+        const linkQuery = db
+          .updateTable('Drivers')
+          .set({ vehicle_uuid: id })
+          .where('id', '=', driverId)
+          .compile();
+
+        await executeTypedMutation(linkQuery);
+
+        Alert.alert('Success', 'Vehicle added successfully!', [
+          { text: 'OK', onPress: onClose },
+        ]);
+        return;
+      }
+
+      // ---- Update existing ----
       const updateQuery = db
         .updateTable('Vehicles')
         .set({
@@ -56,23 +129,26 @@ export default function EditVehicleInfo({
       await executeTypedMutation(updateQuery);
 
       Alert.alert('Success', 'Vehicle information updated successfully!', [
-        { text: 'OK', onPress: onClose }
+        { text: 'OK', onPress: onClose },
       ]);
     } catch (error) {
-      console.error('Error updating vehicle:', error);
-      Alert.alert('Error', 'Failed to update vehicle information. Please try again.');
+      console.error('Error saving vehicle:', error);
+      Alert.alert('Error', 'Failed to save vehicle information.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const submitDisabled =
+    isSubmitting ||
+    (isInsert &&
+      (!vehicleMake.trim() ||
+        !vehicleModel.trim() ||
+        !vehicleYear ||
+        !vehicleVin.trim()));
+
   return (
-    <Modal
-      visible={true}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose}>
@@ -87,9 +163,8 @@ export default function EditVehicleInfo({
             <Text style={styles.label}>Make</Text>
             <TextInput
               style={styles.input}
-              value={vehicleMake}
               onChangeText={setVehicleMake}
-              placeholder="e.g., Ford, Toyota, Chevrolet"
+              placeholder={vehicleMake? vehicleMake : "e.g., Ford"}
               placeholderTextColor="#8E8E93"
             />
           </View>
@@ -98,9 +173,8 @@ export default function EditVehicleInfo({
             <Text style={styles.label}>Model</Text>
             <TextInput
               style={styles.input}
-              value={vehicleModel}
               onChangeText={setVehicleModel}
-              placeholder="e.g., F-150, Camry, Silverado"
+              placeholder={vehicleModel? vehicleModel : "e.g., F-150" }
               placeholderTextColor="#8E8E93"
             />
           </View>
@@ -109,9 +183,8 @@ export default function EditVehicleInfo({
             <Text style={styles.label}>Year</Text>
             <TextInput
               style={styles.input}
-              value={vehicleYear}
               onChangeText={setVehicleYear}
-              placeholder="e.g., 2020"
+              placeholder={vehicleYear? vehicleYear : "e.g., 2020"}
               placeholderTextColor="#8E8E93"
               keyboardType="numeric"
               maxLength={4}
@@ -122,9 +195,8 @@ export default function EditVehicleInfo({
             <Text style={styles.label}>VIN Number</Text>
             <TextInput
               style={styles.input}
-              value={vehicleVin}
               onChangeText={setVehicleVin}
-              placeholder="17-character VIN"
+              placeholder={vehicleVin? vehicleVin : "17-character VIN"}
               placeholderTextColor="#8E8E93"
               autoCapitalize="characters"
               maxLength={17}
@@ -132,9 +204,9 @@ export default function EditVehicleInfo({
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+            style={[styles.submitButton, submitDisabled && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={isSubmitting}
+            disabled={submitDisabled}
           >
             <Text style={styles.submitButtonText}>
               {isSubmitting ? 'Saving...' : 'Save Changes'}

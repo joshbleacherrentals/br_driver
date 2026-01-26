@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker'
 import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 
@@ -77,6 +78,23 @@ export default function EditProfileDocs({
     }
   };
 
+  const pickFile = async (
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>
+  ) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: '*/*',
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setter({
+        uri: result.assets[0].uri,
+      });
+    }
+  };
+
+
   const handleSubmit = async () => {
     if (!driverId) {
       Alert.alert('Error', 'Driver ID not found');
@@ -151,6 +169,12 @@ export default function EditProfileDocs({
           onPress={() => pickImageFromLibrary(setter)}
         >
           <Text style={styles.photoButtonText}>🖼️ Choose Photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={() => pickFile(setter)}
+        >
+          <Text style={styles.photoButtonText}>📎 Choose File</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -306,7 +330,7 @@ const styles = StyleSheet.create({
   },
   photoButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '600',
   },
   submitButton: {

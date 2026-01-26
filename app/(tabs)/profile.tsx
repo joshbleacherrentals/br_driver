@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const { driver } = fetchDriver();
   const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
 
+
   const { address } = fetchAddreses(driver?.address_uuid ?? null);
 
   const formatAddress = (address: (AddressData | null)) => {
@@ -100,6 +101,7 @@ export default function ProfileScreen() {
         {/* Edit Vehicles Info Modal */}
         {showEditVehicle && (
           <EditVehicleInfo
+            driverId={driver?.id ?? null}
             vehicleId={vehicle?.id ?? null}
             make={vehicle?.make ?? null}
             model={vehicle?.model ?? null}
@@ -124,12 +126,19 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Driver Information</Text>
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={() => setShowEditDriver(true)}
-              >
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
+              <View style={styles.sectionRight}>
+                {driver?.phone_number && driver?.address_uuid && (
+                  <View style={styles.documentBadge}>
+                    <Text style={styles.documentBadgeText}>✓</Text>
+                  </View>
+                )}
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => setShowEditDriver(true)}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.infoRow}>
@@ -163,12 +172,19 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Vehicle Information</Text>
-            <TouchableOpacity 
-              style={styles.editButton}
-              onPress={() => setShowEditVehicle(true)}
-            >
-              <Text style={styles.editButtonText}>Edit</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionRight}>
+              {vehicle?.id && vehicle?.make && vehicle?.model && vehicle?.year && vehicle?.vin_number && (
+                <View style={styles.documentBadge}>
+                  <Text style={styles.documentBadgeText}>✓</Text>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => setShowEditVehicle(true)}
+              >
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.infoRow}>
@@ -193,11 +209,18 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Documents</Text>
-            <TouchableOpacity 
-              style={styles.editButton}
-              onPress={() => setShowEditDocs(true)}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionRight}>
+              {driver?.medical_card_photo_path && driver?.license_photo_path && driver?.insurance_photo_path && (
+                <View style={styles.documentBadge}>
+                  <Text style={styles.documentBadgeText}>✓</Text>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => setShowEditDocs(true)}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.documentRow}>
@@ -302,6 +325,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  sectionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -346,12 +374,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-  },
-  statusActive: {
-    backgroundColor: '#34C759',
-  },
-  statusInactive: {
-    backgroundColor: '#FF3B30',
   },
   statusText: {
     fontSize: 12,
