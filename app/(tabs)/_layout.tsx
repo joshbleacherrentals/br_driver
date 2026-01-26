@@ -27,7 +27,7 @@ export default function TabLayout() {
             tabBarStyle: Platform.select({
               ios: {
                 position: "absolute",
-                backgroundColor: 'rgba(16, 54, 90, 0.8)', // DARK_BLUE with transparency for blur
+                backgroundColor: "rgba(16, 54, 90, 0.8)", // DARK_BLUE with transparency for blur
               },
               default: {
                 backgroundColor: DARK_BLUE,
@@ -62,6 +62,17 @@ export default function TabLayout() {
               ),
             }}
           />
+          {/* {process.env.EXPO_PUBLIC_LOG_VISIBLE === "true" &&
+            (console.log("Logs tab visible", process.env.EXPO_PUBLIC_LOG_VISIBLE),
+            (
+              <Tabs.Screen
+                name="logs"
+                options={{
+                  title: "Logs",
+                  tabBarIcon: ({ color }) => <FontAwesome6 name="bug" size={24} color={color} />,
+                }}
+              />
+            ))} */}
         </Tabs>
       </SignedIn>
       <SignedOut>
