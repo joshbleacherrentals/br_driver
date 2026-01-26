@@ -1,16 +1,16 @@
 {
   "expo": {
     "name": "Bleacher Rentals Driver",
-    "owner": "jredgrift",
+    "owner": "bleacher-rentals",
     "slug": "br_driver",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "scheme": "brdriver",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.bleacherrentals.driver",
+      "bundleIdentifier": "com.bleacherrentals.driver.dev",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -27,7 +27,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.bleacherrentals.driver"
+      "package": "com.bleacherrentals.driver.dev"
     },
     "web": {
       "bundler": "metro",
@@ -60,6 +60,12 @@
       "eas": {
         "projectId": "eb97b59b-bd6b-4c6b-9f5e-3648b258f93e"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/eb97b59b-bd6b-4c6b-9f5e-3648b258f93e"
     }
   }
 }
