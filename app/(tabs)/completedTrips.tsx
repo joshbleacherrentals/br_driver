@@ -41,12 +41,8 @@ export default function CompletedTripsScreen() {
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return 'Date not set';
     try {
-      // Parse as local date instead of UTC
-      // If dateISO is "2026-01-22", create date at midnight local time
-      const [year, month, day] = dateISO.split('T')[0].split('-').map(Number);
-      const d = new Date(year, month - 1, day); // month is 0-indexed
-      
-      const dayNum = d.getDate();
+      const d = new Date(dateISO + 'T00:00:00');
+      const day = d.getDate();
       const ord = (n: number) => {
         const s = ["th", "st", "nd", "rd"];
         const v = n % 100;
@@ -54,7 +50,7 @@ export default function CompletedTripsScreen() {
       };
       const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
       const month_short = d.toLocaleDateString(undefined, { month: 'short' });
-      return `${weekday}, ${month_short} ${dayNum}${ord(dayNum)}`;
+      return `${weekday}, ${month_short} ${day}${ord(day)}`;
     } catch (error) {
       return 'Invalid date';
     }
