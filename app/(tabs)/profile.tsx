@@ -139,7 +139,7 @@ export default function ProfileScreen() {
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>{address?.street}</Text>
+              <Text style={styles.infoValue}>{address?.street?.split(',')[0]?.trim() ?? ''}</Text>
             </View>
 
             <View style={styles.infoRow}>

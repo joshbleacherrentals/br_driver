@@ -100,7 +100,7 @@ export default function TripsScreen() {
                   .where('id', '=', workTrackerId)
                   .compile();
 
-                await executeTypedMutationVoid(query);
+               await executeTypedMutationVoid(query);
                 console.log(`${isAtPickup ? 'Pickup' : 'Dropoff'} inspection started:`, workTrackerId);
               } catch (err) {
                 console.error("Error updating status:", err);

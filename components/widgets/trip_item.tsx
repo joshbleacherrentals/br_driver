@@ -34,7 +34,8 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
     const address = addressType === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
     if (!address) return 'Address not set';
 
-    return `${address.street}, ${address.city}, ${address.state_province}`;
+    // return `${address.street}, ${address.city}, ${address.state_province}`;
+    return `${address.street}`
   };
 
   const formatPay = (cents: number | null) => {

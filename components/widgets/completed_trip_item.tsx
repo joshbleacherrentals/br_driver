@@ -221,8 +221,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {pickupAddress
+              {/* {pickupAddress
                 ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
+                : 'Address not set'} */}
+                {pickupAddress
+                ? `${pickupAddress.street}`
                 : 'Address not set'}
             </Text>
           </TouchableOpacity>
@@ -250,8 +253,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {dropoffAddress
+              {/* {dropoffAddress
                 ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
+                : 'Address not set'} */}
+              {dropoffAddress
+                ? `${dropoffAddress.street}`
                 : 'Address not set'}
             </Text>
           </TouchableOpacity>

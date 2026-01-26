@@ -170,8 +170,11 @@ export default function CompletedTripsScreen() {
                     📍 Pickup
                   </Text>
                   <Text style={{ fontSize: 14, color: '#000', marginBottom: 8 }}>
-                    {pickupAddress
+                    {/* {pickupAddress
                       ? `${pickupAddress.street}, ${pickupAddress.city}`
+                      : 'No address'} */}
+                    {pickupAddress
+                      ? `${pickupAddress.street}`
                       : 'No address'}
                   </Text>
                   
@@ -179,8 +182,11 @@ export default function CompletedTripsScreen() {
                     📍 Dropoff
                   </Text>
                   <Text style={{ fontSize: 14, color: '#000' }}>
-                    {dropoffAddress 
+                    {/* {dropoffAddress 
                       ? `${dropoffAddress.street}, ${dropoffAddress.city}`
+                      : 'No address'} */}
+                    {dropoffAddress 
+                      ? `${dropoffAddress.street}`
                       : 'No address'}
                   </Text>
                 </View>
