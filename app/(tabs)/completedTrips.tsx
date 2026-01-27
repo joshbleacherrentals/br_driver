@@ -5,6 +5,7 @@ import { useBatchAddresses } from '@/db/fetchAddress';
 import { useBatchBleachers } from '@/db/fetchBleacher';
 import { FlatList, Image, Text, View, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -105,6 +106,8 @@ export default function CompletedTripsScreen() {
            <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Completed Trips</Text>
            <View style={{ height: 8 }} />
          </View>
+
+        <ProfileCompletionBanner />
 
       <FlatList
         contentContainerStyle={{ paddingBottom: 50, paddingTop: 8 }}

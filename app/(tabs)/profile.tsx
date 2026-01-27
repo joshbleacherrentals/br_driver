@@ -8,6 +8,7 @@ import { AddressData, fetchAddreses } from "@/db/fetchAddress";
 import EditProfileDocs from "@/components/widgets/editProfileDocs"
 import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
 import EditDriverInfo from "@/components/widgets/editDriverInfo";
+import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 
 const DARK_BLUE = "#10365A";
 
@@ -76,6 +77,8 @@ export default function ProfileScreen() {
         <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Profile</Text>
         <View style={{ height: 8 }} />
       </View>
+
+      <ProfileCompletionBanner />
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
