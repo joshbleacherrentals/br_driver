@@ -181,12 +181,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'dest_pickup' && (
         <View style={styles.buttonRow}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
                 style={styles.skipButton}
                 onPress={() => onSkip?.(workTracker.id)}
             >
                 <Text style={styles.skipButtonText}>Skip</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={() => onArrived?.(workTracker.id)}
@@ -239,12 +239,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'accepted' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.skipButton}
             onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => onStartTrip?.(workTracker.id)}
@@ -265,12 +265,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'dest_dropoff' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.skipButton}
             onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => onArrived?.(workTracker.id)}
