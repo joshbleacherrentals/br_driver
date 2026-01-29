@@ -28,6 +28,21 @@ export interface AddressData {
   postalCode?: string;
 }
 
+const parseFormattedAddress = (text: string): AddressData => {
+  const parts = text.split(",").map(p => p.trim());
+
+  // Example:
+  // 123 Laird Drive, East York, ON, Canada
+  return {
+    address: parts[0] ?? "",
+    city: parts[1] ?? "",
+    state: parts[2] ?? "",
+    postalCode:
+      text.match(/[A-Z]\d[A-Z]\s?\d[A-Z]\d/i)?.[0] ?? "", // Canadian postal
+  };
+};
+
+
 export default function EditDriverInfo({
   driverId,
   phoneNumber,
@@ -98,9 +113,9 @@ export default function EditDriverInfo({
         // --- Address ---
         const finalAddress = addressData ?? {
             address: address?.street ?? "",
-            city: address?.city ?? undefined,
-            state: address?.state_province ?? undefined,
-            postalCode: address?.zip_postal ?? undefined,
+            city: address?.city ?? "",
+            state: address?.state_province ?? "",
+            postalCode: address?.zip_postal ?? "",
         };
 
         const hasAddress =
@@ -193,15 +208,17 @@ export default function EditDriverInfo({
             <AddressAutocomplete
                 value={addressData?.address ?? ""}
                 placeholder={address?.street ?? null}
-                onChangeText={(text: string) =>
-                setAddressData((prev) => ({
+                onChangeText={(text: string) => {
+                  setAddressData((prev) => ({
                     address: text,
                     city: prev?.city,
                     state: prev?.state,
                     postalCode: prev?.postalCode,
-                }))
-              }
-              onAddressSelect={setAddressData}
+                  }));
+                }}
+                onAddressSelect={(data) => {
+                  setAddressData(data); // autocomplete gives structured fields
+                }}
             />
           </View>
 

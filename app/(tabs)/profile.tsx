@@ -3,11 +3,13 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from '@expo/vector-icons';
 import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
 import { AddressData, fetchAddreses } from "@/db/fetchAddress";
 import EditProfileDocs from "@/components/widgets/editProfileDocs"
 import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
 import EditDriverInfo from "@/components/widgets/editDriverInfo";
+import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 
 const DARK_BLUE = "#10365A";
 
@@ -68,14 +70,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 105 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Image 
           source={logo} 
           style={{ width: 45, height: 45 }}
         />
-        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Profile</Text>
-        <View style={{ height: 8 }} />
+        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Profile</Text>
+        <View style={{ width: 45, height: 45 }} />
       </View>
+
+      <ProfileCompletionBanner />
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
@@ -129,7 +133,7 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.phone_number && driver?.address_uuid && (
                   <View style={styles.documentBadge}>
-                    <Text style={styles.documentBadgeText}>✓</Text>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                   </View>
                 )}
                 <TouchableOpacity 
@@ -175,7 +179,7 @@ export default function ProfileScreen() {
             <View style={styles.sectionRight}>
               {vehicle?.id && vehicle?.make && vehicle?.model && vehicle?.year && vehicle?.vin_number && (
                 <View style={styles.documentBadge}>
-                  <Text style={styles.documentBadgeText}>✓</Text>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
               <TouchableOpacity 
@@ -212,7 +216,7 @@ export default function ProfileScreen() {
             <View style={styles.sectionRight}>
               {driver?.medical_card_photo_path && driver?.license_photo_path && driver?.insurance_photo_path && (
                 <View style={styles.documentBadge}>
-                  <Text style={styles.documentBadgeText}>✓</Text>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
               <TouchableOpacity 
@@ -224,7 +228,9 @@ export default function ProfileScreen() {
           </View>
           
           <View style={styles.documentRow}>
-            <Text style={styles.documentIcon}>🪪</Text>
+            <View style={styles.documentIconContainer}>
+              <Ionicons name="card" size={20} color="#0A84FF" />
+            </View>
             <View style={styles.documentContent}>
               <Text style={styles.documentText}>Driver's License</Text>
               {!driver?.license_photo_path && (
@@ -233,13 +239,15 @@ export default function ProfileScreen() {
             </View>
             {driver?.license_photo_path && (
               <View style={styles.documentBadge}>
-                <Text style={styles.documentBadgeText}>✓</Text>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
               </View>
             )}
           </View>
 
           <View style={styles.documentRow}>
-            <Text style={styles.documentIcon}>🛡️</Text>
+            <View style={styles.documentIconContainer}>
+              <Ionicons name="shield-checkmark" size={20} color="#0A84FF" />
+            </View>
             <View style={styles.documentContent}>
               <Text style={styles.documentText}>Certificate of Insurance</Text>
               {!driver?.insurance_photo_path && (
@@ -248,13 +256,15 @@ export default function ProfileScreen() {
             </View>
             {driver?.insurance_photo_path && (
               <View style={styles.documentBadge}>
-                <Text style={styles.documentBadgeText}>✓</Text>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
               </View>
             )}
           </View>
 
           <View style={styles.documentRow}>
-            <Text style={styles.documentIcon}>🏥</Text>
+            <View style={styles.documentIconContainer}>
+              <Ionicons name="medical" size={20} color="#0A84FF" />
+            </View>
             <View style={styles.documentContent}>
               <Text style={styles.documentText}>Medical Card</Text>
               {!driver?.medical_card_photo_path && (
@@ -263,7 +273,7 @@ export default function ProfileScreen() {
             </View>
             {driver?.medical_card_photo_path && (
               <View style={styles.documentBadge}>
-                <Text style={styles.documentBadgeText}>✓</Text>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
               </View>
             )}
           </View>
@@ -384,13 +394,16 @@ const styles = StyleSheet.create({
   documentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F2F2F7',
   },
-  documentIcon: {
-    fontSize: 20,
+  documentIconContainer: {
+    width: 20,
+    height: 20,
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   documentContent: {
     flex: 1,
@@ -413,11 +426,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#34C759',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  documentBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   logoutButton: {
     backgroundColor: '#FF3B30',

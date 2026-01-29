@@ -4,6 +4,7 @@ import { fetchBleacher } from '@/db/fetchBleacher';
 import { WorkTracker } from '@/db/workTrackers';
 import React from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -163,7 +164,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
-            <Text style={styles.locationIcon}>📍</Text>
+            <Ionicons name="location" size={16} color="#000" />
             <Text style={styles.locationLabel}>PICKUP</Text>
           </View>
           {pickup_time && (
@@ -181,12 +182,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'dest_pickup' && (
         <View style={styles.buttonRow}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
                 style={styles.skipButton}
                 onPress={() => onSkip?.(workTracker.id)}
             >
                 <Text style={styles.skipButtonText}>Skip</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={() => onArrived?.(workTracker.id)}
@@ -211,7 +212,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
-            <Text style={styles.locationIcon}>📍</Text>
+            <Ionicons name="location" size={16} color="#000" />
             <Text style={styles.locationLabel}>DROP-OFF</Text>
           </View>
           {dropoff_time && (
@@ -239,12 +240,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'accepted' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.skipButton}
             onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => onStartTrip?.(workTracker.id)}
@@ -265,12 +266,12 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       {status === 'dest_dropoff' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.skipButton}
             onPress={() => onSkip?.(workTracker.id)}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => onArrived?.(workTracker.id)}
@@ -363,9 +364,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  locationIcon: {
-    fontSize: 14,
   },
   locationLabel: {
     fontSize: 13,

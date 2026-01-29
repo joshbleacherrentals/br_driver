@@ -6,6 +6,8 @@ import { Alert, FlatList, Image, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
+import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -18,9 +20,14 @@ export default function TripsScreen() {
   } | null>(null);
 
   const workTrackers = fetchWorkTrackers().workTrackers;
+  const { isProfileComplete } = useProfileCompletion();
 
   // Handler functions
   const handleAccept = async (workTrackerId: string) => {
+    if ( !isProfileComplete ) {
+      Alert.alert("Error", "Complete your profile before you can accept any trips")
+      return;
+    }
     try {
       const now = new Date().toISOString();
       const query = db
@@ -220,14 +227,16 @@ export default function TripsScreen() {
   // Show trips list
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 50 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Image 
           source={logo} 
           style={{ width: 45, height: 45 }}
         />
-        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Upcoming Trips</Text>
-        <View style={{ height: 8 }} />
+        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Upcomming Trips</Text>
+        <View style={{ width: 45, height: 45 }} />
       </View>
+
+      <ProfileCompletionBanner />
 
       <FlatList
         contentContainerStyle={{ paddingBottom: 50, paddingTop: 8 }}
