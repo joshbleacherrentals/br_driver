@@ -6,6 +6,7 @@ import { useBatchBleachers } from '@/db/fetchBleacher';
 import { FlatList, Image, Text, View, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
+import { Ionicons } from '@expo/vector-icons';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -169,25 +170,25 @@ export default function CompletedTripsScreen() {
 
                 {/* Addresses Preview */}
                 <View style={{ marginBottom: 8 }}>
-                  <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
-                    📍 Pickup
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+                    <Ionicons name="location" size={14} color="#8E8E93" />
+                    <Text style={{ fontSize: 12, color: '#8E8E93' }}>
+                      Pickup
+                    </Text>
+                  </View>
                   <Text style={{ fontSize: 14, color: '#000', marginBottom: 8 }}>
-                    {/* {pickupAddress
-                      ? `${pickupAddress.street}, ${pickupAddress.city}`
-                      : 'No address'} */}
                     {pickupAddress
                       ? `${pickupAddress.street}`
                       : 'No address'}
                   </Text>
                   
-                  <Text style={{ fontSize: 12, color: '#8E8E93', marginBottom: 4 }}>
-                    📍 Dropoff
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+                    <Ionicons name="location" size={14} color="#8E8E93" />
+                    <Text style={{ fontSize: 12, color: '#8E8E93' }}>
+                      Dropoff
+                    </Text>
+                  </View>
                   <Text style={{ fontSize: 14, color: '#000' }}>
-                    {/* {dropoffAddress 
-                      ? `${dropoffAddress.street}, ${dropoffAddress.city}`
-                      : 'No address'} */}
                     {dropoffAddress 
                       ? `${dropoffAddress.street}`
                       : 'No address'}
@@ -195,9 +196,12 @@ export default function CompletedTripsScreen() {
                 </View>
 
                 {/* View Details Link */}
-                <Text style={{ fontSize: 14, color: '#0A84FF', fontWeight: '600', marginTop: 8 }}>
-                  Tap to view full details and inspections →
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                  <Text style={{ fontSize: 14, color: '#0A84FF', fontWeight: '600' }}>
+                    Tap to view full details and inspections
+                  </Text>
+                  <Ionicons name="arrow-forward" size={16} color="#0A84FF" />
+                </View>
               </View>
             </TouchableOpacity>
           );

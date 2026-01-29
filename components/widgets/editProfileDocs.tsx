@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker'
+import { Ionicons } from '@expo/vector-icons';
 import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 
@@ -131,13 +132,15 @@ export default function EditProfileDocs({
 
   const renderDocumentSection = (
     title: string,
-    icon: string,
+    iconName: string,
     photo: DocumentPhoto,
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>
   ) => (
     <View style={styles.documentSection}>
       <View style={styles.documentHeader}>
-        <Text style={styles.documentIcon}>{icon}</Text>
+        <View style={styles.documentIconContainer}>
+          <Ionicons name={iconName as any} size={24} color="#0A84FF" />
+        </View>
         <Text style={styles.documentTitle}>{title}</Text>
       </View>
 
@@ -162,19 +165,22 @@ export default function EditProfileDocs({
           style={styles.photoButton}
           onPress={() => takePhoto(setter)}
         >
-          <Text style={styles.photoButtonText}>📷 Take Photo</Text>
+          <Ionicons name="camera" size={16} color="#FFFFFF" />
+          <Text style={styles.photoButtonText}>Take Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.photoButton}
           onPress={() => pickImageFromLibrary(setter)}
         >
-          <Text style={styles.photoButtonText}>🖼️ Choose Photo</Text>
+          <Ionicons name="images" size={16} color="#FFFFFF" />
+          <Text style={styles.photoButtonText}>Choose Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.photoButton}
           onPress={() => pickFile(setter)}
         >
-          <Text style={styles.photoButtonText}>📎 Choose File</Text>
+          <Ionicons name="document-attach" size={16} color="#FFFFFF" />
+          <Text style={styles.photoButtonText}>Choose File</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -199,21 +205,21 @@ export default function EditProfileDocs({
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {renderDocumentSection(
             "Driver's License",
-            "🪪",
+            "card",
             licensePhoto,
             setLicensePhoto
           )}
           
           {renderDocumentSection(
             "Certificate of Insurance",
-            "🛡️",
+            "shield-checkmark",
             insurancePhoto,
             setInsurancePhoto
           )}
           
           {renderDocumentSection(
             "Medical Card",
-            "🏥",
+            "medical",
             medicalCardPhoto,
             setMedicalCardPhoto
           )}
@@ -272,9 +278,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  documentIcon: {
-    fontSize: 24,
+  documentIconContainer: {
+    width: 32,
+    height: 32,
     marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   documentTitle: {
     fontSize: 18,
@@ -327,6 +336,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 4,
   },
   photoButtonText: {
     color: '#FFFFFF',

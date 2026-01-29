@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { WorkTracker } from '@/db/workTrackers';
 import { fetchAddreses } from '@/db/fetchAddress';
 import { fetchInspection } from '@/db/fetchInspection';
@@ -108,16 +109,36 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
 
         <View style={styles.inspectionItem}>
           <Text style={styles.inspectionLabel}>Walk-around Complete:</Text>
-          <Text style={styles.inspectionValue}>
-            {inspection.walk_around_complete ? '✓ Yes' : '✗ No'}
-          </Text>
+          <View style={styles.inspectionValueContainer}>
+            {inspection.walk_around_complete ? (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+                <Text style={[styles.inspectionValue, { marginLeft: 6 }]}>Yes</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="close-circle" size={18} color="#FF3B30" />
+                <Text style={[styles.inspectionValue, { marginLeft: 6 }]}>No</Text>
+              </>
+            )}
+          </View>
         </View>
 
         <View style={styles.inspectionItem}>
           <Text style={styles.inspectionLabel}>Issues Found:</Text>
-          <Text style={styles.inspectionValue}>
-            {inspection.issues_found ? '⚠️ Yes' : '✓ No Issues'}
-          </Text>
+          <View style={styles.inspectionValueContainer}>
+            {inspection.issues_found ? (
+              <>
+                <Ionicons name="warning" size={18} color="#FF9500" />
+                <Text style={[styles.inspectionValue, { marginLeft: 6 }]}>Yes</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#34C759" />
+                <Text style={[styles.inspectionValue, { marginLeft: 6 }]}>None</Text>
+              </>
+            )}
+          </View>
         </View>
 
         {inspection.issues_found === 1 && inspection.issue_description && (
@@ -127,7 +148,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           </View>
         )}
 
-        {/* 📸 Photos */}
+        {/* Photos */}
         {photos && photos.length > 0 && (
           <View style={styles.photoGrid}>
             {photos.map(photo => 
@@ -210,7 +231,10 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
 
         {/* Pickup Location */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📍 Pickup Location</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="location" size={20} color="#000" />
+            <Text style={styles.sectionTitle}>Pickup Location</Text>
+          </View>
           <TouchableOpacity
             onPress={() =>
               openInMaps(
@@ -221,10 +245,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {/* {pickupAddress
-                ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
-                : 'Address not set'} */}
-                {pickupAddress
+              {pickupAddress
                 ? `${pickupAddress.street}`
                 : 'Address not set'}
             </Text>
@@ -242,7 +263,10 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
 
         {/* Dropoff Location */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📍 Dropoff Location</Text>
+          <View style={styles.sectionTitleRow}>
+            <Ionicons name="location" size={20} color="#000" />
+            <Text style={styles.sectionTitle}>Dropoff Location</Text>
+          </View>
           <TouchableOpacity
             onPress={() =>
               openInMaps(
@@ -253,9 +277,6 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             }
           >
             <Text style={styles.addressText}>
-              {/* {dropoffAddress
-                ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
-                : 'Address not set'} */}
               {dropoffAddress
                 ? `${dropoffAddress.street}`
                 : 'Address not set'}
@@ -304,7 +325,13 @@ const styles = StyleSheet.create({
   notesLabel: { fontSize: 14, fontWeight: '600', color: '#8E8E93', marginBottom: 8 },
   notesText: { fontSize: 16, color: '#000' },
   section: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 12 },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 0 },
   timelineItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -328,6 +355,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F2F2F7',
   },
   inspectionLabel: { fontSize: 15, fontWeight: '500', color: '#000' },
+  inspectionValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   inspectionValue: { fontSize: 15, fontWeight: '600', color: '#000' },
   issueBox: { backgroundColor: '#FFF3CD', borderRadius: 8, padding: 12, marginTop: 12 },
   issueLabel: { fontSize: 14, fontWeight: '600', color: '#856404', marginBottom: 6 },
@@ -347,7 +378,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
   },
-
   photoContainer: {
     width: 100,
     height: 100,
@@ -355,18 +385,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#eee',
   },
-
   photo: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-
   photoCaption: {
     fontSize: 12,
     marginTop: 4,
     color: '#555',
     textAlign: 'center',
   },
-
 });

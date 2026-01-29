@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { db } from '../providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -95,133 +96,132 @@ export default function InspectionScreen({
   };
 
   const handleSubmit = async () => {
-  if (!walkAroundComplete) {
-    Alert.alert('Walk-around Required', 'Please confirm you completed the walk-around inspection');
-    return;
-  }
+    if (!walkAroundComplete) {
+      Alert.alert('Walk-around Required', 'Please confirm you completed the walk-around inspection');
+      return;
+    }
 
-  if (issuesFound && !issueDescription.trim()) {
-    Alert.alert('Description Required', 'Please describe the issues found');
-    return;
-  }
+    if (issuesFound && !issueDescription.trim()) {
+      Alert.alert('Description Required', 'Please describe the issues found');
+      return;
+    }
 
-  if (photos.length === 0) {
-    Alert.alert('Photo Required', 'Please add at least one photo for documentation');
-    return;
-  }
+    if (photos.length === 0) {
+      Alert.alert('Photo Required', 'Please add at least one photo for documentation');
+      return;
+    }
 
-  setIsSubmitting(true);
+    setIsSubmitting(true);
 
-  try {
-    const inspectionId = generateUUID();
-    const now = new Date().toISOString();
+    try {
+      const inspectionId = generateUUID();
+      const now = new Date().toISOString();
 
-    console.log('Starting inspection submission...', { inspectionId, workTrackerId, inspectionType });
+      console.log('Starting inspection submission...', { inspectionId, workTrackerId, inspectionType });
 
-    // 1️⃣ Insert inspection record
-    const insertInspectionQuery = db
-      .insertInto('WorkTrackerInspections')
-      .values({
-        id: inspectionId,
-        created_at: now,
-        walk_around_complete: walkAroundComplete ? 1 : 0,
-        issues_found: issuesFound ? 1 : 0,
-        issue_description: issueDescription.trim() || null,
-      })
-      .compile();
+      // 1️⃣ Insert inspection record
+      const insertInspectionQuery = db
+        .insertInto('WorkTrackerInspections')
+        .values({
+          id: inspectionId,
+          created_at: now,
+          walk_around_complete: walkAroundComplete ? 1 : 0,
+          issues_found: issuesFound ? 1 : 0,
+          issue_description: issueDescription.trim() || null,
+        })
+        .compile();
 
-    await executeTypedMutation(insertInspectionQuery);
-    console.log('Inspection record created');
+      await executeTypedMutation(insertInspectionQuery);
+      console.log('Inspection record created');
 
-    // 2️⃣ Process photos sequentially to prevent OOM
-    for (let index = 0; index < photos.length; index++) {
-      const photo = photos[index];
+      // 2️⃣ Process photos sequentially to prevent OOM
+      for (let index = 0; index < photos.length; index++) {
+        const photo = photos[index];
 
-      if (!photo.base64) {
-        console.warn(`Photo ${index} missing base64 data, skipping`);
-        continue;
+        if (!photo.base64) {
+          console.warn(`Photo ${index} missing base64 data, skipping`);
+          continue;
+        }
+
+        try {
+          const photoId = generateUUID();
+
+          // Compress and resize image
+          const manipulated = await ImageManipulator.manipulateAsync(
+            photo.uri,
+            [{ resize: { width: 1024 } }], // max width 1024px
+            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          );
+
+          const storagePath = `data:image/jpeg;base64,${manipulated.base64}`;
+
+          // Save to PowerSync DB
+          const insertPhotoQuery = db
+            .insertInto('InspectionPhotos')
+            .values({
+              id: photoId,
+              created_at: now,
+              inspection_uuid: inspectionId,
+              storage_path: storagePath,
+              caption: null,
+            })
+            .compile();
+
+          await executeTypedMutation(insertPhotoQuery);
+          console.log(`Photo ${index + 1} saved: ${photoId}`);
+        } catch (error) {
+          console.error(`Error processing photo ${index + 1}:`, error);
+          throw error;
+        }
       }
 
-      try {
-        const photoId = generateUUID();
+      console.log(`All ${photos.length} photos saved`);
 
-        // Compress and resize image
-        const manipulated = await ImageManipulator.manipulateAsync(
-          photo.uri,
-          [{ resize: { width: 1024 } }], // max width 1024px
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-        );
-
-        const storagePath = `data:image/jpeg;base64,${manipulated.base64}`;
-
-        // Save to PowerSync DB
-        const insertPhotoQuery = db
-          .insertInto('InspectionPhotos')
-          .values({
-            id: photoId,
-            created_at: now,
-            inspection_uuid: inspectionId,
-            storage_path: storagePath,
-            caption: null,
+      // 3️⃣ Update WorkTracker with inspection ID
+      if (inspectionType === 'pickup') {
+        const updateQuery = db
+          .updateTable('WorkTrackers')
+          .set({
+            pre_inspection_uuid: inspectionId,
+            updated_at: now,
           })
+          .where('id', '=', workTrackerId)
           .compile();
 
-        await executeTypedMutation(insertPhotoQuery);
-        console.log(`Photo ${index + 1} saved: ${photoId}`);
-      } catch (error) {
-        console.error(`Error processing photo ${index + 1}:`, error);
-        throw error;
+        await executeTypedMutation(updateQuery);
+      } else {
+        const updateQuery = db
+          .updateTable('WorkTrackers')
+          .set({
+            post_inspection_uuid: inspectionId,
+            updated_at: now,
+          })
+          .where('id', '=', workTrackerId)
+          .compile();
+
+        await executeTypedMutation(updateQuery);
       }
+
+      console.log('WorkTracker updated');
+
+      Alert.alert(
+        'Success',
+        `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed with ${photos.length} photo(s)!`,
+        [{ text: 'OK', onPress: onComplete }]
+      );
+    } catch (error) {
+      console.error('Error submitting inspection:', error);
+      Alert.alert(
+        'Error',
+        `Failed to submit inspection: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    console.log(`All ${photos.length} photos saved`);
-
-    // 3️⃣ Update WorkTracker with inspection ID
-    if (inspectionType === 'pickup') {
-      const updateQuery = db
-        .updateTable('WorkTrackers')
-        .set({
-          pre_inspection_uuid: inspectionId,
-          updated_at: now,
-        })
-        .where('id', '=', workTrackerId)
-        .compile();
-
-      await executeTypedMutation(updateQuery);
-    } else {
-      const updateQuery = db
-        .updateTable('WorkTrackers')
-        .set({
-          post_inspection_uuid: inspectionId,
-          updated_at: now,
-        })
-        .where('id', '=', workTrackerId)
-        .compile();
-
-      await executeTypedMutation(updateQuery);
-    }
-
-    console.log('WorkTracker updated');
-
-    Alert.alert(
-      'Success',
-      `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed with ${photos.length} photo(s)!`,
-      [{ text: 'OK', onPress: onComplete }]
-    );
-
-  } catch (error) {
-    console.error('Error submitting inspection:', error);
-    Alert.alert(
-      'Error',
-      `Failed to submit inspection: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>
@@ -238,26 +238,30 @@ export default function InspectionScreen({
               <Text style={styles.requiredText}>REQUIRED</Text>
             </View>
           </View>
+
           <TouchableOpacity
             style={[styles.checkbox, walkAroundComplete && styles.checkboxChecked]}
             onPress={() => setWalkAroundComplete(v => !v)}
           >
             <Text style={styles.checkboxLabel}>I have completed a full walk-around inspection</Text>
-            {walkAroundComplete && <Text style={styles.checkmark}>✓</Text>}
+            {walkAroundComplete && (
+              <Ionicons name="checkmark-circle" size={24} color="#0A84FF" />
+            )}
           </TouchableOpacity>
         </View>
 
         {/* Issues Found */}
         <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Issues or Damage</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Issues or Damage</Text>
+
           <TouchableOpacity
             style={[styles.checkbox, issuesFound && styles.checkboxChecked]}
             onPress={() => setIssuesFound(v => !v)}
           >
             <Text style={styles.checkboxLabel}>Issues or damage found</Text>
-            {issuesFound && <Text style={styles.checkmark}>✓</Text>}
+            {issuesFound && (
+              <Ionicons name="checkmark-circle" size={24} color="#0A84FF" />
+            )}
           </TouchableOpacity>
 
           {issuesFound && (
@@ -266,8 +270,7 @@ export default function InspectionScreen({
               <TextInput
                 style={styles.textInput}
                 multiline
-                numberOfLines={4}
-                placeholder="Enter detailed description of issues..."
+                placeholder="Describe any damage, issues, or concerns..."
                 value={issueDescription}
                 onChangeText={setIssueDescription}
               />
@@ -287,10 +290,17 @@ export default function InspectionScreen({
 
           <View style={styles.photoButtons}>
             <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-              <Text style={styles.photoButtonText}>📷 Take Photo</Text>
+              <View style={styles.iconContainer}>
+                <Ionicons name="camera" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.photoButtonText}>Take Photo</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-              <Text style={styles.photoButtonText}>🖼️ Choose from Library</Text>
+              <View style={styles.iconContainer}>
+                <Ionicons name="images" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.photoButtonText}>Choose from Library</Text>
             </TouchableOpacity>
           </View>
 
@@ -299,8 +309,11 @@ export default function InspectionScreen({
               {photos.map((photo, index) => (
                 <View key={index} style={styles.photoContainer}>
                   <Image source={{ uri: photo.uri }} style={styles.photo} />
-                  <TouchableOpacity style={styles.removePhotoButton} onPress={() => removePhoto(index)}>
-                    <Text style={styles.removePhotoText}>✕</Text>
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => removePhoto(index)}
+                  >
+                    <Ionicons name="close" size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -310,9 +323,10 @@ export default function InspectionScreen({
 
         {/* Submit Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.cancelButton} onPress={onCancel} disabled={isSubmitting}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
@@ -327,7 +341,6 @@ export default function InspectionScreen({
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -403,11 +416,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
-  checkmark: {
-    fontSize: 24,
-    color: '#0A84FF',
-    fontWeight: '700',
-  },
   textInputContainer: {
     marginTop: 12,
   },
@@ -433,9 +441,12 @@ const styles = StyleSheet.create({
   photoButton: {
     flex: 1,
     backgroundColor: '#0A84FF',
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   photoButtonText: {
     color: '#FFFFFF',
@@ -452,6 +463,13 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
   },
+  iconContainer: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginLeft: 8
+  },
   photo: {
     width: '100%',
     height: '100%',
@@ -467,11 +485,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  removePhotoText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
   buttonContainer: {
     flexDirection: 'row',
