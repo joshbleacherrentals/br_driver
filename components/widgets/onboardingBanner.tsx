@@ -5,10 +5,10 @@ import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 
 export default function ProfileCompletionBanner() {
   const router = useRouter();
-  const { isProfileComplete, missingFields } = useProfileCompletion();
+  const { isProfileComplete, hasDriver } = useProfileCompletion();
 
   // Don't show banner if profile is complete
-  if (isProfileComplete) {
+  if (!hasDriver || isProfileComplete) {
     return null;
   }
 

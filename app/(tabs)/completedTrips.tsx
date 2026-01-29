@@ -99,14 +99,14 @@ export default function CompletedTripsScreen() {
   // Show completed trips list
   return (
    <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
-         <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 50 }}>
-           <Image 
-             source={logo} 
-             style={{ width: 45, height: 45 }}
-           />
-           <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827'}}>Completed Trips</Text>
-           <View style={{ height: 8 }} />
-         </View>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Image 
+            source={logo} 
+            style={{ width: 45, height: 45 }}
+          />
+          <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Completed Trips</Text>
+          <View style={{ width: 45, height: 45 }} />
+        </View>
 
         <ProfileCompletionBanner />
 

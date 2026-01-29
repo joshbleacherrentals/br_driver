@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { fetchDriver } from '@/db/fetchDrivers';
+import { fetchVehicle } from '@/db/fetchDrivers';
 
 /**
  * Hook to check if driver profile is complete
@@ -7,6 +8,9 @@ import { fetchDriver } from '@/db/fetchDrivers';
  */
 export function useProfileCompletion() {
   const { driver } = fetchDriver();
+  const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
+
+  const hasDriver = driver !== null;
 
   const isProfileComplete = useMemo(() => {
     if (!driver) return false;
@@ -55,5 +59,6 @@ export function useProfileCompletion() {
     isProfileComplete,
     missingFields,
     driver,
+    hasDriver
   };
 }
