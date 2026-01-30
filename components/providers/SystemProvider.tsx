@@ -53,7 +53,7 @@ const isExpoGo = Constants.executionEnvironment === "storeClient";
 
 const logger = createBaseLogger();
 logger.useDefaults();
-logger.setLevel(LogLevel.DEBUG);
+logger.setLevel(LogLevel.WARN);
 
 function createOpenFactory() {
   // Expo Go can't load native modules like `@powersync/op-sqlite`.
