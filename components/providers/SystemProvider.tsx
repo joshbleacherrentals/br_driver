@@ -1,5 +1,8 @@
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
+import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
+import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
+import { AppConfig } from "@/library/supabase/AppConfig";
 import { DebugLogger } from "@/library/debug/DebugLogger";
 import { useAuth } from "@clerk/clerk-expo";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
@@ -83,6 +86,10 @@ export const powerSyncDb = new PowerSyncDatabase({
 
 export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
 
+// Attachment queue for driver document photos (license, insurance, medical card).
+// Initialized lazily once the BackendConnector (and its Supabase client) is available.
+export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
+
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const connectedRef = useRef(false);
@@ -91,29 +98,50 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const disposeStatusListenerRef = useRef<(() => void) | null>(null);
 
   // Create connector ONCE
-  const connector = useMemo(
-    () =>
-      new BackendConnector({
-        // PowerSync service requires `aud` to match `powersync.yaml`.
-        getPowerSyncToken: async () => {
-          try {
-            return await getToken({ template: "powersync" });
-          } catch {
-            return null;
+  const connector = useMemo(() => {
+    const bc = new BackendConnector({
+      // PowerSync service requires `aud` to match `powersync.yaml`.
+      getPowerSyncToken: async () => {
+        try {
+          return await getToken({ template: "powersync" });
+        } catch {
+          return null;
+        }
+      },
+      // Supabase calls should use the standard Clerk session token so Supabase's
+      // Clerk third-party auth integration can treat it as `authenticated`.
+      getSupabaseToken: async () => {
+        try {
+          return await getToken();
+        } catch {
+          return null;
+        }
+      },
+    });
+
+    // Set up attachment queue if bucket is configured
+    if (AppConfig.supabaseBucket) {
+      const storage = new SupabaseStorageAdapter({
+        client: bc.client,
+        bucket: AppConfig.supabaseBucket,
+      });
+
+      photoAttachmentQueue = new PhotoAttachmentQueue({
+        powersync: powerSyncDb,
+        storage,
+        performInitialSync: false,
+        onDownloadError: async (_attachment, error) => {
+          // Don't retry if the file doesn't exist in Supabase
+          if (String(error).includes("Object not found") || String(error).includes("400")) {
+            return { retry: false };
           }
+          return { retry: true };
         },
-        // Supabase calls should use the standard Clerk session token so Supabase's
-        // Clerk third-party auth integration can treat it as `authenticated`.
-        getSupabaseToken: async () => {
-          try {
-            return await getToken();
-          } catch {
-            return null;
-          }
-        },
-      }),
-    [getToken],
-  );
+      });
+    }
+
+    return bc;
+  }, [getToken]);
 
   useEffect(() => {
     const clearRefreshTimer = () => {
@@ -193,6 +221,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         });
         connectedRef.current = true;
         DebugLogger.info(TAG, "Connected successfully", { params: { app: "mobile" } });
+
+        if (photoAttachmentQueue) {
+          await photoAttachmentQueue.init();
+          DebugLogger.info(TAG, "PhotoAttachmentQueue initialized");
+        }
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();

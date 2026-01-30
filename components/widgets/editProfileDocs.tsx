@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, Modal, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker'
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '@/components/providers/SystemProvider';
+import { db, photoAttachmentQueue } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 
 interface EditProfileDocsProps {
@@ -17,6 +18,12 @@ interface EditProfileDocsProps {
 interface DocumentPhoto {
   uri: string | null;
   base64?: string;
+  /** The attachment ID stored in the Drivers table (doubles as the storage path reference) */
+  attachmentId?: string | null;
+  /** True if this photo was newly picked/taken and needs uploading */
+  isNew?: boolean;
+  /** File extension extracted from the source URI (e.g. "jpg", "png", "pdf") */
+  ext?: string;
 }
 
 export default function EditProfileDocs({
@@ -26,16 +33,25 @@ export default function EditProfileDocs({
   medicalCardPath,
   onClose,
 }: EditProfileDocsProps) {
-  const [licensePhoto, setLicensePhoto] = useState<DocumentPhoto>({ uri: licensePath });
-  const [insurancePhoto, setInsurancePhoto] = useState<DocumentPhoto>({ uri: insurancePath });
-  const [medicalCardPhoto, setMedicalCardPhoto] = useState<DocumentPhoto>({ uri: medicalCardPath });
+  const [licensePhoto, setLicensePhoto] = useState<DocumentPhoto>({
+    uri: licensePath ? getLocalUriForAttachment(licensePath) : null,
+    attachmentId: licensePath,
+  });
+  const [insurancePhoto, setInsurancePhoto] = useState<DocumentPhoto>({
+    uri: insurancePath ? getLocalUriForAttachment(insurancePath) : null,
+    attachmentId: insurancePath,
+  });
+  const [medicalCardPhoto, setMedicalCardPhoto] = useState<DocumentPhoto>({
+    uri: medicalCardPath ? getLocalUriForAttachment(medicalCardPath) : null,
+    attachmentId: medicalCardPath,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>
   ) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'We need camera roll permissions to select photos');
       return;
@@ -49,9 +65,12 @@ export default function EditProfileDocs({
     });
 
     if (!result.canceled && result.assets[0]) {
+      const ext = getExtFromUri(result.assets[0].uri) ?? 'jpg';
       setter({
         uri: result.assets[0].uri,
-        base64: 'base64',
+        base64: result.assets[0].base64 ?? undefined,
+        isNew: true,
+        ext,
       });
     }
   };
@@ -60,7 +79,7 @@ export default function EditProfileDocs({
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>
   ) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'We need camera permissions to take photos');
       return;
@@ -72,9 +91,12 @@ export default function EditProfileDocs({
     });
 
     if (!result.canceled && result.assets[0]) {
+      const ext = getExtFromUri(result.assets[0].uri) ?? 'jpg';
       setter({
         uri: result.assets[0].uri,
-        base64: 'base64',
+        base64: result.assets[0].base64 ?? undefined,
+        isNew: true,
+        ext,
       });
     }
   };
@@ -85,16 +107,44 @@ export default function EditProfileDocs({
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
-      type: '*/*',
+      type: ['image/*', 'application/pdf'],
     });
 
     if (!result.canceled && result.assets[0]) {
+      // Read the file as base64 so it can be queued for upload
+      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const ext = getExtFromUri(result.assets[0].uri) ?? 'jpg';
       setter({
         uri: result.assets[0].uri,
+        base64,
+        isNew: true,
+        ext,
       });
     }
   };
 
+  /**
+   * Save a photo through the attachment queue.
+   * Returns the filename used as the storage path (stored in the Drivers table).
+   */
+  const savePhotoToQueue = async (
+    photo: DocumentPhoto,
+    docType: string,
+  ): Promise<string | null> => {
+    if (!photo.isNew || !photo.base64 || !driverId) return photo.attachmentId ?? null;
+    if (!photoAttachmentQueue) {
+      console.warn('PhotoAttachmentQueue not initialized');
+      return null;
+    }
+
+    const ext = photo.ext ?? 'jpg';
+    const ts = Date.now();
+    const filename = `${driverId}/${docType}_${ts}.${ext}`;
+    const record = await photoAttachmentQueue.savePhoto(photo.base64, filename);
+    return record.id;
+  };
 
   const handleSubmit = async () => {
     if (!driverId) {
@@ -105,14 +155,19 @@ export default function EditProfileDocs({
     setIsSubmitting(true);
 
     try {
-      // TODO: Upload photos to storage and get paths
-      // For now, we'll just update with the existing paths or new URIs
+      // Queue new photos for upload via the attachment queue
+      const [licenseId, insuranceId, medicalId] = await Promise.all([
+        savePhotoToQueue(licensePhoto, 'license'),
+        savePhotoToQueue(insurancePhoto, 'insurance'),
+        savePhotoToQueue(medicalCardPhoto, 'medical_card'),
+      ]);
+
       const updateQuery = db
         .updateTable('Drivers')
         .set({
-          license_photo_path: licensePhoto.uri,
-          insurance_photo_path: insurancePhoto.uri,
-          medical_card_photo_path: medicalCardPhoto.uri,
+          license_photo_path: licenseId,
+          insurance_photo_path: insuranceId,
+          medical_card_photo_path: medicalId,
         })
         .where('id', '=', driverId)
         .compile();
@@ -149,7 +204,7 @@ export default function EditProfileDocs({
           <Image source={{ uri: photo.uri }} style={styles.photo} />
           <TouchableOpacity
             style={styles.removeButton}
-            onPress={() => setter({ uri: null })}
+            onPress={() => setter({ uri: null, attachmentId: null })}
           >
             <Text style={styles.removeButtonText}>Remove</Text>
           </TouchableOpacity>
@@ -209,14 +264,14 @@ export default function EditProfileDocs({
             licensePhoto,
             setLicensePhoto
           )}
-          
+
           {renderDocumentSection(
             "Certificate of Insurance",
             "shield-checkmark",
             insurancePhoto,
             setInsurancePhoto
           )}
-          
+
           {renderDocumentSection(
             "Medical Card",
             "medical",
@@ -229,14 +284,33 @@ export default function EditProfileDocs({
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
-            <Text style={styles.submitButtonText}>
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </Text>
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitButtonText}>Save Changes</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </View>
     </Modal>
   );
+}
+
+function getExtFromUri(uri: string): string | undefined {
+  const match = uri.match(/\.(\w+)$/);
+  return match?.[1]?.toLowerCase();
+}
+
+/**
+ * Resolve a local URI for an existing attachment path.
+ * The attachment queue stores files at: {documentDirectory}/attachments/{filename}
+ */
+function getLocalUriForAttachment(attachmentId: string): string | null {
+  if (!attachmentId) return null;
+  if (!photoAttachmentQueue) return null;
+
+  const localPath = photoAttachmentQueue.getLocalFilePathSuffix(attachmentId);
+  return photoAttachmentQueue.getLocalUri(localPath);
 }
 
 const styles = StyleSheet.create({

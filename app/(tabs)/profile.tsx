@@ -219,8 +219,9 @@ export default function ProfileScreen() {
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
-              <TouchableOpacity 
-                style={styles.editButton}
+              <TouchableOpacity
+                style={[styles.editButton, !driver?.id && { opacity: 0.5 }]}
+                disabled={!driver?.id}
                 onPress={() => setShowEditDocs(true)}>
                 <Text style={styles.editButtonText}>Edit</Text>
               </TouchableOpacity>

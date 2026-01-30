@@ -146,10 +146,10 @@ export const AppSchema = new Schema({
   WorkTrackerInspections,
   InspectionPhotos,
   WorkTrackers,
-  Vehicles
-  // attachments: new AttachmentTable({
-  //   name: "attachments",
-  // }),
+  Vehicles,
+  attachments: new AttachmentTable({
+    name: "attachments",
+  }),
 });
 
 export type PowerSyncDB = (typeof AppSchema)["types"];
@@ -160,3 +160,5 @@ export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
 export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type AddressRecord = PowerSyncDB["Addresses"];
+
+export const ATTACHMENT_TABLE = "attachments";

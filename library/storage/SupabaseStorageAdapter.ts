@@ -1,45 +1,41 @@
-import { StorageAdapter } from "@powersync/attachments";
+import { StorageAdapter, EncodingType } from "@powersync/attachments";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { decode as decodeBase64 } from "base64-arraybuffer";
 import * as FileSystem from "expo-file-system/legacy";
-import { AppConfig } from "../supabase/AppConfig";
 
 export interface SupabaseStorageAdapterOptions {
   client: SupabaseClient;
+  bucket: string;
 }
 
+/**
+ * Combined StorageAdapter for @powersync/attachments AbstractAttachmentQueue.
+ * Handles both local filesystem and Supabase Storage operations.
+ */
 export class SupabaseStorageAdapter implements StorageAdapter {
   constructor(private options: SupabaseStorageAdapterOptions) {}
 
   async uploadFile(
     filename: string,
     data: ArrayBuffer,
-    options?: {
-      mediaType?: string;
-    }
+    options?: { mediaType?: string }
   ): Promise<void> {
-    if (!AppConfig.supabaseBucket) {
-      throw new Error("Supabase bucket not configured in AppConfig.ts");
-    }
+    const { mediaType = "application/octet-stream" } = options ?? {};
 
-    const { mediaType = "text/plain" } = options ?? {};
+    const { error } = await this.options.client.storage
+      .from(this.options.bucket)
+      .upload(filename, data, { contentType: mediaType, upsert: true });
 
-    const res = await this.options.client.storage
-      .from(AppConfig.supabaseBucket)
-      .upload(filename, data, { contentType: mediaType });
-
-    if (res.error) {
-      throw res.error;
+    if (error) {
+      throw error;
     }
   }
 
-  async downloadFile(filePath: string) {
-    if (!AppConfig.supabaseBucket) {
-      throw new Error("Supabase bucket not configured in AppConfig.ts");
-    }
+  async downloadFile(filePath: string): Promise<Blob> {
     const { data, error } = await this.options.client.storage
-      .from(AppConfig.supabaseBucket)
+      .from(this.options.bucket)
       .download(filePath);
+
     if (error) {
       throw error;
     }
@@ -50,52 +46,59 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async writeFile(
     fileURI: string,
     base64Data: string,
-    options?: {
-      encoding?: FileSystem.EncodingType;
-    }
+    options?: { encoding?: EncodingType }
   ): Promise<void> {
-    const { encoding = FileSystem.EncodingType.UTF8 } = options ?? {};
+    const encoding =
+      options?.encoding === EncodingType.Base64
+        ? FileSystem.EncodingType.Base64
+        : FileSystem.EncodingType.UTF8;
     await FileSystem.writeAsStringAsync(fileURI, base64Data, { encoding });
   }
+
   async readFile(
     fileURI: string,
-    options?: { encoding?: FileSystem.EncodingType; mediaType?: string }
+    options?: { encoding?: EncodingType; mediaType?: string }
   ): Promise<ArrayBuffer> {
-    const { encoding = FileSystem.EncodingType.UTF8 } = options ?? {};
     const { exists } = await FileSystem.getInfoAsync(fileURI);
     if (!exists) {
       throw new Error(`File does not exist: ${fileURI}`);
     }
-    const fileContent = await FileSystem.readAsStringAsync(fileURI, options);
-    if (encoding === FileSystem.EncodingType.Base64) {
-      return this.base64ToArrayBuffer(fileContent);
+
+    const fsEncoding =
+      options?.encoding === EncodingType.Base64
+        ? FileSystem.EncodingType.Base64
+        : FileSystem.EncodingType.UTF8;
+
+    const fileContent = await FileSystem.readAsStringAsync(fileURI, {
+      encoding: fsEncoding,
+    });
+
+    if (fsEncoding === FileSystem.EncodingType.Base64) {
+      return decodeBase64(fileContent);
     }
-    return this.stringToArrayBuffer(fileContent);
+    const encoder = new TextEncoder();
+    return encoder.encode(fileContent).buffer;
   }
 
-  async deleteFile(uri: string, options?: { filename?: string }): Promise<void> {
+  async deleteFile(
+    uri: string,
+    options?: { filename?: string }
+  ): Promise<void> {
     if (await this.fileExists(uri)) {
       await FileSystem.deleteAsync(uri);
     }
 
     const { filename } = options ?? {};
-    if (!filename) {
-      return;
-    }
+    if (!filename) return;
 
-    if (!AppConfig.supabaseBucket) {
-      throw new Error("Supabase bucket not configured in AppConfig.ts");
-    }
-
-    const { data, error } = await this.options.client.storage
-      .from(AppConfig.supabaseBucket)
+    const { error } = await this.options.client.storage
+      .from(this.options.bucket)
       .remove([filename]);
+
     if (error) {
-      console.debug("Failed to delete file from Cloud Storage", error);
+      console.debug("Failed to delete file from Supabase Storage", error);
       throw error;
     }
-
-    console.debug("Deleted file from storage", data);
   }
 
   async fileExists(fileURI: string): Promise<boolean> {
@@ -116,17 +119,5 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 
   getUserStorageDirectory(): string {
     return FileSystem.documentDirectory!;
-  }
-
-  async stringToArrayBuffer(str: string): Promise<ArrayBuffer> {
-    const encoder = new TextEncoder();
-    return encoder.encode(str).buffer;
-  }
-
-  /**
-   * Converts a base64 string to an ArrayBuffer
-   */
-  async base64ToArrayBuffer(base64: string): Promise<ArrayBuffer> {
-    return decodeBase64(base64);
   }
 }
