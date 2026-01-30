@@ -1,6 +1,7 @@
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
+import { InspectionPhotoAttachmentQueue } from "@/library/powersync/InspectionPhotoAttachmentQueue";
 import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
 import { AppConfig } from "@/library/supabase/AppConfig";
 import { DebugLogger } from "@/library/debug/DebugLogger";
@@ -89,6 +90,7 @@ export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
 // Attachment queue for driver document photos (license, insurance, medical card).
 // Initialized lazily once the BackendConnector (and its Supabase client) is available.
 export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
+export let inspectionPhotoAttachmentQueue: InspectionPhotoAttachmentQueue | undefined;
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -123,12 +125,30 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     if (AppConfig.supabaseBucket) {
       const storage = new SupabaseStorageAdapter({
         client: bc.client,
-        bucket: AppConfig.supabaseBucket,
+        bucket: 'driver-documents',
       });
 
       photoAttachmentQueue = new PhotoAttachmentQueue({
         powersync: powerSyncDb,
         storage,
+        performInitialSync: false,
+        onDownloadError: async (_attachment, error) => {
+          // Don't retry if the file doesn't exist in Supabase
+          if (String(error).includes("Object not found") || String(error).includes("400")) {
+            return { retry: false };
+          }
+          return { retry: true };
+        },
+      });
+
+      const inspectionStorage = new SupabaseStorageAdapter({
+        client: bc.client,
+        bucket: 'inspection-photos',
+      });
+
+      inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
+        powersync: powerSyncDb,
+        storage: inspectionStorage,
         performInitialSync: false,
         onDownloadError: async (_attachment, error) => {
           // Don't retry if the file doesn't exist in Supabase
