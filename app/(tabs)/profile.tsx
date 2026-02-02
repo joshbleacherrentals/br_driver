@@ -10,6 +10,7 @@ import EditProfileDocs from "@/components/widgets/editProfileDocs"
 import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
 import EditDriverInfo from "@/components/widgets/editDriverInfo";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import { fetchAccountManager, UserContactData } from "@/db/fetchAccountManager";
 
 const DARK_BLUE = "#10365A";
 
@@ -27,6 +28,10 @@ export default function ProfileScreen() {
 
 
   const { address } = fetchAddreses(driver?.address_uuid ?? null);
+  const { accountManager } = fetchAccountManager(driver?.account_manager_uuid ?? null);
+
+  const country = address?.street?.split(",").pop()?.trim();
+  const isUSA = country === "USA";
 
   const formatAddress = (address: (AddressData | null)) => {
     if (!address) return 'Address not set';
@@ -66,6 +71,11 @@ export default function ProfileScreen() {
     return phone;
   };
 
+  const formatAM = (accountManager : UserContactData | null) => {
+    if (!accountManager) return 'Not set';
+    return `${accountManager?.first_name} ${accountManager?.last_name}`;
+  };
+
   const logo = require('../../assets/images/adaptive-icon.png');
 
   return (
@@ -94,6 +104,7 @@ export default function ProfileScreen() {
         {/* Edit Documents Modal */}
         {showEditDocs && (
           <EditProfileDocs
+            showMedCard={isUSA}
             driverId={driver?.id ?? null}
             licensePath={driver?.license_photo_path ?? null}
             insurancePath={driver?.insurance_photo_path ?? null}
@@ -156,6 +167,13 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Account Manager</Text>
+              <Text style={styles.infoViewOnlyValue}>
+                {formatAM(accountManager)}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Pay Rate</Text>
               <Text style={styles.infoViewOnlyValue}>
                 {formatPayRate(driver.pay_rate_cents)}
@@ -173,111 +191,116 @@ export default function ProfileScreen() {
         )}
 
         {/* Vehicle Info Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vehicle Information</Text>
-            <View style={styles.sectionRight}>
-              {vehicle?.id && vehicle?.make && vehicle?.model && vehicle?.year && vehicle?.vin_number && (
-                <View style={styles.documentBadge}>
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                </View>
-              )}
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={() => setShowEditVehicle(true)}
-              >
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
+        { driver && driver.phone_number && driver.address_uuid && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Vehicle Information</Text>
+              <View style={styles.sectionRight}>
+                {vehicle?.id && vehicle?.make && vehicle?.model && vehicle?.year && vehicle?.vin_number && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                )}
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => setShowEditVehicle(true)}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Make & Model</Text>
+              <Text style={styles.infoValue}>
+                {vehicle?.make && vehicle?.model ? `${vehicle.make} ${vehicle.model}` : 'Not set'}
+              </Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Year</Text>
+              <Text style={styles.infoValue}>{vehicle?.year ?? 'Not set'}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>VIN</Text>
+              <Text style={styles.infoValue}>{vehicle?.vin_number ?? 'Not set'}</Text>
             </View>
           </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Make & Model</Text>
-            <Text style={styles.infoValue}>
-              {vehicle?.make && vehicle?.model ? `${vehicle.make} ${vehicle.model}` : 'Not set'}
-            </Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Year</Text>
-            <Text style={styles.infoValue}>{vehicle?.year ?? 'Not set'}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>VIN</Text>
-            <Text style={styles.infoValue}>{vehicle?.vin_number ?? 'Not set'}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Documents Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Documents</Text>
-            <View style={styles.sectionRight}>
-              {driver?.medical_card_photo_path && driver?.license_photo_path && driver?.insurance_photo_path && (
+        { vehicle && country && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Documents</Text>
+              <View style={styles.sectionRight}>
+                {driver?.insurance_photo_path && driver?.license_photo_path && (( isUSA && driver?.medical_card_photo_path) || (!isUSA)) && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                )}
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => setShowEditDocs(true)}>
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.documentRow}>
+              <View style={styles.documentIconContainer}>
+                <Ionicons name="card" size={20} color="#0A84FF" />
+              </View>
+              <View style={styles.documentContent}>
+                <Text style={styles.documentText}>Driver's License</Text>
+                {!driver?.license_photo_path && (
+                  <Text style={styles.documentMissing}>Not uploaded</Text>
+                )}
+              </View>
+              {driver?.license_photo_path && (
                 <View style={styles.documentBadge}>
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 </View>
               )}
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={() => setShowEditDocs(true)}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
             </View>
-          </View>
-          
-          <View style={styles.documentRow}>
-            <View style={styles.documentIconContainer}>
-              <Ionicons name="card" size={20} color="#0A84FF" />
-            </View>
-            <View style={styles.documentContent}>
-              <Text style={styles.documentText}>Driver's License</Text>
-              {!driver?.license_photo_path && (
-                <Text style={styles.documentMissing}>Not uploaded</Text>
-              )}
-            </View>
-            {driver?.license_photo_path && (
-              <View style={styles.documentBadge}>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-              </View>
-            )}
-          </View>
 
-          <View style={styles.documentRow}>
-            <View style={styles.documentIconContainer}>
-              <Ionicons name="shield-checkmark" size={20} color="#0A84FF" />
-            </View>
-            <View style={styles.documentContent}>
-              <Text style={styles.documentText}>Certificate of Insurance</Text>
-              {!driver?.insurance_photo_path && (
-                <Text style={styles.documentMissing}>Not uploaded</Text>
+            <View style={styles.documentRow}>
+              <View style={styles.documentIconContainer}>
+                <Ionicons name="shield-checkmark" size={20} color="#0A84FF" />
+              </View>
+              <View style={styles.documentContent}>
+                <Text style={styles.documentText}>Certificate of Insurance</Text>
+                {!driver?.insurance_photo_path && (
+                  <Text style={styles.documentMissing}>Not uploaded</Text>
+                )}
+              </View>
+              {driver?.insurance_photo_path && (
+                <View style={styles.documentBadge}>
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                </View>
               )}
             </View>
-            {driver?.insurance_photo_path && (
-              <View style={styles.documentBadge}>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            { isUSA && (
+              <View style={styles.documentRow}>
+                <View style={styles.documentIconContainer}>
+                  <Ionicons name="medical" size={20} color="#0A84FF" />
+                </View>
+                <View style={styles.documentContent}>
+                  <Text style={styles.documentText}>Medical Card</Text>
+                  {!driver?.medical_card_photo_path && (
+                    <Text style={styles.documentMissing}>Not uploaded</Text>
+                  )}
+                </View>
+                {driver?.medical_card_photo_path && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                )}
               </View>
             )}
           </View>
-
-          <View style={styles.documentRow}>
-            <View style={styles.documentIconContainer}>
-              <Ionicons name="medical" size={20} color="#0A84FF" />
-            </View>
-            <View style={styles.documentContent}>
-              <Text style={styles.documentText}>Medical Card</Text>
-              {!driver?.medical_card_photo_path && (
-                <Text style={styles.documentMissing}>Not uploaded</Text>
-              )}
-            </View>
-            {driver?.medical_card_photo_path && (
-              <View style={styles.documentBadge}>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-              </View>
-            )}
-          </View>
-        </View>
+        )}
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
