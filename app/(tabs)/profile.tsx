@@ -1,11 +1,4 @@
-import EditDriverInfo from "@/components/widgets/editDriverInfo";
-import EditProfileDocs from "@/components/widgets/editProfileDocs";
-import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
-import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import { AddressData, fetchAddreses } from "@/db/fetchAddress";
-import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";

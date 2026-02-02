@@ -271,8 +271,6 @@ export default function EditProfileDocs({
             setMedicalCardPhoto
           )}
 
-          {renderDocumentSection("Medical Card", "medical", medicalCardPhoto, setMedicalCardPhoto)}
-
           <TouchableOpacity
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
