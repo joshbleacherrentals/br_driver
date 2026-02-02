@@ -7,6 +7,7 @@ import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 
 interface EditProfileDocsProps {
+  showMedCard: boolean;
   driverId: string | null;
   licensePath: string | null;
   insurancePath: string | null;
@@ -20,6 +21,7 @@ interface DocumentPhoto {
 }
 
 export default function EditProfileDocs({
+  showMedCard,
   driverId,
   licensePath,
   insurancePath,
@@ -217,7 +219,7 @@ export default function EditProfileDocs({
             setInsurancePhoto
           )}
           
-          {renderDocumentSection(
+          {showMedCard && renderDocumentSection(
             "Medical Card",
             "medical",
             medicalCardPhoto,

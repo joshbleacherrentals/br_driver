@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { fetchDriver } from '@/db/fetchDrivers';
 import { fetchVehicle } from '@/db/fetchDrivers';
+import { fetchAddreses } from '@/db/fetchAddress';
 
 /**
  * Hook to check if driver profile is complete
@@ -8,9 +9,11 @@ import { fetchVehicle } from '@/db/fetchDrivers';
  */
 export function useProfileCompletion() {
   const { driver } = fetchDriver();
-  const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
+  const { address } = fetchAddreses(driver?.address_uuid?? null);
 
   const hasDriver = driver !== null;
+  const country = address?.street?.split(",").pop()?.trim();
+  const isUSA = country === "USA";
 
   const isProfileComplete = useMemo(() => {
     if (!driver) return false;
@@ -22,7 +25,7 @@ export function useProfileCompletion() {
       driver.vehicle_uuid,
       driver.license_photo_path,
       driver.insurance_photo_path,
-      driver.medical_card_photo_path,
+      ...(isUSA ? [driver.medical_card_photo_path] : []),
     ];
 
     // Check if all required fields are populated (not null/undefined/empty)
@@ -31,7 +34,7 @@ export function useProfileCompletion() {
       if (typeof field === 'string' && field.trim() === '') return false;
       return true;
     });
-  }, [driver]);
+  }, [driver, isUSA]);
 
   // Get list of missing fields for helpful messaging
   const missingFields = useMemo(() => {
@@ -43,7 +46,9 @@ export function useProfileCompletion() {
       { name: 'Vehicle', value: driver.vehicle_uuid },
       { name: "Driver's License", value: driver.license_photo_path },
       { name: 'Insurance', value: driver.insurance_photo_path },
-      { name: 'Medical Card', value: driver.medical_card_photo_path },
+      ...(isUSA
+        ? [{ name: 'Medical Card', value: driver.medical_card_photo_path }]
+        : []),
     ];
 
     return fields
@@ -53,7 +58,7 @@ export function useProfileCompletion() {
         return false;
       })
       .map(field => field.name);
-  }, [driver]);
+  }, [driver, isUSA]);
 
   return {
     isProfileComplete,
