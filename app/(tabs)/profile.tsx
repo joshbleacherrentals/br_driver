@@ -1,7 +1,14 @@
+import EditDriverInfo from "@/components/widgets/editDriverInfo";
+import EditProfileDocs from "@/components/widgets/editProfileDocs";
+import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
+import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import { AddressData, fetchAddreses } from "@/db/fetchAddress";
+import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
 import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
@@ -21,11 +28,10 @@ export default function ProfileScreen() {
 
   const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
-  const [showEditDriver, setShowEditDriver] = useState(false)
+  const [showEditDriver, setShowEditDriver] = useState(false);
 
   const { driver } = fetchDriver();
   const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
-
 
   const { address } = fetchAddreses(driver?.address_uuid ?? null);
   const { accountManager } = fetchAccountManager(driver?.account_manager_uuid ?? null);
@@ -33,15 +39,15 @@ export default function ProfileScreen() {
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
 
-  const formatAddress = (address: (AddressData | null)) => {
-    if (!address) return 'Address not set';
+  const formatAddress = (address: AddressData | null) => {
+    if (!address) return "Address not set";
 
     return `${address.street}, ${address.city}, ${address.state_province}`;
   };
 
   const onLogout = async () => {
     Alert.alert(
-      "Are you sure?", 
+      "Are you sure?",
       "You will not be able to log back in without internet connection",
       [
         { text: "Cancel", style: "cancel" },
@@ -52,19 +58,19 @@ export default function ProfileScreen() {
             router.replace("/(auth)/sign-in");
           },
         },
-      ]
-    )
+      ],
+    );
   };
 
   const formatPayRate = (cents: number | null) => {
-    if (cents === null) return 'Not set';
+    if (cents === null) return "Not set";
     return `$${(cents / 100).toFixed(2)}`;
   };
 
   const formatPhoneNumber = (phone: string | null) => {
-    if (!phone) return 'Not set';
+    if (!phone) return "Not set";
     // Format as (XXX) XXX-XXXX if 10 digits
-    const cleaned = phone.replace(/\D/g, '');
+    const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 10) {
       return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
     }
@@ -80,17 +86,37 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Image 
-          source={logo} 
-          style={{ width: 45, height: 45 }}
-        />
-        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Profile</Text>
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 8,
+          backgroundColor: "#FFFFFF",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Image source={logo} style={{ width: 45, height: 45 }} />
+        <Text
+          style={{
+            fontSize: 24,
+            fontWeight: "700",
+            letterSpacing: 0.3,
+            color: "#111827",
+            position: "absolute",
+            left: 0,
+            right: 0,
+            textAlign: "center",
+          }}
+        >
+          Profile
+        </Text>
         <View style={{ width: 45, height: 45 }} />
       </View>
 
       <ProfileCompletionBanner />
-      
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
@@ -147,10 +173,7 @@ export default function ProfileScreen() {
                     <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                   </View>
                 )}
-                <TouchableOpacity 
-                  style={styles.editButton}
-                  onPress={() => setShowEditDriver(true)}
-                >
+                <TouchableOpacity style={styles.editButton} onPress={() => setShowEditDriver(true)}>
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               </View>
@@ -163,7 +186,7 @@ export default function ProfileScreen() {
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>{address?.street?.split(',')[0]?.trim() ?? ''}</Text>
+              <Text style={styles.infoValue}>{address?.street?.split(",")[0]?.trim() ?? ""}</Text>
             </View>
 
             <View style={styles.infoRow}>
@@ -321,7 +344,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: 16,
     paddingBottom: 16,
     backgroundColor: DARK_BLUE,
@@ -334,74 +357,74 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 16,
     borderWidth: 4,
-    borderColor: '#F2F2F7',
+    borderColor: "#F2F2F7",
   },
   name: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 4,
   },
   email: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: "#8E8E93",
   },
   section: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   sectionRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: "700",
+    color: "#000",
     letterSpacing: 0.3,
   },
   editButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#0A84FF',
+    backgroundColor: "#0A84FF",
     borderRadius: 6,
   },
   editButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: "#F2F2F7",
   },
   infoLabel: {
     fontSize: 15,
-    color: '#8E8E93',
-    fontWeight: '500',
+    color: "#8E8E93",
+    fontWeight: "500",
   },
   infoValue: {
     fontSize: 13,
-    color: '#000',
-    fontWeight: '600',
+    color: "#000",
+    fontWeight: "600",
   },
   infoViewOnlyValue: {
     fontSize: 13,
-    color: '#8E8E93',
-    fontWeight: '600',
+    color: "#8E8E93",
+    fontWeight: "600",
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -410,56 +433,57 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     letterSpacing: 0.5,
   },
   documentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: "#F2F2F7",
   },
   documentIconContainer: {
     width: 20,
     height: 20,
     marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   documentContent: {
     flex: 1,
   },
   documentText: {
     fontSize: 15,
-    color: '#000',
-    fontWeight: '500',
+    color: "#000",
+    fontWeight: "500",
   },
   documentMissing: {
     fontSize: 13,
-    color: '#FF3B30',
-    fontWeight: '500',
+    color: "#FF3B30",
+    fontWeight: "500",
     marginTop: 2,
   },
   documentBadge: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#34C759',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#34C759",
+    alignItems: "center",
+    justifyContent: "center",
   },
   logoutButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: "#FF3B30",
     paddingVertical: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
+    marginBottom: 36,
   },
   logoutButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
     fontSize: 16,
   },
 });

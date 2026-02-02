@@ -17,6 +17,7 @@ import { fetchInspection } from '@/db/fetchInspection';
 import { fetchInspectionPhotos } from '@/db/fetchInspection';
 import { fetchBleacher } from '@/db/fetchBleacher';
 import { InspectionPhotosData } from '@/db/fetchInspection';
+import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -24,6 +25,18 @@ const LIGHT_BLUE = "#1D62A3";
 interface CompletedTripProps {
   workTracker: WorkTracker;
   onClose: () => void;
+}
+
+/**
+ * Resolve a local URI for an existing inspection photo attachment path.
+ * The attachment queue stores files at: {documentDirectory}/attachments/{filename}
+ */
+function getLocalUriForAttachment(attachmentId: string): string | null {
+  if (!attachmentId) return null;
+  if (!inspectionPhotoAttachmentQueue) return null;
+
+  const localPath = inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(attachmentId);
+  return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
 }
 
 export default function CompletedTrips({ workTracker, onClose }: CompletedTripProps) {
@@ -150,20 +163,31 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
 
         {/* Photos */}
         {photos && photos.length > 0 && (
-          <View style={styles.photoGrid}>
-            {photos.map(photo => 
-              photo.storage_path? (
-                <View key={photo.id} style={styles.photoContainer}>
-                  <Image
-                    source={{ uri: photo.storage_path }}
-                    style={styles.photo}
-                  />
-                  {photo.caption && (
-                    <Text style={styles.photoCaption}>{photo.caption}</Text>
-                  )}
-                </View>
-              ): null 
-              )}
+          <View style={styles.photosContainer}>
+            <Text style={styles.photosTitle}>Photos ({photos.length})</Text>
+            <View style={styles.photoGrid}>
+              {photos.map(photo => {
+                if (!photo.storage_path) return null;
+                
+                // Get the local URI for the photo from the attachment queue
+                const localUri = getLocalUriForAttachment(photo.storage_path);
+                
+                if (!localUri) return null;
+
+                return (
+                  <View key={photo.id} style={styles.photoContainer}>
+                    <Image
+                      source={{ uri: localUri }}
+                      style={styles.photo}
+                      resizeMode="cover"
+                    />
+                    {photo.caption && (
+                      <Text style={styles.photoCaption}>{photo.caption}</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
       </View>
@@ -372,28 +396,36 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   closeButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  photosContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+  },
+  photosTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 12,
+  },
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
   },
   photoContainer: {
     width: 100,
     height: 100,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#eee',
   },
   photo: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    borderRadius: 8,
   },
   photoCaption: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 4,
-    color: '#555',
+    color: '#8E8E93',
     textAlign: 'center',
   },
 });

@@ -6,9 +6,9 @@ import {
 } from "@powersync/attachments";
 import { randomUUID } from "expo-crypto";
 import * as FileSystem from "expo-file-system/legacy";
-import { DRIVERS_TABLE } from "./AppSchema";
+import { PHOTO_TABLE } from "./AppSchema";
 
-export class PhotoAttachmentQueue extends AbstractAttachmentQueue {
+export class InspectionPhotoAttachmentQueue extends AbstractAttachmentQueue {
   async init() {
     if (!this.options.storage) {
       console.debug("No storage configured, skip setting up PhotoAttachmentQueue");
@@ -35,11 +35,8 @@ export class PhotoAttachmentQueue extends AbstractAttachmentQueue {
 
   onAttachmentIdsChange(onUpdate: (ids: string[]) => void): void {
     this.powersync.watch(
-      `SELECT license_photo_path as id FROM ${DRIVERS_TABLE} WHERE license_photo_path IS NOT NULL
-       UNION
-       SELECT insurance_photo_path as id FROM ${DRIVERS_TABLE} WHERE insurance_photo_path IS NOT NULL
-       UNION
-       SELECT medical_card_photo_path as id FROM ${DRIVERS_TABLE} WHERE medical_card_photo_path IS NOT NULL`,
+      `
+       SELECT storage_path as id FROM ${PHOTO_TABLE} WHERE storage_path IS NOT NULL`,
       [],
       {
         onResult: (result) => onUpdate(result.rows?._array.map((r: any) => r.id) ?? []),

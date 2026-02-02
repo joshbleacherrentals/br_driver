@@ -3,9 +3,19 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '../providers/SystemProvider';
+import { db, inspectionPhotoAttachmentQueue } from '../providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
-import * as ImageManipulator from 'expo-image-manipulator';
+
+interface DocumentPhoto {
+  uri: string | null;
+  base64?: string;
+  /** The attachment ID stored in the InspectionPhotos table (doubles as the storage path reference) */
+  attachmentId?: string | null;
+  /** True if this photo was newly picked/taken and needs uploading */
+  isNew?: boolean;
+  /** File extension extracted from the source URI (e.g. "jpg", "png", "pdf") */
+  ext?: string;
+}
 
 // Simple UUID v4 generator for React Native
 function generateUUID(): string {
@@ -25,11 +35,6 @@ interface InspectionScreenProps {
   onCancel: () => void;
 }
 
-interface PhotoData {
-  uri: string;
-  base64?: string;
-}
-
 export default function InspectionScreen({
   workTrackerId,
   inspectionType,
@@ -39,7 +44,7 @@ export default function InspectionScreen({
   const [walkAroundComplete, setWalkAroundComplete] = useState(false);
   const [issuesFound, setIssuesFound] = useState(false);
   const [issueDescription, setIssueDescription] = useState('');
-  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [photos, setPhotos] = useState<DocumentPhoto[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pickImage = async () => {
@@ -51,17 +56,22 @@ export default function InspectionScreen({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
       base64: true,
     });
 
     if (!result.canceled && result.assets?.length) {
-      const newPhotos: PhotoData[] = result.assets.map(asset => ({
-        uri: asset.uri,
-        base64: asset.base64 ?? undefined,
-      }));
+      const newPhotos: DocumentPhoto[] = result.assets.map(asset => {
+        const ext = getExtFromUri(asset.uri) ?? 'jpg';
+        return {
+          uri: asset.uri,
+          base64: asset.base64 ?? undefined,
+          isNew: true,
+          ext,
+        };
+      });
       setPhotos(prev => [...prev, ...newPhotos]);
     }
   };
@@ -81,11 +91,14 @@ export default function InspectionScreen({
 
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      const ext = getExtFromUri(asset.uri) ?? 'jpg';
       setPhotos(prev => [
         ...prev,
         {
           uri: asset.uri,
           base64: asset.base64 ?? undefined,
+          isNew: true,
+          ext,
         },
       ]);
     }
@@ -93,6 +106,28 @@ export default function InspectionScreen({
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  /**
+   * Save a photo through the attachment queue.
+   * Returns the filename used as the storage path (stored in the InspectionPhotos table).
+   */
+  const savePhotoToQueue = async (
+    photo: DocumentPhoto,
+    inspectionId: string,
+    photoIndex: number,
+  ): Promise<string | null> => {
+    if (!photo.isNew || !photo.base64) return photo.attachmentId ?? null;
+    if (!inspectionPhotoAttachmentQueue) {
+      console.warn('inspectionPhotoAttachmentQueue not initialized');
+      return null;
+    }
+
+    const ext = photo.ext ?? 'jpg';
+    const ts = Date.now();
+    const filename = `${inspectionId}/photo_${photoIndex}_${ts}.${ext}`;
+    const record = await inspectionPhotoAttachmentQueue.savePhoto(photo.base64, filename);
+    return record.id;
   };
 
   const handleSubmit = async () => {
@@ -134,28 +169,23 @@ export default function InspectionScreen({
       await executeTypedMutation(insertInspectionQuery);
       console.log('Inspection record created');
 
-      // 2️⃣ Process photos sequentially to prevent OOM
-      for (let index = 0; index < photos.length; index++) {
-        const photo = photos[index];
+      // 2️⃣ Queue photos for upload via the attachment queue
+      const photoStoragePaths = await Promise.all(
+        photos.map((photo, index) => savePhotoToQueue(photo, inspectionId, index))
+      );
 
-        if (!photo.base64) {
-          console.warn(`Photo ${index} missing base64 data, skipping`);
+      // 3️⃣ Insert photo records with attachment queue paths
+      for (let index = 0; index < photos.length; index++) {
+        const storagePath = photoStoragePaths[index];
+
+        if (!storagePath) {
+          console.warn(`Photo ${index} missing storage path, skipping`);
           continue;
         }
 
         try {
           const photoId = generateUUID();
 
-          // Compress and resize image
-          const manipulated = await ImageManipulator.manipulateAsync(
-            photo.uri,
-            [{ resize: { width: 1024 } }], // max width 1024px
-            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-          );
-
-          const storagePath = `data:image/jpeg;base64,${manipulated.base64}`;
-
-          // Save to PowerSync DB
           const insertPhotoQuery = db
             .insertInto('InspectionPhotos')
             .values({
@@ -168,16 +198,16 @@ export default function InspectionScreen({
             .compile();
 
           await executeTypedMutation(insertPhotoQuery);
-          console.log(`Photo ${index + 1} saved: ${photoId}`);
+          console.log(`Photo ${index + 1} record saved: ${photoId}`);
         } catch (error) {
-          console.error(`Error processing photo ${index + 1}:`, error);
+          console.error(`Error saving photo record ${index + 1}:`, error);
           throw error;
         }
       }
 
-      console.log(`All ${photos.length} photos saved`);
+      console.log(`All ${photos.length} photos queued for upload`);
 
-      // 3️⃣ Update WorkTracker with inspection ID
+      // 4️⃣ Update WorkTracker with inspection ID
       if (inspectionType === 'pickup') {
         const updateQuery = db
           .updateTable('WorkTrackers')
@@ -308,7 +338,7 @@ export default function InspectionScreen({
             <View style={styles.photoGrid}>
               {photos.map((photo, index) => (
                 <View key={index} style={styles.photoContainer}>
-                  <Image source={{ uri: photo.uri }} style={styles.photo} />
+                  <Image source={{ uri: photo.uri ?? undefined }} style={styles.photo} />
                   <TouchableOpacity
                     style={styles.removePhotoButton}
                     onPress={() => removePhoto(index)}
@@ -340,6 +370,11 @@ export default function InspectionScreen({
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function getExtFromUri(uri: string): string | undefined {
+  const match = uri.match(/\.(\w+)$/);
+  return match?.[1]?.toLowerCase();
 }
 
 const styles = StyleSheet.create({
