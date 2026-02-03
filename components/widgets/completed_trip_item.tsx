@@ -162,34 +162,22 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         )}
 
         {/* Photos */}
-        {photos && photos.length > 0 && (
-          <View style={styles.photosContainer}>
-            <Text style={styles.photosTitle}>Photos ({photos.length})</Text>
-            <View style={styles.photoGrid}>
-              {photos.map(photo => {
-                if (!photo.storage_path) return null;
-                
-                // Get the local URI for the photo from the attachment queue
-                const localUri = getLocalUriForAttachment(photo.storage_path);
-                
-                if (!localUri) return null;
+        {photos?.map(photo => {
+          console.log(photo.storage_path)
+          if (!photo.storage_path) return null;
 
-                return (
-                  <View key={photo.id} style={styles.photoContainer}>
-                    <Image
-                      source={{ uri: localUri }}
-                      style={styles.photo}
-                      resizeMode="cover"
-                    />
-                    {photo.caption && (
-                      <Text style={styles.photoCaption}>{photo.caption}</Text>
-                    )}
-                  </View>
-                );
-              })}
+          const uri = getLocalUriForAttachment(photo.storage_path);
+          if (!uri) return null;
+
+          return (
+            <View key={photo.id} style={styles.photoContainer}>
+              <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
+              {photo.caption && (
+                <Text style={styles.photoCaption}>{photo.caption}</Text>
+              )}
             </View>
-          </View>
-        )}
+          );
+        })}
       </View>
     );
   };

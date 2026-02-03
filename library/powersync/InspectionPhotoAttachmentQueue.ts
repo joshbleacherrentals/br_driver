@@ -1,86 +1,81 @@
-import {
-  AbstractAttachmentQueue,
-  AttachmentRecord,
-  AttachmentState,
-  EncodingType,
-} from "@powersync/attachments";
-import { randomUUID } from "expo-crypto";
+import { EncodingType } from "@powersync/attachments";
 import * as FileSystem from "expo-file-system/legacy";
-import { PHOTO_TABLE } from "./AppSchema";
+import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
 
-export class InspectionPhotoAttachmentQueue extends AbstractAttachmentQueue {
-  async init() {
-    if (!this.options.storage) {
-      console.debug("No storage configured, skip setting up PhotoAttachmentQueue");
-      this.options.syncInterval = 0;
-      return;
-    }
+export interface InspectionPhotoAttachmentQueueOptions {
+  storage: SupabaseStorageAdapter;
+}
 
-    await super.init();
+/**
+ * Lightweight queue for inspection photos.
+ *
+ * We intentionally do NOT extend AbstractAttachmentQueue or call its init().
+ * The driver-documents PhotoAttachmentQueue already owns the single shared
+ * `attachments` tracking table; a second queue calling init() on that same
+ * table causes OOM and duplicate upload/download attempts.
+ *
+ * Instead this class:
+ *   1. Writes the photo to the local filesystem (so it renders immediately).
+ *   2. Uploads it straight to Supabase in the same call.
+ *   3. Returns a record whose `id` is the filename — that's what gets stored
+ *      in InspectionPhotos.storage_path.
+ *
+ * On other devices the photo arrives via PowerSync row sync (the
+ * storage_path column), and can be fetched on-demand from Supabase if needed.
+ */
+export class InspectionPhotoAttachmentQueue {
+  private storage: SupabaseStorageAdapter;
 
-    // Clean up stale/corrupt attachment records (e.g. double extensions from earlier bugs)
-    // await this.cleanupStaleRecords();
+  constructor(options: InspectionPhotoAttachmentQueueOptions) {
+    this.storage = options.storage;
   }
 
-  private async cleanupStaleRecords(): Promise<void> {
-    try {
-      // Delete attachment records whose filename has a double extension like ".jpg.jpg"
-      await this.powersync.execute(
-        `DELETE FROM ${this.table} WHERE filename LIKE '%.jpg.jpg' OR filename LIKE '%.png.png'`,
-      );
-    } catch (e) {
-      console.debug("Attachment cleanup error (non-fatal):", e);
-    }
+  /** No-op — kept so SystemProvider can call it without branching. */
+  async init(): Promise<void> {}
+
+  /**
+   * Resolve the local file path suffix for an attachment filename.
+   * Matches the convention used by AbstractAttachmentQueue.
+   */
+  getLocalFilePathSuffix(filename: string): string {
+    return `attachments/${filename}`;
   }
 
-  onAttachmentIdsChange(onUpdate: (ids: string[]) => void): void {
-    this.powersync.watch(
-      `
-       SELECT storage_path as id FROM ${PHOTO_TABLE} WHERE storage_path IS NOT NULL`,
-      [],
-      {
-        onResult: (result) => onUpdate(result.rows?._array.map((r: any) => r.id) ?? []),
-      },
-    );
+  /**
+   * Resolve a full local URI from a path suffix.
+   */
+  getLocalUri(localPath: string): string {
+    return `${FileSystem.documentDirectory}${localPath}`;
   }
 
-  async newAttachmentRecord(record?: Partial<AttachmentRecord>): Promise<AttachmentRecord> {
-    const photoId = record?.id ?? randomUUID();
-    // If the ID already looks like a path with an extension (e.g. "driverId/license.jpg"),
-    // use it directly as the filename to avoid double extensions.
-    const hasExtension = /\.\w+$/.test(photoId);
-    const filename = record?.filename ?? (hasExtension ? photoId : `${photoId}.jpg`);
-    return {
-      id: photoId,
-      filename,
-      media_type: "image/jpeg",
-      state: AttachmentState.QUEUED_UPLOAD,
-      ...record,
-    };
-  }
-
-  async savePhoto(base64Data: string, filename?: string): Promise<AttachmentRecord> {
-    // Use the filename as the ID so the Drivers table stores the same value
-    // that the watcher returns and that Supabase uses as the storage path.
-    const photoAttachment = await this.newAttachmentRecord(
-      filename ? { id: filename, filename } : undefined,
-    );
-    photoAttachment.local_uri = this.getLocalFilePathSuffix(photoAttachment.filename);
-    const localUri = this.getLocalUri(photoAttachment.local_uri);
-
-    // Ensure the parent directory exists (e.g. attachments/{driverId}/)
+  /**
+   * Save a photo locally AND upload it to Supabase immediately.
+   * Returns an object with `id` set to the filename so the caller can
+   * store it directly into InspectionPhotos.storage_path.
+   */
+  async savePhoto(
+    base64Data: string,
+    filename: string,
+  ): Promise<{ id: string }> {
+    // 1️⃣  Ensure local directory exists
+    const localPath = this.getLocalFilePathSuffix(filename);
+    const localUri = this.getLocalUri(localPath);
     const parentDir = localUri.substring(0, localUri.lastIndexOf("/"));
     await this.storage.makeDir(parentDir);
 
+    // 2️⃣  Write to local filesystem so it renders immediately
     await this.storage.writeFile(localUri, base64Data, {
       encoding: EncodingType.Base64,
     });
 
-    const fileInfo = await FileSystem.getInfoAsync(localUri);
-    if (fileInfo.exists) {
-      photoAttachment.size = fileInfo.size;
-    }
+    // 3️⃣  Upload to Supabase (inspection-photos bucket)
+    const arrayBuffer = await this.storage.readFile(localUri, {
+      encoding: EncodingType.Base64,
+    });
+    await this.storage.uploadFile(filename, arrayBuffer, {
+      mediaType: "image/jpeg",
+    });
 
-    return this.saveToQueue(photoAttachment);
+    return { id: filename };
   }
 }

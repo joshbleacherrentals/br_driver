@@ -59,6 +59,9 @@ export default function EditProfileDocs({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  console.log(licensePath)
+  console.log(insurancePath)
+
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
   ) => {
