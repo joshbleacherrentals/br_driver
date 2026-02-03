@@ -147,16 +147,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
-        powersync: powerSyncDb,
         storage: inspectionStorage,
-        performInitialSync: false,
-        onDownloadError: async (_attachment, error) => {
-          // Don't retry if the file doesn't exist in Supabase
-          if (String(error).includes("Object not found") || String(error).includes("400")) {
-            return { retry: false };
-          }
-          return { retry: true };
-        },
       });
     }
 
