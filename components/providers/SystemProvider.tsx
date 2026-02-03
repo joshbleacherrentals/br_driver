@@ -1,10 +1,9 @@
+import { DebugLogger } from "@/library/debug/DebugLogger";
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
-import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
 import { InspectionPhotoAttachmentQueue } from "@/library/powersync/InspectionPhotoAttachmentQueue";
+import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
 import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
-import { AppConfig } from "@/library/supabase/AppConfig";
-import { DebugLogger } from "@/library/debug/DebugLogger";
 import { useAuth } from "@clerk/clerk-expo";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
 import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
@@ -121,35 +120,33 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       },
     });
 
-    // Set up attachment queue if bucket is configured
-    if (AppConfig.supabaseBucket) {
-      const storage = new SupabaseStorageAdapter({
-        client: bc.client,
-        bucket: 'driver-documents',
-      });
+    // Set up attachment queue for driver documents and inspection photos
+    const storage = new SupabaseStorageAdapter({
+      client: bc.client,
+      bucket: "driver-documents",
+    });
 
-      photoAttachmentQueue = new PhotoAttachmentQueue({
-        powersync: powerSyncDb,
-        storage,
-        performInitialSync: false,
-        onDownloadError: async (_attachment, error) => {
-          // Don't retry if the file doesn't exist in Supabase
-          if (String(error).includes("Object not found") || String(error).includes("400")) {
-            return { retry: false };
-          }
-          return { retry: true };
-        },
-      });
+    photoAttachmentQueue = new PhotoAttachmentQueue({
+      powersync: powerSyncDb,
+      storage,
+      performInitialSync: false,
+      onDownloadError: async (_attachment, error) => {
+        // Don't retry if the file doesn't exist in Supabase
+        if (String(error).includes("Object not found") || String(error).includes("400")) {
+          return { retry: false };
+        }
+        return { retry: true };
+      },
+    });
 
-      const inspectionStorage = new SupabaseStorageAdapter({
-        client: bc.client,
-        bucket: 'inspection-photos',
-      });
+    const inspectionStorage = new SupabaseStorageAdapter({
+      client: bc.client,
+      bucket: "inspection-photos",
+    });
 
-      inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
-        storage: inspectionStorage,
-      });
-    }
+    inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
+      storage: inspectionStorage,
+    });
 
     return bc;
   }, [getToken]);
