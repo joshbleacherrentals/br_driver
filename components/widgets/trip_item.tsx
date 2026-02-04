@@ -68,8 +68,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   };
 
   const openInMaps = async (address?: string) => {
-    if (!address) return;
+    if (!address) {
+      console.log('No address provided to openInMaps');
+      return;
+    }
+    
     const q = encodeURIComponent(address);
+    console.log('Opening maps with address:', address);
 
     const appleUrl = `http://maps.apple.com/?q=${q}`;
     const googleUrlIOS = `comgooglemaps://?q=${q}`;
@@ -79,31 +84,77 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
     const options: { label: string; url: string }[] = [];
 
-    if (Platform.OS === "ios") {
-      options.push({ label: "Apple Maps", url: appleUrl });
-      if (await Linking.canOpenURL(googleUrlIOS))
-        options.push({ label: "Google Maps", url: googleUrlIOS });
-      if (await Linking.canOpenURL(wazeUrl)) 
-        options.push({ label: "Waze", url: wazeUrl });
-      if (!options.find((o) => o.label === "Google Maps"))
+    try {
+      if (Platform.OS === "ios") {
+        options.push({ label: "Apple Maps", url: appleUrl });
+        
+        try {
+          if (await Linking.canOpenURL(googleUrlIOS)) {
+            options.push({ label: "Google Maps", url: googleUrlIOS });
+          }
+        } catch (e) {
+          console.log('Google Maps iOS check failed:', e);
+        }
+        
+        try {
+          if (await Linking.canOpenURL(wazeUrl)) {
+            options.push({ label: "Waze", url: wazeUrl });
+          }
+        } catch (e) {
+          console.log('Waze check failed:', e);
+        }
+        
+        if (!options.find((o) => o.label === "Google Maps")) {
+          options.push({ label: "Google Maps", url: googleUrlWeb });
+        }
+      } else {
+        try {
+          if (await Linking.canOpenURL(androidGeo)) {
+            options.push({ label: "Maps", url: androidGeo });
+          }
+        } catch (e) {
+          console.log('Android geo check failed:', e);
+        }
+        
         options.push({ label: "Google Maps", url: googleUrlWeb });
-    } else {
-      if (await Linking.canOpenURL(androidGeo)) 
-        options.push({ label: "Maps", url: androidGeo });
-      options.push({ label: "Google Maps", url: googleUrlWeb });
-      if (await Linking.canOpenURL(wazeUrl)) 
-        options.push({ label: "Waze", url: wazeUrl });
-    }
+        
+        try {
+          if (await Linking.canOpenURL(wazeUrl)) {
+            options.push({ label: "Waze", url: wazeUrl });
+          }
+        } catch (e) {
+          console.log('Waze check failed:', e);
+        }
+      }
 
-    if (options.length === 0) {
-      Linking.openURL(googleUrlWeb);
-      return;
-    }
+      console.log('Available map options:', options.length);
 
-    Alert.alert("Open in Maps", address, [
-      ...options.map((o) => ({ text: o.label, onPress: () => Linking.openURL(o.url) })),
-      { text: "Cancel", style: "cancel" },
-    ]);
+      if (options.length === 0) {
+        console.log('No options available, opening web fallback');
+        await Linking.openURL(googleUrlWeb);
+        return;
+      }
+
+      Alert.alert("Open in Maps", address, [
+        ...options.map((o) => ({ 
+          text: o.label, 
+          onPress: () => {
+            console.log('Opening:', o.label, o.url);
+            Linking.openURL(o.url).catch(err => {
+              console.error('Failed to open:', err);
+              Alert.alert("Error", "Could not open " + o.label);
+            });
+          }
+        })),
+        { text: "Cancel", style: "cancel" },
+      ]);
+    } catch (error) {
+      console.error('Error in openInMaps:', error);
+      // Fallback to just opening web maps
+      Linking.openURL(googleUrlWeb).catch(err => 
+        Alert.alert("Error", "Could not open maps")
+      );
+    }
   };
 
   const getStatusBadge = () => {
@@ -172,7 +223,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           )}
         </View>
 
-        <TouchableOpacity onPress={() => openInMaps(formatAddress('pickup'))} activeOpacity={0.7}>
+        <TouchableOpacity 
+          onPress={() => {
+            const addr = pickupAddressData.address;
+            openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
+          }} 
+          activeOpacity={0.7}
+        >
           <Text style={styles.addressText}>{formatAddress('pickup')}</Text>
         </TouchableOpacity>
         {pickup_poc && (
@@ -220,7 +277,13 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
           )}
         </View>
 
-        <TouchableOpacity onPress={() => openInMaps(formatAddress('dropoff'))} activeOpacity={0.7}>
+        <TouchableOpacity 
+          onPress={() => {
+            const addr = dropoffAddressData.address;
+            openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
+          }} 
+          activeOpacity={0.7}
+        >
           <Text style={styles.addressText}>{formatAddress('dropoff')}</Text>
         </TouchableOpacity>
         {dropoff_poc && (
