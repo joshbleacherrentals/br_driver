@@ -68,92 +68,16 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   };
 
   const openInMaps = async (address?: string) => {
-    if (!address) {
-      console.log('No address provided to openInMaps');
-      return;
-    }
-    
+    if (!address) return;
     const q = encodeURIComponent(address);
-    console.log('Opening maps with address:', address);
-
     const appleUrl = `http://maps.apple.com/?q=${q}`;
-    const googleUrlIOS = `comgooglemaps://?q=${q}`;
     const googleUrlWeb = `https://www.google.com/maps/search/?api=1&query=${q}`;
-    const wazeUrl = `waze://?q=${q}&navigate=yes`;
-    const androidGeo = `geo:0,0?q=${q}`;
-
-    const options: { label: string; url: string }[] = [];
-
+    
     try {
-      if (Platform.OS === "ios") {
-        options.push({ label: "Apple Maps", url: appleUrl });
-        
-        try {
-          if (await Linking.canOpenURL(googleUrlIOS)) {
-            options.push({ label: "Google Maps", url: googleUrlIOS });
-          }
-        } catch (e) {
-          console.log('Google Maps iOS check failed:', e);
-        }
-        
-        try {
-          if (await Linking.canOpenURL(wazeUrl)) {
-            options.push({ label: "Waze", url: wazeUrl });
-          }
-        } catch (e) {
-          console.log('Waze check failed:', e);
-        }
-        
-        if (!options.find((o) => o.label === "Google Maps")) {
-          options.push({ label: "Google Maps", url: googleUrlWeb });
-        }
-      } else {
-        try {
-          if (await Linking.canOpenURL(androidGeo)) {
-            options.push({ label: "Maps", url: androidGeo });
-          }
-        } catch (e) {
-          console.log('Android geo check failed:', e);
-        }
-        
-        options.push({ label: "Google Maps", url: googleUrlWeb });
-        
-        try {
-          if (await Linking.canOpenURL(wazeUrl)) {
-            options.push({ label: "Waze", url: wazeUrl });
-          }
-        } catch (e) {
-          console.log('Waze check failed:', e);
-        }
-      }
-
-      console.log('Available map options:', options.length);
-
-      if (options.length === 0) {
-        console.log('No options available, opening web fallback');
-        await Linking.openURL(googleUrlWeb);
-        return;
-      }
-
-      Alert.alert("Open in Maps", address, [
-        ...options.map((o) => ({ 
-          text: o.label, 
-          onPress: () => {
-            console.log('Opening:', o.label, o.url);
-            Linking.openURL(o.url).catch(err => {
-              console.error('Failed to open:', err);
-              Alert.alert("Error", "Could not open " + o.label);
-            });
-          }
-        })),
-        { text: "Cancel", style: "cancel" },
-      ]);
+      await Linking.openURL(Platform.OS === "ios" ? appleUrl : googleUrlWeb);
     } catch (error) {
-      console.error('Error in openInMaps:', error);
-      // Fallback to just opening web maps
-      Linking.openURL(googleUrlWeb).catch(err => 
-        Alert.alert("Error", "Could not open maps")
-      );
+      console.error('Error opening maps:', error);
+      Alert.alert("Error", "Could not open maps");
     }
   };
 
