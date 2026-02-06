@@ -8,6 +8,12 @@
     "scheme": "brdriver",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/icons/adaptive-icon.png",
+      "color": "#10365A",
+      "androidMode": "default",
+      "androidCollapsedTitle": "New Trip Update"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.bleacherrentals.driver.dev",
