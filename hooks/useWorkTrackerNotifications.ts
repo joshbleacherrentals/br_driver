@@ -40,19 +40,19 @@ export function useWorkTrackerNotifications() {
           `New notes for Bleacher #${bleacher?.bleacher_number ?? ''}`,
           { workTrackerId: tracker.id, type: 'notes_updated' }
         );
+      } else if (previous && previous.date !== tracker.date && tracker.date) {
+        scheduleTripNotification(
+          'Trip Details Updated',
+          `New date for Bleacher #${bleacher?.bleacher_number ?? ''}`,
+          { workTrackerId: tracker.id, type: 'date_updated' }
+        );
       } else if (previous && previous.bleacher_uuid !== tracker.bleacher_uuid && tracker.bleacher_uuid) {
         scheduleTripNotification(
           'Trip Details Updated',
-          `New bleacher for trip on #${tracker.date}`,
+          `New bleacher for trip on ${tracker.date}`,
           { workTrackerId: tracker.id, type: 'bleacher_updated' }
         );
-      }else if (previous && previous.bleacher_uuid !== tracker.bleacher_uuid && tracker.bleacher_uuid) {
-        scheduleTripNotification(
-          'Trip Details Updated',
-          `New bleacher for trip #${tracker.id}`,
-          { workTrackerId: tracker.id, type: 'bleacher_updated' }
-        );
-      }else if (previous && (
+      } else if (previous && (
         (previous.pickup_time !== tracker.pickup_time && tracker.pickup_time) ||
         (previous.pickup_address_uuid !== tracker.pickup_address_uuid && tracker.pickup_address_uuid) ||
         (previous.pickup_poc !== tracker.pickup_poc && tracker.pickup_poc)

@@ -50,7 +50,7 @@ function RootLayoutContent() {
       if (!driver && !inNotFound && !inAuthGroup) {
         router.replace('/+not-found');
       }
-    }, 500); // Small delay to ensure data is loaded
+    }, 100); // Small delay to ensure data is loaded
 
     return () => clearTimeout(timer);
   }, [isLoaded, isSignedIn, driver, segments]);
