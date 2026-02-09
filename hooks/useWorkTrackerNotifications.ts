@@ -76,5 +76,5 @@ export function useWorkTrackerNotifications() {
     });
 
     previousTrackersRef.current = workTrackers;
-  }, [workTrackers, bleachersById]);
+  }, [workTrackers]);
 }
