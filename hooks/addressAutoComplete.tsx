@@ -107,6 +107,7 @@ export default function AddressAutocomplete({
         value={value}
         onChangeText={handleChange}
         placeholder={placeholder? placeholder : "Enter address..."}
+        placeholderTextColor="#808086ff"
         style={styles.input}
         onLayout={(e) => setInputLayout(e.nativeEvent.layout)}
       />
