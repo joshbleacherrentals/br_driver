@@ -9,7 +9,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useClerkSupabaseClient } from "../library/supabase/useClerkSupabaseClient";
-import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -38,7 +38,6 @@ function RootLayoutContent() {
 }
 
 export default function RootLayout() {
-  const { expoPushToken } = useNotifications();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -56,7 +55,9 @@ export default function RootLayout() {
     >
       <QueryClientProvider client={queryClient}>
         <SystemProvider>
-          <RootLayoutContent />
+          <NotificationProvider>
+            <RootLayoutContent />
+          </NotificationProvider>
         </SystemProvider>
       </QueryClientProvider>
     </ClerkProvider>

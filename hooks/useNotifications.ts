@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync, setupNotificationListeners } from '@/services/notificationService';
+import { router } from 'expo-router';
 
 export function useNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [notifiedWorkTrackerId, setNotifiedWorkTrackerId] = useState<string | null>(null);
   const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
   const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
@@ -11,8 +13,6 @@ export function useNotifications() {
     // Register for push notifications
     registerForPushNotificationsAsync().then(token => {
       setExpoPushToken(token ?? null);
-      // TODO: Send this token to your backend to store for the user
-      // so you can send them push notifications from your server
     });
 
     // Setup listeners
@@ -20,16 +20,24 @@ export function useNotifications() {
       (notification) => {
         // Handle notification received while app is open
         console.log('Received notification:', notification);
+        const data = notification.request.content.data;
+        
+        // Set the workTrackerId to show indicator
+        if (data?.workTrackerId) {
+          setNotifiedWorkTrackerId(data.workTrackerId as string);
+        }
       },
       (response) => {
         // Handle user tapping on notification
         console.log('User tapped notification:', response);
         const data = response.notification.request.content.data;
         
-        // Navigate to appropriate screen based on notification data
         if (data?.workTrackerId) {
-          // TODO: Navigate to the specific trip
-          console.log('Navigate to trip:', data.workTrackerId);
+          // Set the workTrackerId to show indicator
+          setNotifiedWorkTrackerId(data.workTrackerId as string);
+          
+          // Navigate to trips page
+          router.push('/(tabs)/trips');
         }
       }
     );
@@ -47,5 +55,11 @@ export function useNotifications() {
     };
   }, []);
 
-  return { expoPushToken };
+  const clearNotification = (workTrackerId: string) => {
+    if (notifiedWorkTrackerId === workTrackerId) {
+      setNotifiedWorkTrackerId(null);
+    }
+  };
+
+  return { expoPushToken, notifiedWorkTrackerId, clearNotification };
 }
