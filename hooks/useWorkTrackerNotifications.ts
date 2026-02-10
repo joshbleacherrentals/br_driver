@@ -46,26 +46,26 @@ export function useWorkTrackerNotifications() {
       if (previous && previous.status === 'draft' && tracker.status === 'released') {
         scheduleTripNotification(
           'New Trip Assigned',
-          `Trip assigned for ${date}`,
+          `A new trip has been assigned for ${date}`,
           { workTrackerId: tracker.id, type: 'new_trip' }
         );
       } else if (previous && previous.notes !== tracker.notes && tracker.notes) {
         scheduleTripNotification(
           'Trip Details Updated',
-          `New notes for trip on ${date}`,
+          `New notes for the trip on ${date}`,
           { workTrackerId: tracker.id, type: 'notes_updated' }
         );
       } else if (previous && previous.date !== tracker.date && tracker.date) {
         const prev_date = formatDateFriendly(previous.date);
         scheduleTripNotification(
-          'Trip Details Updated',
-          `New date for trip previously on ${prev_date}`,
+          'Schedule Change',
+          `Rescheduled from ${prev_date} to ${date}`,
           { workTrackerId: tracker.id, type: 'date_updated' }
         );
       } else if (previous && previous.bleacher_uuid !== tracker.bleacher_uuid && tracker.bleacher_uuid) {
         scheduleTripNotification(
           'Trip Details Updated',
-          `New bleacher for trip on ${date}`,
+          `New bleacher for the trip on ${date}`,
           { workTrackerId: tracker.id, type: 'bleacher_updated' }
         );
       } else if (previous && (
@@ -75,7 +75,7 @@ export function useWorkTrackerNotifications() {
       )) {
         scheduleTripNotification(
           'Pickup Information Updated',
-          `New pickup information for trip on ${date}`,
+          `New pickup information for the trip on ${date}`,
           { workTrackerId: tracker.id, type: 'pickup_info_updated' }
         );
       } else if (previous && (
@@ -85,7 +85,7 @@ export function useWorkTrackerNotifications() {
       )) {
         scheduleTripNotification(
           'Dropoff Information Updated',
-          `New dropoff information for trip on ${date}`,
+          `New dropoff information for the trip on ${date}`,
           { workTrackerId: tracker.id, type: 'dropoff_info_updated' }
         );
       }

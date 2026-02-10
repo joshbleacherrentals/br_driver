@@ -31,6 +31,18 @@ function RootLayoutContent() {
   const { driver } = fetchDriver();
   const router = useRouter();
   const segments = useSegments();
+  const [hasWaitedForSync, setHasWaitedForSync] = useState(false);
+
+  // Give PowerSync time to sync before making routing decisions
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    const timer = setTimeout(() => {
+      setHasWaitedForSync(true);
+    }, 1500); // Wait 1.5s for initial sync
+
+    return () => clearTimeout(timer);
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
     // Wait for Clerk to load
@@ -41,6 +53,9 @@ function RootLayoutContent() {
 
     // Don't navigate if not signed in
     if (!isSignedIn) return;
+
+    // ✅ Don't redirect until we've given PowerSync time to sync
+    if (!hasWaitedForSync) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inNotFound = segments.includes('+not-found');
@@ -54,10 +69,10 @@ function RootLayoutContent() {
     if (driver && inNotFound) {
       router.replace('/(tabs)');
     }
-  }, [isLoaded, isSignedIn, driver, segments, router]);
+  }, [isLoaded, isSignedIn, driver, segments, router, hasWaitedForSync]);
 
-  // Show loading screen while Clerk loads OR while driver is undefined (loading)
-  if (!isLoaded || driver === undefined) {
+  // Show loading screen while Clerk loads OR while driver is undefined (loading) OR waiting for sync
+  if (!isLoaded || driver === undefined || !hasWaitedForSync) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#000' : '#fff' }}>
         <ActivityIndicator size="large" color="#10365A" />

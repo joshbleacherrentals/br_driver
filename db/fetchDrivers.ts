@@ -36,7 +36,7 @@ export type VehicleData = {
  * Fetch DriverData belonging to the user_id
  */
 export function fetchDriver(): { driver: DriverData | null | undefined } {
-  const { user } = useUser();
+  const { user, isLoaded: isUserLoaded } = useUser();
   const clerkUserId = user?.id ?? null;
 
   // 1. Get user_id from Users table
@@ -51,10 +51,10 @@ export function fetchDriver(): { driver: DriverData | null | undefined } {
       .compile();
   }, [clerkUserId]);
 
-  const userData = useTypedQuery(compiled, expect<UserData>());
+  const userQueryResult = useTypedQuery(compiled, expect<UserData>());
 
   const compiledDriver = useMemo(() => {
-    const userId = userData.data?.[0]?.id;
+    const userId = userQueryResult.data?.[0]?.id;
     if (!userId) return null;
 
     return db
@@ -79,22 +79,57 @@ export function fetchDriver(): { driver: DriverData | null | undefined } {
     .where("user_uuid", "=", userId)
     .limit(1)
     .compile();
-  }, [userData.data]);
+  }, [userQueryResult.data]);
 
-  const DriverData = useTypedQuery(compiledDriver, expect<DriverData>());
+  const driverQueryResult = useTypedQuery(compiledDriver, expect<DriverData>());
 
-  // ✅ Return undefined while loading
-  if (!userData.data || DriverData.data === undefined) {
+  console.log('[fetchDriver] Debug:', {
+    isUserLoaded,
+    clerkUserId,
+    userLoading: userQueryResult.isLoading,
+    userData: userQueryResult.data,
+    driverLoading: driverQueryResult.isLoading,
+    driverData: driverQueryResult.data
+  });
+
+  // ✅ Wait for Clerk user to load
+  if (!isUserLoaded || !clerkUserId) {
+    console.log('[fetchDriver] Waiting for Clerk user');
     return { driver: undefined };
   }
 
-  return { driver: DriverData.data[0] ?? null };
+  // ✅ Wait for user query to complete - check if compiled exists
+  if (!compiled || userQueryResult.isLoading) {
+    console.log('[fetchDriver] Waiting for user query');
+    return { driver: undefined };
+  }
+
+  // No user found in database
+  if (!userQueryResult.data || userQueryResult.data.length === 0) {
+    console.log('[fetchDriver] No user found in database');
+    return { driver: null };
+  }
+
+  // ✅ Wait for driver query to complete - check if compiled exists
+  if (!compiledDriver || driverQueryResult.isLoading) {
+    console.log('[fetchDriver] Waiting for driver query');
+    return { driver: undefined };
+  }
+
+  // No driver found in database
+  if (!driverQueryResult.data || driverQueryResult.data.length === 0) {
+    console.log('[fetchDriver] No driver found in database');
+    return { driver: null };
+  }
+
+  console.log('[fetchDriver] Driver found!', driverQueryResult.data[0]);
+  return { driver: driverQueryResult.data[0] };
 }
 
 /**
  * Fetch Vehicle Info belonging to the id
  */
-export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
+export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null | undefined } {
 
   const compiled = useMemo(() => {
     if (!vehicle_id) return null;
@@ -114,7 +149,11 @@ export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData 
     .compile();
   }, [vehicle_id]);
 
-  const vehicleData = useTypedQuery(compiled, expect<VehicleData>());
+  const vehicleQueryResult = useTypedQuery(compiled, expect<VehicleData>());
 
-  return { vehicle: vehicleData.data?.[0] ?? null };
+  if (!compiled || vehicleQueryResult.isLoading) {
+    return { vehicle: undefined };
+  }
+
+  return { vehicle: vehicleQueryResult.data?.[0] ?? null };
 }
