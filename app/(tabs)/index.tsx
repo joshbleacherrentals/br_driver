@@ -242,7 +242,7 @@ export default function TripsScreen() {
 
       <FlatList
         contentContainerStyle={{ paddingBottom: 50, paddingTop: 8 }}
-        data={workTrackers}
+        data={workTrackers ?? []}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <TripItem
@@ -257,7 +257,9 @@ export default function TripsScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
         ListEmptyComponent={() => (
           <View style={{ padding: 16 }}>
-            <Text style={{ color: "#666" }}>{"No trips yet."}</Text>
+            <Text style={{ color: "#666" }}>
+              {workTrackers === undefined ? "Loading trips..." : "No trips yet."}
+            </Text>
           </View>
         )}
       />

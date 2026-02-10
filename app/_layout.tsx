@@ -31,32 +31,33 @@ function RootLayoutContent() {
   const { driver } = fetchDriver();
   const router = useRouter();
   const segments = useSegments();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     // Wait for Clerk to load
     if (!isLoaded) return;
 
-    // Give a small delay to ensure driver data is fetched
-    const timer = setTimeout(() => {
-      setIsChecking(false);
+    // Wait for driver data to load (undefined = still loading)
+    if (driver === undefined) return;
 
-      if (!isSignedIn) return;
+    // Don't navigate if not signed in
+    if (!isSignedIn) return;
 
-      const inAuthGroup = segments[0] === '(auth)';
-      const inNotFound = segments.includes('+not-found');
+    const inAuthGroup = segments[0] === '(auth)';
+    const inNotFound = segments.includes('+not-found');
 
-      // Redirect to not-found if signed in but no driver
-      if (!driver && !inNotFound && !inAuthGroup) {
-        router.replace('/+not-found');
-      }
-    }, 100); // Small delay to ensure data is loaded
+    // ✅ Redirect if driver is null (no driver exists)
+    if (driver === null && !inNotFound && !inAuthGroup) {
+      router.replace('/+not-found');
+    }
+    
+    // ✅ Redirect away from not-found if driver exists
+    if (driver && inNotFound) {
+      router.replace('/(tabs)');
+    }
+  }, [isLoaded, isSignedIn, driver, segments, router]);
 
-    return () => clearTimeout(timer);
-  }, [isLoaded, isSignedIn, driver, segments]);
-
-  // Show loading screen while checking
-  if (!isLoaded || isChecking) {
+  // Show loading screen while Clerk loads OR while driver is undefined (loading)
+  if (!isLoaded || driver === undefined) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#000' : '#fff' }}>
         <ActivityIndicator size="large" color="#10365A" />

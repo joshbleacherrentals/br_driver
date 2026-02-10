@@ -52,7 +52,7 @@ export type DriverData = {
 /**
  * Fetch WorkTrackers belonging to the Clerk user using PowerSync
  */
-export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null } {
+export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null | undefined } {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 
@@ -122,26 +122,7 @@ export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null } {
       .compile();
   }, [driverData.data]);
 
-  // Always call the hook, but pass safe values
   const WTData = useTypedQuery(compiledWT, expect<WorkTracker>());
 
-  // Handle the conditional logic AFTER all hooks have been called
-  if (!clerkUserId) {
-    console.log("[WorkTrackers] No clerk user ID provided");
-    return { workTrackers: null };
-  }
-
-  if (!compiled || !userData.data?.[0]?.id) {
-    return { workTrackers: [] };
-  }
-
-  if (!compiledWT) {
-    return { workTrackers: [] };
-  }
-
-  console.log("[WorkTrackers] Fetching for Clerk user:", clerkUserId);
-  console.log("[WorkTrackers] Compiled user data:", userData);
-  console.log("[WorkTrackers] Compiled user query:", compiledWT);
-
-  return { workTrackers: WTData.data };
+  return { workTrackers: WTData.data ?? [] };
 }

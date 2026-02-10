@@ -35,7 +35,7 @@ export type VehicleData = {
 /**
  * Fetch DriverData belonging to the user_id
  */
-export function fetchDriver(): { driver: DriverData | null } {
+export function fetchDriver(): { driver: DriverData | null | undefined } {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 
@@ -83,7 +83,12 @@ export function fetchDriver(): { driver: DriverData | null } {
 
   const DriverData = useTypedQuery(compiledDriver, expect<DriverData>());
 
-  return { driver: DriverData.data?.[0] ?? null };
+  // ✅ Return undefined while loading
+  if (!userData.data || DriverData.data === undefined) {
+    return { driver: undefined };
+  }
+
+  return { driver: DriverData.data[0] ?? null };
 }
 
 /**

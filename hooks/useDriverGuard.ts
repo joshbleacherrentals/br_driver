@@ -15,9 +15,11 @@ export function useDriverGuard() {
     
     const inAuthGroup = segments[0] === '(auth)';
     const inNotFound = segments.includes('+not-found');
+
+    if (driver === undefined) return; // still loading
     
     // If signed in but no driver profile, redirect to not-found
-    if (!driver && !inNotFound && !inAuthGroup) {
+    if (driver === null && !inNotFound && !inAuthGroup) {
       router.replace('/+not-found');
     }
   }, [driver, isSignedIn, segments]);
