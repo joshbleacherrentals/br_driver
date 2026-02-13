@@ -83,47 +83,8 @@ export function fetchDriver(): { driver: DriverData | null | undefined } {
 
   const driverQueryResult = useTypedQuery(compiledDriver, expect<DriverData>());
 
-  console.log('[fetchDriver] Debug:', {
-    isUserLoaded,
-    clerkUserId,
-    userLoading: userQueryResult.isLoading,
-    userData: userQueryResult.data,
-    driverLoading: driverQueryResult.isLoading,
-    driverData: driverQueryResult.data
-  });
-
-  // ✅ Wait for Clerk user to load
-  if (!isUserLoaded || !clerkUserId) {
-    console.log('[fetchDriver] Waiting for Clerk user');
-    return { driver: undefined };
-  }
-
-  // ✅ Wait for user query to complete - check if compiled exists
-  if (!compiled || userQueryResult.isLoading) {
-    console.log('[fetchDriver] Waiting for user query');
-    return { driver: undefined };
-  }
-
-  // No user found in database
-  if (!userQueryResult.data || userQueryResult.data.length === 0) {
-    console.log('[fetchDriver] No user found in database');
-    return { driver: null };
-  }
-
-  // ✅ Wait for driver query to complete - check if compiled exists
-  if (!compiledDriver || driverQueryResult.isLoading) {
-    console.log('[fetchDriver] Waiting for driver query');
-    return { driver: undefined };
-  }
-
-  // No driver found in database
-  if (!driverQueryResult.data || driverQueryResult.data.length === 0) {
-    console.log('[fetchDriver] No driver found in database');
-    return { driver: null };
-  }
-
-  console.log('[fetchDriver] Driver found!', driverQueryResult.data[0]);
-  return { driver: driverQueryResult.data[0] };
+  console.log('[fetchDriver] Driver found!', driverQueryResult.data?.[0]);
+  return { driver: driverQueryResult.data?.[0] ?? null };
 }
 
 /**

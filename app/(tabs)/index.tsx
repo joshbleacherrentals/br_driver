@@ -8,7 +8,6 @@ import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
-import { useWorkTrackerNotifications } from '@/hooks/useWorkTrackerNotifications';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -22,7 +21,6 @@ export default function TripsScreen() {
 
   const workTrackers = fetchWorkTrackers().workTrackers;
   const { isProfileComplete } = useProfileCompletion();
-  useWorkTrackerNotifications();
 
   // Handler functions
   const handleAccept = async (workTrackerId: string) => {

@@ -33,7 +33,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.bleacherrentals.driver.dev"
+      "package": "com.bleacherrentals.driver.dev",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -55,6 +56,7 @@
         }
       ],
       "expo-apple-authentication",
+      "expo-notifications",
       "expo-router",
       "expo-secure-store",
       "expo-web-browser"

@@ -2,28 +2,26 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
+import { db } from '@/components/providers/SystemProvider'; // Your PowerSync db
 
-// Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
+    shouldShowBanner: true,  // Shows banner at top of screen
+    shouldShowList: true,    // Shows in notification center
     shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldSetBadge: false,
   }),
 });
 
-export async function registerForPushNotificationsAsync() {
-  let token;
-
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Trip Updates',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#10365A',
-    });
+export async function registerForPushNotificationsAsync(userId: string | undefined) {
+  if (!userId) {
+    console.log('No user ID provided');
+    return;
   }
+  console.log('Registering for push notifications for user ID:', userId);
+
+  let token;
 
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -36,15 +34,38 @@ export async function registerForPushNotificationsAsync() {
     
     if (finalStatus !== 'granted') {
       console.log('Failed to get push token for push notification!');
-      return null;
+      return;
     }
     
     try {
+      // Get project ID from app config
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      console.log('Push token:', token);
-    } catch (e) {
-      console.error('Error getting push token:', e);
+      
+      if (!projectId) {
+        console.error('Missing projectId in app.json');
+        return;
+      }
+
+      token = (await Notifications.getExpoPushTokenAsync({
+        projectId,
+      })).data;
+      
+      console.log('Expo Push Token:', token);
+      
+      // Save to local PowerSync database - it will sync to Supabase
+      try {
+        await db
+          .updateTable('Users')
+          .set({ expo_push_token: token })
+          .where('id', '=', userId)
+          .execute();
+        
+        console.log('Push token saved successfully to PowerSync');
+      } catch (dbError) {
+        console.error('Error saving push token to PowerSync:', dbError);
+      }
+    } catch (error) {
+      console.error('Error getting push token:', error);
     }
   } else {
     console.log('Must use physical device for Push Notifications');
@@ -53,57 +74,18 @@ export async function registerForPushNotificationsAsync() {
   return token;
 }
 
-export async function scheduleTripNotification(
-  title: string,
-  body: string,
-  data?: any
-) {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data,
-      sound: true,
-    },
-    trigger: null, // Show immediately
-  });
-}
-
-export async function scheduleDelayedNotification(
-  title: string,
-  body: string,
-  seconds: number,
-  data?: any
-) {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data,
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds,
-      repeats: false,
-    },
-  });
-}
-
-export function setupNotificationListeners(
-  onNotificationReceived?: (notification: Notifications.Notification) => void,
-  onNotificationResponse?: (response: Notifications.NotificationResponse) => void
-) {
-  // Listener for when notification is received while app is foregrounded
+export function setupNotificationListeners() {
   const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received:', notification);
-    onNotificationReceived?.(notification);
+    console.log('✅ Notification received in foreground:', notification);
   });
 
-  // Listener for when user taps on notification
   const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification tapped:', response);
-    onNotificationResponse?.(response);
+    console.log('✅ Notification tapped:', response);
+    const notificationId = response.notification.request.content.data.notificationId;
+    console.log('Notification ID:', notificationId);
+    
+    // Navigate to index screen
+    router.push('/(tabs)');
   });
 
   return {
