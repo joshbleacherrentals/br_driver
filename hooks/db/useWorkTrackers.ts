@@ -52,7 +52,7 @@ export type DriverData = {
 /**
  * Fetch WorkTrackers belonging to the Clerk user using PowerSync
  */
-export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null } {
+export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 

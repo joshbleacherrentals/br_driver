@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from "react";
+import { db } from "@/components/providers/SystemProvider";
+import AddressAutocomplete from "@/components/widgets/addressAutoComplete";
+import { useAddress } from "@/hooks/db/useAddress";
+import { executeTypedMutation } from "@/library/powersync/typedMutation";
+import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  TextInput,
   Alert,
   Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { db } from "@/components/providers/SystemProvider";
-import { executeTypedMutation } from "@/library/powersync/typedMutation";
-import { fetchAddreses } from "@/db/fetchAddress";
-import AddressAutocomplete from "@/hooks/addressAutoComplete";
 
 interface EditDriverInfoProps {
   driverId: string | null;
@@ -49,7 +49,7 @@ export default function EditDriverInfo({
   addressId,
   onClose,
 }: EditDriverInfoProps) {
-  const { address } = fetchAddreses(addressId);
+  const { address } = useAddress(addressId);
 
   const [phone, setPhone] = useState<string>(phoneNumber ?? "");
   const [addressData, setAddressData] = useState<AddressData | null>(null);

@@ -22,7 +22,7 @@ export type BleacherData = {
 /**
  * Fetch BleacherData belonging to the bleacher_id
  */
-export function fetchBleacher(bleacher_id: string | null): { bleacher: BleacherData | null } {
+export function useBleacher(bleacher_id: string | null): { bleacher: BleacherData | null } {
 
   // 1. Get user_id from Users table
   const compiled = useMemo(() => {

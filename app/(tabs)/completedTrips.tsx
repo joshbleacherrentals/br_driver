@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from 'react';
 import CompletedTrips from "@/components/widgets/completed_trip_item";
-import { WorkTracker, fetchWorkTrackers } from "@/db/workTrackers";
-import { useBatchAddresses } from '@/db/fetchAddress';
-import { useBatchBleachers } from '@/db/fetchBleacher';
-import { FlatList, Image, Text, View, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
+import { useBatchAddresses } from '@/hooks/db/useAddress';
+import { useBatchBleachers } from '@/hooks/db/useBleacher';
+import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -14,7 +14,7 @@ const LIGHT_BLUE = "#1D62A3";
 export default function CompletedTripsScreen() {
   const [selectedTrip, setSelectedTrip] = useState<WorkTracker | null>(null);
 
-  const workTrackers = fetchWorkTrackers().workTrackers;
+  const workTrackers = useWorkTrackers().workTrackers;
   
   // Filter only completed trips
   console.log("All WorkTrackers:", workTrackers);

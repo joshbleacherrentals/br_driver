@@ -1,23 +1,21 @@
+import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
+import { useAddress } from '@/hooks/db/useAddress';
+import { useBleacher } from '@/hooks/db/useBleacher';
+import { InspectionPhotosData, useInspection, useInspectionPhotos } from '@/hooks/db/useInspection';
+import { WorkTracker } from '@/hooks/db/useWorkTrackers';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   Image,
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Linking,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { WorkTracker } from '@/db/workTrackers';
-import { fetchAddreses } from '@/db/fetchAddress';
-import { fetchInspection } from '@/db/fetchInspection';
-import { fetchInspectionPhotos } from '@/db/fetchInspection';
-import { fetchBleacher } from '@/db/fetchBleacher';
-import { InspectionPhotosData } from '@/db/fetchInspection';
-import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -41,14 +39,14 @@ function getLocalUriForAttachment(attachmentId: string): string | null {
 
 export default function CompletedTrips({ workTracker, onClose }: CompletedTripProps) {
   // ✅ Hooks MUST be called unconditionally at top level
-  const { address: pickupAddress } = fetchAddreses(workTracker.pickup_address_uuid);
-  const { address: dropoffAddress } = fetchAddreses(workTracker.dropoff_address_uuid);
-  const { bleacher } = fetchBleacher(workTracker.bleacher_uuid);
+  const { address: pickupAddress } = useAddress(workTracker.pickup_address_uuid);
+  const { address: dropoffAddress } = useAddress(workTracker.dropoff_address_uuid);
+  const { bleacher } = useBleacher(workTracker.bleacher_uuid);
 
-  const { inspection: preInspection } = fetchInspection(workTracker.pre_inspection_uuid);
-  const { Photos: preInspectPhotos } = fetchInspectionPhotos(workTracker.pre_inspection_uuid);
-  const { inspection: postInspection } = fetchInspection(workTracker.post_inspection_uuid);
-  const { Photos: postInspectPhotos } = fetchInspectionPhotos(workTracker.post_inspection_uuid);
+  const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid);
+  const { Photos: preInspectPhotos } = useInspectionPhotos(workTracker.pre_inspection_uuid);
+  const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid);
+  const { Photos: postInspectPhotos } = useInspectionPhotos(workTracker.post_inspection_uuid);
 
   const formatPay = (cents: number | null) =>
     cents === null ? '' : `$${(cents / 100).toFixed(2)}`;

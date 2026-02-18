@@ -1,16 +1,16 @@
+import EditDriverInfo from "@/components/widgets/editDriverInfo";
+import EditProfileDocs from "@/components/widgets/editProfileDocs";
+import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
+import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import { useAccountManager, UserContactData } from "@/hooks/db/useAccountManager";
+import { AddressData, useAddress } from "@/hooks/db/useAddress";
+import { useDriver, useVehicle } from "@/hooks/db/useDriver";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from '@expo/vector-icons';
-import { fetchDriver, fetchVehicle } from "@/db/fetchDrivers";
-import { AddressData, fetchAddreses } from "@/db/fetchAddress";
-import EditProfileDocs from "@/components/widgets/editProfileDocs"
-import EditVehicleInfo from "@/components/widgets/editVehicleInfo";
-import EditDriverInfo from "@/components/widgets/editDriverInfo";
-import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import { fetchAccountManager, UserContactData } from "@/db/fetchAccountManager";
 
 const DARK_BLUE = "#10365A";
 
@@ -23,12 +23,11 @@ export default function ProfileScreen() {
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showEditDriver, setShowEditDriver] = useState(false);
 
-  const { driver } = fetchDriver();
-  const { vehicle } = fetchVehicle(driver?.vehicle_uuid ?? null);
+  const { driver } = useDriver();
+  const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
 
-  const { address } = fetchAddreses(driver?.address_uuid ?? null);
-  const { accountManager } = fetchAccountManager(driver?.account_manager_uuid ?? null);
-
+  const { address } = useAddress(driver?.address_uuid ?? null);
+  const { accountManager } = useAccountManager(driver?.account_manager_uuid ?? null);
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
 

@@ -1,10 +1,9 @@
-// trip_item.tsx
-import { fetchAddreses } from '@/db/fetchAddress';
-import { fetchBleacher } from '@/db/fetchBleacher';
-import { WorkTracker } from '@/db/workTrackers';
+import { useAddress } from '@/hooks/db/useAddress';
+import { useBleacher } from '@/hooks/db/useBleacher';
+import { WorkTracker } from '@/hooks/db/useWorkTrackers';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -18,9 +17,9 @@ interface TripItemProps {
 export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, onArrived, onStartInspection }: TripItemProps) {
   const { status , pickup_address_uuid, dropoff_address_uuid, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher_uuid, pay_cents, notes } = workTracker;
 
-  const pickupAddressData = fetchAddreses(pickup_address_uuid);
-  const dropoffAddressData = fetchAddreses(dropoff_address_uuid);
-  const { bleacher } = fetchBleacher(bleacher_uuid);
+  const pickupAddressData = useAddress(pickup_address_uuid);
+  const dropoffAddressData = useAddress(dropoff_address_uuid);
+  const { bleacher } = useBleacher(bleacher_uuid);
 
   // Don't render draft items
   if (status === 'draft' || status === 'completed') {
