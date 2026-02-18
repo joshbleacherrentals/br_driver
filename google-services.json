@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:921027370130:android:5e2f7983f0757a80be5a4b",
+        "android_client_info": {
+          "package_name": "com.bleacherrentals.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4pT-Xxewhc_Af8ftzeJs0stou3k4r9XQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:921027370130:android:d8b924563225eb7dbe5a4b",
         "android_client_info": {
           "package_name": "com.bleacherrentals.driver.dev"
