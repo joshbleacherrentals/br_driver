@@ -7,14 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   Alert,
-  Image,
   Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -181,7 +180,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           </View>
         </View>
 
-        <View style={styles.inspectionItem}>
+        {/* <View style={styles.inspectionItem}>
           <Text style={styles.inspectionLabel}>Issues Found:</Text>
           <View style={styles.inspectionValueContainer}>
             {inspection.issues_found ? (
@@ -205,7 +204,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           </View>
         )}
 
-        {/* Photos */}
+        {/* Photos *
         {photos?.map(photo => {
           console.log(photo.storage_path)
           if (!photo.storage_path) return null;
@@ -221,7 +220,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
               )}
             </View>
           );
-        })}
+        })} */}
       </View>
     );
   };
