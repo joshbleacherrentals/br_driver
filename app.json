@@ -12,7 +12,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.bleacherrentals.driver.dev",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["waze", "comgooglemaps", "maps"]
       },
       "icon": {
         "dark": "./assets/icons/ios-dark.png",
@@ -27,7 +28,16 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.bleacherrentals.driver.dev"
+      "package": "com.bleacherrentals.driver.dev",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "geo" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

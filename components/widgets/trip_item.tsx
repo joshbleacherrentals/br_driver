@@ -69,15 +69,54 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   const openInMaps = async (address?: string) => {
     if (!address) return;
     const q = encodeURIComponent(address);
-    const appleUrl = `http://maps.apple.com/?q=${q}`;
-    const googleUrlWeb = `https://www.google.com/maps/search/?api=1&query=${q}`;
-    
-    try {
-      await Linking.openURL(Platform.OS === "ios" ? appleUrl : googleUrlWeb);
-    } catch (error) {
-      console.error('Error opening maps:', error);
-      Alert.alert("Error", "Could not open maps");
-    }
+
+    const allOptions = [
+      {
+        label: 'Apple Maps',
+        url: `maps://?q=${q}`,
+        fallbackUrl: `http://maps.apple.com/?q=${q}`,
+        iosOnly: true,
+      },
+      {
+        label: 'Google Maps',
+        url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`,
+        fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`,
+        iosOnly: false,
+      },
+      {
+        label: 'Waze',
+        url: `waze://?q=${q}&navigate=false`,
+        fallbackUrl: `https://waze.com/ul?q=${q}`,
+        iosOnly: false,
+      },
+    ];
+
+    const visibleOptions = allOptions.filter((o) => !o.iosOnly || Platform.OS === 'ios');
+
+    Alert.alert(
+      'Open in Maps',
+      'Choose an app:',
+      [
+        ...visibleOptions.map((option) => ({
+          text: option.label,
+          onPress: async () => {
+            try {
+              const supported = await Linking.canOpenURL(option.url);
+              if (supported) {
+                await Linking.openURL(option.url);
+              } else {
+                // App not installed, open web fallback
+                await Linking.openURL(option.fallbackUrl);
+              }
+            } catch (error) {
+              console.error('Error opening maps:', error);
+              Alert.alert('Error', 'Could not open maps');
+            }
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const getStatusBadge = () => {
