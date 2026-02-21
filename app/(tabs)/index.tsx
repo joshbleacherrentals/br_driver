@@ -232,7 +232,7 @@ export default function TripsScreen() {
           source={logo} 
           style={{ width: 45, height: 45 }}
         />
-        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Upcomming Trips</Text>
+        <Text style={{ fontSize: 24, fontWeight: "700", letterSpacing: 0.3, color: '#111827', position: 'absolute', left: 0, right: 0, textAlign: 'center' }}>Upcoming Trips</Text>
         <View style={{ width: 45, height: 45 }} />
       </View>
 

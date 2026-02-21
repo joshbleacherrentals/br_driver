@@ -261,6 +261,108 @@ export type Database = {
           },
         ]
       }
+      BlueBook: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          link: string | null
+          name: string
+          region: Database["public"]["Enums"]["bluebook_region"]
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          name: string
+          region?: Database["public"]["Enums"]["bluebook_region"]
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          name?: string
+          region?: Database["public"]["Enums"]["bluebook_region"]
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      DashboardFilterSettings: {
+        Row: {
+          account_manager_uuid: string | null
+          created_at: string
+          id: string
+          only_show_my_events: boolean
+          optimization_mode: boolean
+          rows: string
+          rows_quick_filter: number | null
+          season: string | null
+          state_provinces: string
+          summer_home_base_uuids: string
+          updated_at: string
+          user_uuid: string
+          winter_home_base_uuids: string
+          y_axis: string
+        }
+        Insert: {
+          account_manager_uuid?: string | null
+          created_at?: string
+          id?: string
+          only_show_my_events?: boolean
+          optimization_mode?: boolean
+          rows?: string
+          rows_quick_filter?: number | null
+          season?: string | null
+          state_provinces?: string
+          summer_home_base_uuids?: string
+          updated_at?: string
+          user_uuid: string
+          winter_home_base_uuids?: string
+          y_axis?: string
+        }
+        Update: {
+          account_manager_uuid?: string | null
+          created_at?: string
+          id?: string
+          only_show_my_events?: boolean
+          optimization_mode?: boolean
+          rows?: string
+          rows_quick_filter?: number | null
+          season?: string | null
+          state_provinces?: string
+          summer_home_base_uuids?: string
+          updated_at?: string
+          user_uuid?: string
+          winter_home_base_uuids?: string
+          y_axis?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "DashboardFilterSettings_account_manager_uuid_fkey"
+            columns: ["account_manager_uuid"]
+            isOneToOne: false
+            referencedRelation: "AccountManagers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "DashboardFilterSettings_user_uuid_fkey"
+            columns: ["user_uuid"]
+            isOneToOne: true
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Drivers: {
         Row: {
           account_manager_uuid: string | null
@@ -475,6 +577,38 @@ export type Database = {
           },
         ]
       }
+      Notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          title?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Tasks: {
         Row: {
           created_at: string
@@ -482,8 +616,8 @@ export type Database = {
           description: string
           id: string
           name: string
-          task_status_uuid: string | null
-          task_type_uuid: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          type: Database["public"]["Enums"]["task_type"] | null
         }
         Insert: {
           created_at?: string
@@ -491,8 +625,8 @@ export type Database = {
           description: string
           id?: string
           name: string
-          task_status_uuid?: string | null
-          task_type_uuid?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          type?: Database["public"]["Enums"]["task_type"] | null
         }
         Update: {
           created_at?: string
@@ -500,8 +634,8 @@ export type Database = {
           description?: string
           id?: string
           name?: string
-          task_status_uuid?: string | null
-          task_type_uuid?: string | null
+          status?: Database["public"]["Enums"]["task_status"] | null
+          type?: Database["public"]["Enums"]["task_type"] | null
         }
         Relationships: [
           {
@@ -511,60 +645,7 @@ export type Database = {
             referencedRelation: "Users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "Tasks_task_status_uuid_fkey"
-            columns: ["task_status_uuid"]
-            isOneToOne: false
-            referencedRelation: "TaskStatuses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "Tasks_task_type_uuid_fkey"
-            columns: ["task_type_uuid"]
-            isOneToOne: false
-            referencedRelation: "TaskTypes"
-            referencedColumns: ["id"]
-          },
         ]
-      }
-      TaskStatuses: {
-        Row: {
-          created_at: string
-          hex: string
-          id: string
-          label: string
-        }
-        Insert: {
-          created_at?: string
-          hex: string
-          id?: string
-          label: string
-        }
-        Update: {
-          created_at?: string
-          hex?: string
-          id?: string
-          label?: string
-        }
-        Relationships: []
-      }
-      TaskTypes: {
-        Row: {
-          created_at: string
-          id: string
-          label: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          label: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          label?: string
-        }
-        Relationships: []
       }
       UserHomeBases: {
         Row: {
@@ -626,6 +707,7 @@ export type Database = {
           clerk_user_id: string | null
           created_at: string
           email: string
+          expo_push_token: string | null
           first_name: string | null
           id: string
           is_admin: boolean
@@ -639,6 +721,7 @@ export type Database = {
           clerk_user_id?: string | null
           created_at?: string
           email: string
+          expo_push_token?: string | null
           first_name?: string | null
           id?: string
           is_admin?: boolean
@@ -652,6 +735,7 @@ export type Database = {
           clerk_user_id?: string | null
           created_at?: string
           email?: string
+          expo_push_token?: string | null
           first_name?: string | null
           id?: string
           is_admin?: boolean
@@ -875,6 +959,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      bluebook_region: "CAN" | "US" | "Both"
+      task_status:
+        | "in_progress"
+        | "backlog"
+        | "complete"
+        | "approved"
+        | "in_staging"
+        | "paused"
+      task_type: "feature" | "bug"
       worktracker_status:
         | "draft"
         | "released"
@@ -1012,6 +1105,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bluebook_region: ["CAN", "US", "Both"],
+      task_status: [
+        "in_progress",
+        "backlog",
+        "complete",
+        "approved",
+        "in_staging",
+        "paused",
+      ],
+      task_type: ["feature", "bug"],
       worktracker_status: [
         "draft",
         "released",
