@@ -5,7 +5,8 @@ import { useDriver } from '@/hooks/db/useDriver';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from "expo-image";
 import React from "react";
-import { ActivityIndicator, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const DARK_BLUE = "#10365A";
 const MID_BLUE = "#164d82";
@@ -36,9 +37,9 @@ export default function BlueBookScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Image source={logo} style={styles.logo} />
         <Text style={styles.headerTitle}>Driver's Blue Book</Text>
         <View style={styles.logoPlaceholder} />
