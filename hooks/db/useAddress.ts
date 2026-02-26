@@ -15,7 +15,7 @@ export type AddressData = {
 /**
  * Fetch Addresses belonging to the addressID
  */
-export function fetchAddreses(addressID: string | null): { address: AddressData | null } {
+export function useAddress(addressID: string | null): { address: AddressData | null } {
 
   // 1. Get user_id from Users table
   const compiled = useMemo(() => {

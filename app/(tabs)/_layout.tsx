@@ -54,6 +54,15 @@ export default function TabLayout() {
             }}
           />
           <Tabs.Screen
+            name="blueBook"
+            options={{
+              title: "Blue Book",
+              tabBarIcon: ({ color }) => (
+                <FontAwesome6 name="book" size={24} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="profile"
             options={{
               title: "Profile",
