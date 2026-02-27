@@ -3,11 +3,17 @@
     "name": "Bleacher Rentals Driver",
     "owner": "bleacher-rentals",
     "slug": "br_driver",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "scheme": "brdriver",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/icons/adaptive-icon.png",
+      "color": "#10365A",
+      "androidMode": "default",
+      "androidCollapsedTitle": "New Trip Update"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.bleacherrentals.driver.dev",
@@ -42,7 +48,8 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -64,6 +71,7 @@
         }
       ],
       "expo-apple-authentication",
+      "expo-notifications",
       "expo-router",
       "expo-secure-store",
       "expo-web-browser"

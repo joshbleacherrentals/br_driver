@@ -10,12 +10,13 @@ export function useProfileCompletion() {
   const { driver } = useDriver();
   const { address } = useAddress(driver?.address_uuid ?? null);
 
-  const hasDriver = driver !== null;
+  // ✅ All hooks must be called before any conditional logic
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
 
   const isProfileComplete = useMemo(() => {
-    if (!driver) return false;
+    // ✅ Handle loading/null cases inside useMemo, not with early return
+    if (driver === undefined || driver === null) return false;
 
     // Define the 6 required fields to check
     const requiredFields = [
@@ -59,10 +60,12 @@ export function useProfileCompletion() {
       .map(field => field.name);
   }, [driver, isUSA]);
 
+  // ✅ Return object at the end, after all hooks
   return {
     isProfileComplete,
     missingFields,
     driver,
-    hasDriver
+    hasDriver: driver !== null && driver !== undefined,
+    isLoading: driver === undefined
   };
 }

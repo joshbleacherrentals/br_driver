@@ -51,10 +51,10 @@ export function useDriver(): { driver: DriverData | null } {
       .compile();
   }, [clerkUserId]);
 
-  const userData = useTypedQuery(compiled, expect<UserData>());
+  const userQueryResult = useTypedQuery(compiled, expect<UserData>());
 
   const compiledDriver = useMemo(() => {
-    const userId = userData.data?.[0]?.id;
+    const userId = userQueryResult.data?.[0]?.id;
     if (!userId) return null;
 
     return db
@@ -79,11 +79,12 @@ export function useDriver(): { driver: DriverData | null } {
     .where("user_uuid", "=", userId)
     .limit(1)
     .compile();
-  }, [userData.data]);
+  }, [userQueryResult.data]);
 
-  const DriverData = useTypedQuery(compiledDriver, expect<DriverData>());
+  const driverQueryResult = useTypedQuery(compiledDriver, expect<DriverData>());
 
-  return { driver: DriverData.data?.[0] ?? null };
+  console.log('[fetchDriver] Driver found!', driverQueryResult.data?.[0]);
+  return { driver: driverQueryResult.data?.[0] ?? null };
 }
 
 /**
@@ -109,7 +110,11 @@ export function useVehicle(vehicle_id: string | null): { vehicle: VehicleData | 
     .compile();
   }, [vehicle_id]);
 
-  const vehicleData = useTypedQuery(compiled, expect<VehicleData>());
+  const vehicleQueryResult = useTypedQuery(compiled, expect<VehicleData>());
 
-  return { vehicle: vehicleData.data?.[0] ?? null };
+  if (!compiled || vehicleQueryResult.isLoading) {
+    return { vehicle: undefined };
+  }
+
+  return { vehicle: vehicleQueryResult.data?.[0] ?? null };
 }
