@@ -1,8 +1,6 @@
 import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useMemo } from "react";
-import { useUser } from "@clerk/clerk-expo"
-import { UserData } from "./workTrackers"
 
 
 export type AccountManagerData = {
@@ -21,9 +19,9 @@ export type UserContactData = {
 }
 
 /**
- * Fetch DriverData belonging to the user_id
+ * Fetch AccountManagerData belonging to the user_id
  */
-export function fetchAccountManager( am_uuid : string | null): { accountManager: UserContactData| null } {
+export function useAccountManager( am_uuid : string | null): { accountManager: UserContactData| null } {
   // 1. Get user_id from Users table
   const compiled = useMemo(() => {
     if (!am_uuid) return null;

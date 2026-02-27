@@ -18,7 +18,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.bleacherrentals.driver.dev",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["waze", "comgooglemaps", "maps"]
       },
       "icon": {
         "dark": "./assets/icons/ios-dark.png",
@@ -34,6 +35,20 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.bleacherrentals.driver.dev",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "geo" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "googleServicesFile": "./google-services.json"
     },
     "web": {

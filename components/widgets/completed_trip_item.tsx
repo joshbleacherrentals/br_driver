@@ -1,23 +1,21 @@
+import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
+import { useAddress } from '@/hooks/db/useAddress';
+import { useBleacher } from '@/hooks/db/useBleacher';
+import { InspectionPhotosData, useInspection, useInspectionPhotos } from '@/hooks/db/useInspection';
+import { WorkTracker } from '@/hooks/db/useWorkTrackers';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-  Image,
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  Alert,
   Linking,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { WorkTracker } from '@/db/workTrackers';
-import { fetchAddreses } from '@/db/fetchAddress';
-import { fetchInspection } from '@/db/fetchInspection';
-import { fetchInspectionPhotos } from '@/db/fetchInspection';
-import { fetchBleacher } from '@/db/fetchBleacher';
-import { InspectionPhotosData } from '@/db/fetchInspection';
-import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -41,14 +39,14 @@ function getLocalUriForAttachment(attachmentId: string): string | null {
 
 export default function CompletedTrips({ workTracker, onClose }: CompletedTripProps) {
   // ✅ Hooks MUST be called unconditionally at top level
-  const { address: pickupAddress } = fetchAddreses(workTracker.pickup_address_uuid);
-  const { address: dropoffAddress } = fetchAddreses(workTracker.dropoff_address_uuid);
-  const { bleacher } = fetchBleacher(workTracker.bleacher_uuid);
+  const { address: pickupAddress } = useAddress(workTracker.pickup_address_uuid);
+  const { address: dropoffAddress } = useAddress(workTracker.dropoff_address_uuid);
+  const { bleacher } = useBleacher(workTracker.bleacher_uuid);
 
-  const { inspection: preInspection } = fetchInspection(workTracker.pre_inspection_uuid);
-  const { Photos: preInspectPhotos } = fetchInspectionPhotos(workTracker.pre_inspection_uuid);
-  const { inspection: postInspection } = fetchInspection(workTracker.post_inspection_uuid);
-  const { Photos: postInspectPhotos } = fetchInspectionPhotos(workTracker.post_inspection_uuid);
+  const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid);
+  const { Photos: preInspectPhotos } = useInspectionPhotos(workTracker.pre_inspection_uuid);
+  const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid);
+  const { Photos: postInspectPhotos } = useInspectionPhotos(workTracker.post_inspection_uuid);
 
   const formatPay = (cents: number | null) =>
     cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
@@ -94,9 +92,54 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const openInMaps = async (address?: string) => {
     if (!address) return;
     const q = encodeURIComponent(address);
-    const appleUrl = `http://maps.apple.com/?q=${q}`;
-    const googleUrlWeb = `https://www.google.com/maps/search/?api=1&query=${q}`;
-    Linking.openURL(Platform.OS === "ios" ? appleUrl : googleUrlWeb);
+
+    const allOptions = [
+      {
+        label: 'Apple Maps',
+        url: `maps://?q=${q}`,
+        fallbackUrl: `http://maps.apple.com/?q=${q}`,
+        iosOnly: true,
+      },
+      {
+        label: 'Google Maps',
+        url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`,
+        fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`,
+        iosOnly: false,
+      },
+      {
+        label: 'Waze',
+        url: `waze://?q=${q}&navigate=false`,
+        fallbackUrl: `https://waze.com/ul?q=${q}`,
+        iosOnly: false,
+      },
+    ];
+
+    const visibleOptions = allOptions.filter((o) => !o.iosOnly || Platform.OS === 'ios');
+
+    Alert.alert(
+      'Open in Maps',
+      'Choose an app:',
+      [
+        ...visibleOptions.map((option) => ({
+          text: option.label,
+          onPress: async () => {
+            try {
+              const supported = await Linking.canOpenURL(option.url);
+              if (supported) {
+                await Linking.openURL(option.url);
+              } else {
+                // App not installed, open web fallback
+                await Linking.openURL(option.fallbackUrl);
+              }
+            } catch (error) {
+              console.error('Error opening maps:', error);
+              Alert.alert('Error', 'Could not open maps');
+            }
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const renderInspection = (
@@ -137,7 +180,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           </View>
         </View>
 
-        <View style={styles.inspectionItem}>
+        {/* <View style={styles.inspectionItem}>
           <Text style={styles.inspectionLabel}>Issues Found:</Text>
           <View style={styles.inspectionValueContainer}>
             {inspection.issues_found ? (
@@ -161,7 +204,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           </View>
         )}
 
-        {/* Photos */}
+        {/* Photos *
         {photos?.map(photo => {
           console.log(photo.storage_path)
           if (!photo.storage_path) return null;
@@ -177,7 +220,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
               )}
             </View>
           );
-        })}
+        })} */}
       </View>
     );
   };

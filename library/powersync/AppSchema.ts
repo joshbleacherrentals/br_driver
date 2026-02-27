@@ -22,6 +22,7 @@ const UsersCols = {
   is_admin: column.integer,
   expo_push_token: column.text,
   created_at: column.text,
+  expo_push_token: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, { indexes: { status_uuid: ["status_uuid"] } });
 
@@ -146,6 +147,20 @@ const VehiclesCols = {
 } satisfies PowerSyncColsFor<"Vehicles">
 const Vehicles = new Table(VehiclesCols, { indexes: { id: ["id"] } });
 
+// BlueBook
+const BlueBookCols = {
+  name: column.text,
+  link: column.text,
+  description: column.text,
+  is_active: column.integer,
+  region: column.text,
+  sort_order: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"BlueBook">
+const BlueBook = new Table(BlueBookCols, { indexes: { id: ["id"] } });
+
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -156,6 +171,7 @@ export const AppSchema = new Schema({
   InspectionPhotos,
   WorkTrackers,
   Vehicles,
+  BlueBook,
   attachments: new AttachmentTable({
     name: "attachments",
   }),

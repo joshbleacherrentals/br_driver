@@ -22,7 +22,7 @@ export type InspectionPhotosData = {
 /**
  * Fetch Inspections belonging to the inspection_id
  */
-export function fetchInspection(inspection_id: string | null): { inspection: InspectionData | null } {
+export function useInspection(inspection_id: string | null): { inspection: InspectionData | null } {
 
   const compiled = useMemo(() => {
     if (!inspection_id) return null;
@@ -46,7 +46,7 @@ export function fetchInspection(inspection_id: string | null): { inspection: Ins
   return { inspection: inspectionData.data?.[0] ?? null };
 }
 
-export function fetchInspectionPhotos(inspection_id: string | null): { Photos: InspectionPhotosData[] | null } {
+export function useInspectionPhotos(inspection_id: string | null): { Photos: InspectionPhotosData[] | null } {
 
   const compiledPhotos = useMemo(() => {
     if (!inspection_id) return null;

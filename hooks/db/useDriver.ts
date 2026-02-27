@@ -1,8 +1,8 @@
 import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { useUser } from "@clerk/clerk-expo";
 import { useMemo } from "react";
-import { useUser } from "@clerk/clerk-expo"
-import { UserData } from "./workTrackers"
+import { UserData } from "./useWorkTrackers";
 
 
 export type DriverData = {
@@ -35,8 +35,8 @@ export type VehicleData = {
 /**
  * Fetch DriverData belonging to the user_id
  */
-export function fetchDriver(): { driver: DriverData | null | undefined } {
-  const { user, isLoaded: isUserLoaded } = useUser();
+export function useDriver(): { driver: DriverData | null } {
+  const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 
   // 1. Get user_id from Users table
@@ -90,7 +90,7 @@ export function fetchDriver(): { driver: DriverData | null | undefined } {
 /**
  * Fetch Vehicle Info belonging to the id
  */
-export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null | undefined } {
+export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
 
   const compiled = useMemo(() => {
     if (!vehicle_id) return null;

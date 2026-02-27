@@ -1,15 +1,14 @@
+import { useAddress } from '@/hooks/db/useAddress';
+import { useDriver } from '@/hooks/db/useDriver';
 import { useMemo } from 'react';
-import { fetchDriver } from '@/db/fetchDrivers';
-import { fetchVehicle } from '@/db/fetchDrivers';
-import { fetchAddreses } from '@/db/fetchAddress';
 
 /**
  * Hook to check if driver profile is complete
  * Returns true if all 6 required fields are populated
  */
 export function useProfileCompletion() {
-  const { driver } = fetchDriver();
-  const { address } = fetchAddreses(driver?.address_uuid ?? null);
+  const { driver } = useDriver();
+  const { address } = useAddress(driver?.address_uuid ?? null);
 
   // ✅ All hooks must be called before any conditional logic
   const country = address?.street?.split(",").pop()?.trim();

@@ -1,7 +1,7 @@
-import { db, powerSyncDb } from "@/components/providers/SystemProvider";
+import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useMemo } from "react";
 import { useUser } from "@clerk/clerk-expo";
+import { useMemo } from "react";
 
 
 export type WorkTracker = {
@@ -52,7 +52,7 @@ export type DriverData = {
 /**
  * Fetch WorkTrackers belonging to the Clerk user using PowerSync
  */
-export function fetchWorkTrackers(): { workTrackers: WorkTracker[] | null | undefined } {
+export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 

@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import TripItem from "@/components/widgets/trip_item";
+import { db } from '@/components/providers/SystemProvider';
 import InspectionScreen from "@/components/widgets/inspection";
-import { fetchWorkTrackers } from "@/db/workTrackers";
+import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
+import TripItem from "@/components/widgets/trip_item";
+import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
+import React, { useState } from 'react';
 import { Alert, FlatList, Image, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { db } from '@/components/providers/SystemProvider';
-import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
-import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
-import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -19,7 +19,7 @@ export default function TripsScreen() {
     type: InspectionType;
   } | null>(null);
 
-  const workTrackers = fetchWorkTrackers().workTrackers;
+  const workTrackers = useWorkTrackers().workTrackers;
   const { isProfileComplete } = useProfileCompletion();
 
   // Handler functions

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
-import { db, inspectionPhotoAttachmentQueue } from '../providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useState } from 'react';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { db, inspectionPhotoAttachmentQueue } from '../providers/SystemProvider';
 
 interface DocumentPhoto {
   uri: string | null;
@@ -34,6 +34,8 @@ interface InspectionScreenProps {
   onComplete: () => void;
   onCancel: () => void;
 }
+
+const GOOGLE_FORM_URL = 'https://forms.gle/dUSERuQ2UGSCVpoHA';
 
 export default function InspectionScreen({
   workTrackerId,
@@ -141,10 +143,10 @@ export default function InspectionScreen({
       return;
     }
 
-    if (photos.length === 0) {
-      Alert.alert('Photo Required', 'Please add at least one photo for documentation');
-      return;
-    }
+    // if (photos.length === 0) {
+    //   Alert.alert('Photo Required', 'Please add at least one photo for documentation');
+    //   return;
+    // }
 
     setIsSubmitting(true);
 
@@ -169,43 +171,43 @@ export default function InspectionScreen({
       await executeTypedMutation(insertInspectionQuery);
       console.log('Inspection record created');
 
-      // 2️⃣ Queue photos for upload via the attachment queue
-      const photoStoragePaths = await Promise.all(
-        photos.map((photo, index) => savePhotoToQueue(photo, inspectionId, index))
-      );
+      // // 2️⃣ Queue photos for upload via the attachment queue
+      // const photoStoragePaths = await Promise.all(
+      //   photos.map((photo, index) => savePhotoToQueue(photo, inspectionId, index))
+      // );
 
-      // 3️⃣ Insert photo records with attachment queue paths
-      for (let index = 0; index < photos.length; index++) {
-        const storagePath = photoStoragePaths[index];
+      // // 3️⃣ Insert photo records with attachment queue paths
+      // for (let index = 0; index < photos.length; index++) {
+      //   const storagePath = photoStoragePaths[index];
 
-        if (!storagePath) {
-          console.warn(`Photo ${index} missing storage path, skipping`);
-          continue;
-        }
+      //   if (!storagePath) {
+      //     console.warn(`Photo ${index} missing storage path, skipping`);
+      //     continue;
+      //   }
 
-        try {
-          const photoId = generateUUID();
+      //   try {
+      //     const photoId = generateUUID();
 
-          const insertPhotoQuery = db
-            .insertInto('InspectionPhotos')
-            .values({
-              id: photoId,
-              created_at: now,
-              inspection_uuid: inspectionId,
-              storage_path: storagePath,
-              caption: null,
-            })
-            .compile();
+      //     const insertPhotoQuery = db
+      //       .insertInto('InspectionPhotos')
+      //       .values({
+      //         id: photoId,
+      //         created_at: now,
+      //         inspection_uuid: inspectionId,
+      //         storage_path: storagePath,
+      //         caption: null,
+      //       })
+      //       .compile();
 
-          await executeTypedMutation(insertPhotoQuery);
-          console.log(`Photo ${index + 1} record saved: ${photoId}`);
-        } catch (error) {
-          console.error(`Error saving photo record ${index + 1}:`, error);
-          throw error;
-        }
-      }
+      //     await executeTypedMutation(insertPhotoQuery);
+      //     console.log(`Photo ${index + 1} record saved: ${photoId}`);
+      //   } catch (error) {
+      //     console.error(`Error saving photo record ${index + 1}:`, error);
+      //     throw error;
+      //   }
+      // }
 
-      console.log(`All ${photos.length} photos queued for upload`);
+      // console.log(`All ${photos.length} photos queued for upload`);
 
       // 4️⃣ Update WorkTracker with inspection ID
       if (inspectionType === 'pickup') {
@@ -236,7 +238,7 @@ export default function InspectionScreen({
 
       Alert.alert(
         'Success',
-        `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed with ${photos.length} photo(s)!`,
+        `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed successfully!`,
         [{ text: 'OK', onPress: onComplete }]
       );
     } catch (error) {
@@ -269,18 +271,34 @@ export default function InspectionScreen({
             </View>
           </View>
 
+          <Text style={styles.sectionSubtitle}>
+            Complete either the Motive in-app inspection <Text style={styles.bold}>or</Text> the Google Form Inspection
+          </Text>
+
+          {/* Google Form Link Button */}
+          <TouchableOpacity
+            style={styles.formLinkButton}
+            onPress={() => Linking.openURL(GOOGLE_FORM_URL)}
+          >
+            <Ionicons name="document-text-outline" size={18} color="#0A84FF" />
+            <Text style={styles.formLinkText}>Open Google Form Inspection</Text>
+            <Ionicons name="open-outline" size={16} color="#0A84FF" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.checkbox, walkAroundComplete && styles.checkboxChecked]}
             onPress={() => setWalkAroundComplete(v => !v)}
           >
-            <Text style={styles.checkboxLabel}>I have completed a full walk-around inspection</Text>
+            <Text style={styles.checkboxLabel}>
+              I have completed the Motive inspection <Text style={styles.bold}>or</Text> the Google Form inspection
+            </Text>
             {walkAroundComplete && (
               <Ionicons name="checkmark-circle" size={24} color="#0A84FF" />
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Issues Found */}
+        {/* Issues Found
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Issues or Damage</Text>
 
@@ -308,7 +326,7 @@ export default function InspectionScreen({
           )}
         </View>
 
-        {/* Photos */}
+        {/* Photos *
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Photos ({photos.length})</Text>
@@ -349,7 +367,7 @@ export default function InspectionScreen({
               ))}
             </View>
           )}
-        </View>
+        </View> */}
 
         {/* Submit Buttons */}
         <View style={styles.buttonContainer}>
@@ -413,7 +431,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   requiredBadge: {
     backgroundColor: '#FF3B30',
@@ -432,6 +450,28 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginBottom: 12,
   },
+  bold: {
+    fontWeight: '700',
+    color: '#3C3C3C',
+  },
+  formLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EBF5FF',
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  formLinkText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
   checkbox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -448,8 +488,9 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#000',
+    marginRight: 8,
   },
   textInputContainer: {
     marginTop: 12,

@@ -2,13 +2,13 @@ import { DebugLogger, LogEntry } from "@/library/debug/DebugLogger";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
