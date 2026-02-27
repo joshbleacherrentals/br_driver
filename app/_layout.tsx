@@ -1,5 +1,7 @@
 import SystemProvider from "@/components/providers/SystemProvider";
+import { useDriver } from "@/hooks/db/useDriver";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { registerForPushNotificationsAsync, setupNotificationListeners } from "@/services/notificationService";
 import { ClerkProvider, useUser } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
@@ -8,12 +10,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useClerkSupabaseClient } from "../library/supabase/useClerkSupabaseClient";
 import { useEffect, useState } from "react";
-import { fetchDriver } from "@/db/fetchDrivers";
 import { ActivityIndicator, View } from "react-native";
-import { registerForPushNotificationsAsync, setupNotificationListeners } from "@/services/notificationService";
-import { supabase } from "@/library/supabase/supabaseClient"
+import { useClerkSupabaseClient } from "../library/supabase/useClerkSupabaseClient";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -37,7 +36,7 @@ function RootLayoutContent() {
   const [hasWaitedForSync, setHasWaitedForSync] = useState(false);
 
   // Always call fetchDriver - it handles the loading states internally
-  const { driver } = fetchDriver();
+  const { driver } = useDriver();
 
   // Give PowerSync time to sync before making routing decisions
   useEffect(() => {

@@ -90,7 +90,7 @@ export function useDriver(): { driver: DriverData | null } {
 /**
  * Fetch Vehicle Info belonging to the id
  */
-export function fetchVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
+export function useVehicle(vehicle_id: string | null): { vehicle: VehicleData | null } {
 
   const compiled = useMemo(() => {
     if (!vehicle_id) return null;
