@@ -71,7 +71,7 @@ export default function TabLayout() {
               ),
             }}
           />
-          {/* {process.env.EXPO_PUBLIC_LOG_VISIBLE === "true" &&
+          {process.env.EXPO_PUBLIC_LOG_VISIBLE === "true" &&
             (console.log("Logs tab visible", process.env.EXPO_PUBLIC_LOG_VISIBLE),
             (
               <Tabs.Screen
@@ -81,7 +81,7 @@ export default function TabLayout() {
                   tabBarIcon: ({ color }) => <FontAwesome6 name="bug" size={24} color={color} />,
                 }}
               />
-            ))} */}
+            ))}
         </Tabs>
       </SignedIn>
       <SignedOut>

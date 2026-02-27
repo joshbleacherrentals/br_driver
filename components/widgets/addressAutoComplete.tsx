@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   LayoutRectangle,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY!;
@@ -107,6 +107,7 @@ export default function AddressAutocomplete({
         value={value}
         onChangeText={handleChange}
         placeholder={placeholder? placeholder : "Enter address..."}
+        placeholderTextColor="#555"
         style={styles.input}
         onLayout={(e) => setInputLayout(e.nativeEvent.layout)}
       />
