@@ -1,5 +1,5 @@
 import { getAuthStyles } from "@/constants/AuthStyles";
-import { fetchDriver } from "@/db/fetchDrivers";
+import { useDriver } from "@/hooks/db/useDriver";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useUser } from "@clerk/clerk-expo";
 import { Image } from "expo-image";
@@ -14,7 +14,7 @@ export default function NotFoundScreen() {
 
   const firstName = user?.firstName || "there";
 
-  const { driver } = fetchDriver();
+  const { driver } = useDriver();
 
   const driverResolved = isLoaded && (driver !== undefined);
 
