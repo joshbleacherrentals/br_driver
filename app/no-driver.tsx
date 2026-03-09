@@ -2,15 +2,13 @@ import { getAuthStyles } from "@/constants/AuthStyles";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useUser } from "@clerk/clerk-expo";
 import { Image } from "expo-image";
-import { Stack, useRouter } from "expo-router";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Stack } from "expo-router";
+import { ScrollView, Text, View } from "react-native";
 
-export default function NotFoundScreen() {
+export default function NoDriverScreen() {
   const colorScheme = useColorScheme();
   const styles = getAuthStyles(colorScheme);
-  const router = useRouter();
-  const { user, isLoaded } = useUser();
-
+  const { user } = useUser();
   const firstName = user?.firstName || "there";
 
   return (
@@ -33,18 +31,9 @@ export default function NotFoundScreen() {
           />
           <Text style={styles.title}>Welcome, {firstName}!</Text>
           <Text style={styles.subtitle}>
-            You're signed in and ready to go. Check out your upcoming trips to get started.
+            Looks like you don't have a driver profile set up yet.
+            Please contact your account manager to get started.
           </Text>
-        </View>
-
-        <View style={styles.form}>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => router.replace("/(tabs)")}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>View Your Upcoming Trips</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </>
