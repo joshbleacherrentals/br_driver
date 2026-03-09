@@ -38,6 +38,13 @@ export type WorkTracker = {
 
   pre_inspection_uuid: string | null;
   post_inspection_uuid: string | null;
+
+  teardown_required: number | null;
+  pickup_instructions: string | null;
+  setup_required: number | null;
+  dropoff_instructions: string | null;
+
+  project_number: string | null;
 };
 
 
@@ -116,6 +123,11 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
         "completed_at",
         "pre_inspection_uuid",
         "post_inspection_uuid",
+        "teardown_required",
+        "pickup_instructions",
+        "setup_required",
+        "dropoff_instructions",
+        "project_number",
       ])
       .where("driver_uuid", "=", driverId)
       .orderBy("date", "asc")
