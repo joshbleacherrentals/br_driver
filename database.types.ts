@@ -391,8 +391,8 @@ export type Database = {
           is_active: boolean
           license_photo_path: string | null
           medical_card_photo_path: string | null
-          pay_currency: string
-          pay_per_unit: string
+          pay_currency: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents: number
           phone_number: string | null
           tax: number
@@ -409,8 +409,8 @@ export type Database = {
           is_active?: boolean
           license_photo_path?: string | null
           medical_card_photo_path?: string | null
-          pay_currency?: string
-          pay_per_unit?: string
+          pay_currency?: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents?: number
           phone_number?: string | null
           tax?: number
@@ -427,8 +427,8 @@ export type Database = {
           is_active?: boolean
           license_photo_path?: string | null
           medical_card_photo_path?: string | null
-          pay_currency?: string
-          pay_per_unit?: string
+          pay_currency?: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents?: number
           phone_number?: string | null
           tax?: number
@@ -943,6 +943,44 @@ export type Database = {
         }
         Relationships: []
       }
+      WorkTrackerGroups: {
+        Row: {
+          created_at: string
+          driver_uuid: string
+          id: string
+          qbo_bill_id: string | null
+          status: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          driver_uuid: string
+          id?: string
+          qbo_bill_id?: string | null
+          status?: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          driver_uuid?: string
+          id?: string
+          qbo_bill_id?: string | null
+          status?: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worktrackergroups_driver_uuid_fkey"
+            columns: ["driver_uuid"]
+            isOneToOne: false
+            referencedRelation: "Drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       WorkTrackerInspections: {
         Row: {
           created_at: string
@@ -974,6 +1012,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           date: string | null
+          distance_meters: number | null
+          drive_minutes: number | null
           driver_uuid: string | null
           dropoff_address_uuid: string | null
           dropoff_instructions: string | null
@@ -997,6 +1037,8 @@ export type Database = {
           teardown_required: boolean
           updated_at: string
           user_uuid: string | null
+          work_tracker_type_uuid: string | null
+          worktracker_group_uuid: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -1004,6 +1046,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           date?: string | null
+          distance_meters?: number | null
+          drive_minutes?: number | null
           driver_uuid?: string | null
           dropoff_address_uuid?: string | null
           dropoff_instructions?: string | null
@@ -1027,6 +1071,8 @@ export type Database = {
           teardown_required?: boolean
           updated_at?: string
           user_uuid?: string | null
+          work_tracker_type_uuid?: string | null
+          worktracker_group_uuid?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -1034,6 +1080,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           date?: string | null
+          distance_meters?: number | null
+          drive_minutes?: number | null
           driver_uuid?: string | null
           dropoff_address_uuid?: string | null
           dropoff_instructions?: string | null
@@ -1057,6 +1105,8 @@ export type Database = {
           teardown_required?: boolean
           updated_at?: string
           user_uuid?: string | null
+          work_tracker_type_uuid?: string | null
+          worktracker_group_uuid?: string | null
         }
         Relationships: [
           {
@@ -1108,6 +1158,100 @@ export type Database = {
             referencedRelation: "Users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "worktrackers_work_tracker_type_uuid_fkey"
+            columns: ["work_tracker_type_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerTypes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackers_worktracker_group_uuid_fkey"
+            columns: ["worktracker_group_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerGroups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      WorkTrackerTypes: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          qbo_category_id: number | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          qbo_category_id?: number | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          qbo_category_id?: number | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      Zones: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          photo_path: string | null
+          qbo_class_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          photo_path?: string | null
+          qbo_class_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          photo_path?: string | null
+          qbo_class_id?: string | null
+        }
+        Relationships: []
+      }
+      ZoneStateProvinces: {
+        Row: {
+          created_at: string
+          id: string
+          state_province: string
+          zone_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state_province: string
+          zone_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state_province?: string
+          zone_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zonestateprovinces_zone_uuid_fkey"
+            columns: ["zone_uuid"]
+            isOneToOne: false
+            referencedRelation: "Zones"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -1115,11 +1259,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_week_end: { Args: { input_date: string }; Returns: string }
+      get_week_start: { Args: { input_date: string }; Returns: string }
     }
     Enums: {
       bluebook_region: "CAN" | "US" | "Both"
       event_status: "quoted" | "booked" | "lost"
+      pay_currency_type: "CAD" | "USD"
+      pay_per_unit_type: "KM" | "MI" | "HR"
       task_status:
         | "in_progress"
         | "backlog"
@@ -1128,6 +1275,12 @@ export type Database = {
         | "in_staging"
         | "paused"
       task_type: "feature" | "bug"
+      worktracker_group_status:
+        | "draft"
+        | "qbo_bill_creating"
+        | "qbo_bill_created"
+        | "qbo_bill_error"
+        | "no_bill_ready_for_payment"
       worktracker_status:
         | "draft"
         | "released"
@@ -1267,6 +1420,8 @@ export const Constants = {
     Enums: {
       bluebook_region: ["CAN", "US", "Both"],
       event_status: ["quoted", "booked", "lost"],
+      pay_currency_type: ["CAD", "USD"],
+      pay_per_unit_type: ["KM", "MI", "HR"],
       task_status: [
         "in_progress",
         "backlog",
@@ -1276,6 +1431,13 @@ export const Constants = {
         "paused",
       ],
       task_type: ["feature", "bug"],
+      worktracker_group_status: [
+        "draft",
+        "qbo_bill_creating",
+        "qbo_bill_created",
+        "qbo_bill_error",
+        "no_bill_ready_for_payment",
+      ],
       worktracker_status: [
         "draft",
         "released",
