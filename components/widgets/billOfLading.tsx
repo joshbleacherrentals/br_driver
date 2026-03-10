@@ -2,6 +2,8 @@ import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React from 'react';
@@ -55,14 +57,25 @@ function v(value: string | number | null | undefined, fallback = '—'): string 
   return value !== null && value !== undefined && value !== '' ? String(value) : fallback;
 }
 
+// ─── Load logo as base64 for HTML embedding ───────────────────────────────────
+async function getLogoBase64(): Promise<string> {
+  const asset = Asset.fromModule(require('../../assets/images/NEW-Bleacher-Rentals-logo.png'));
+  await asset.downloadAsync();
+  const base64 = await FileSystem.readAsStringAsync(asset.localUri!, {
+    encoding: 'base64',
+  });
+  return `data:image/png;base64,${base64}`;
+}
+
 // ─── HTML Template for PDF ────────────────────────────────────────────────────
 function buildBOLHtml(params: {
   workTracker: WorkTracker;
   bleacher: ReturnType<typeof useBleacher>['bleacher'];
   pickupAddress: ReturnType<typeof useAddress>['address'];
   dropoffAddress: ReturnType<typeof useAddress>['address'];
+  logoBase64: string;
 }): string {
-  const { workTracker, bleacher, pickupAddress, dropoffAddress } = params;
+  const { workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64 } = params;
 
   const pickupFull = pickupAddress
     ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province} ${pickupAddress.zip_postal}`
@@ -101,11 +114,10 @@ function buildBOLHtml(params: {
       align-items: center;
       margin-bottom: 8px;
     }
-    .brand {
-      font-size: 16pt;
-      font-weight: bold;
-      color: #10365A;
-      line-height: 1.2;
+    .top-row img {
+      height: 60px;
+      width: auto;
+      object-fit: contain;
     }
     .bol-title {
       font-size: 22pt;
@@ -156,15 +168,10 @@ function buildBOLHtml(params: {
       margin-right: 4px;
       white-space: nowrap;
     }
-    .detail-line .val {
-      flex: 1;
-    }
+    .detail-line .val { flex: 1; }
 
-    /* ── Shipment grid (left + right columns) ── */
-    .shipment-grid {
-      display: flex;
-      gap: 16px;
-    }
+    /* ── Shipment grid ── */
+    .shipment-grid { display: flex; gap: 16px; }
     .shipment-left { flex: 1; }
     .shipment-right { flex: 1; }
 
@@ -178,10 +185,7 @@ function buildBOLHtml(params: {
       margin-bottom: 4px;
       min-height: 130px;
     }
-    .pd-col {
-      flex: 1;
-      padding: 6px 8px;
-    }
+    .pd-col { flex: 1; padding: 6px 8px; }
     .pd-col-border {
       flex: 1;
       padding: 6px 8px;
@@ -204,21 +208,12 @@ function buildBOLHtml(params: {
       flex-shrink: 0;
       font-size: 8.5pt;
     }
-    .pd-val {
-      flex: 1;
-      font-size: 8.5pt;
-    }
+    .pd-val { flex: 1; font-size: 8.5pt; }
 
     /* ── Signatures ── */
-    .sig-box {
-      border: 1px solid #000;
-      padding: 8px;
-    }
+    .sig-box { border: 1px solid #000; padding: 8px; }
     .sig-note { font-size: 8.5pt; margin-bottom: 10px; }
-    .sig-row {
-      display: flex;
-      margin-bottom: 14px;
-    }
+    .sig-row { display: flex; margin-bottom: 14px; }
     .sig-col { flex: 1; }
     .sig-col-right { flex: 1; padding-left: 20px; }
     .sig-label { font-weight: bold; font-size: 9pt; margin-bottom: 18px; }
@@ -231,10 +226,9 @@ function buildBOLHtml(params: {
 </head>
 <body>
 
-  <!-- Top Row -->
+  <!-- Top Row: Logo + Title -->
   <div class="top-row">
-    // get company logo in here
-    <div class="brand">BLEACHER<br>RENTALS</div>
+    <img src="${logoBase64}" />
     <div class="bol-title">BILL OF LADING</div>
   </div>
 
@@ -430,7 +424,8 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
   const handleDownloadPDF = async () => {
     try {
       setPrinting(true);
-      const html = buildBOLHtml({ workTracker, bleacher, pickupAddress, dropoffAddress });
+      const logoBase64 = await getLogoBase64();
+      const html = buildBOLHtml({ workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64 });
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       const canShare = await Sharing.isAvailableAsync();
@@ -530,8 +525,8 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section>
 
-          {/* ── Signature Block ── */}
-          {/* <Section title="Signatures" icon="pencil-outline">
+          {/* ── Signature Block ──
+          <Section title="Signatures" icon="pencil-outline">
             <Text style={styles.sigNote}>Please sign when the unit is dropped off at the destination.</Text>
             <View style={styles.sigRow}>
               <View style={styles.sigBlock}>
