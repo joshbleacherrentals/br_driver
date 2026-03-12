@@ -1,6 +1,8 @@
+import { db } from '@/components/providers/SystemProvider';
 import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
+import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
 import { Ionicons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -57,6 +59,32 @@ function v(value: string | number | null | undefined, fallback = '—'): string 
   return value !== null && value !== undefined && value !== '' ? String(value) : fallback;
 }
 
+// ─── BOL Number ───────────────────────────────────────────────────────────────
+// Format: {bleacher#}-{YYYYMMDD}-{10-digit number derived from WorkTracker UUID}
+// e.g.    042-20260315-2751013296
+function generateBolNumber(
+  workTrackerId: string,
+  bleacherNumber: string | number | null | undefined,
+  date: string | null | undefined
+): string {
+  const bleacher = bleacherNumber ? String(bleacherNumber).padStart(3, '0') : 'XXX';
+  const dateStr = date ? date.replace(/-/g, '') : 'NODATE';
+  const hex = workTrackerId.replace(/-/g, '').substring(0, 8);
+  const num = parseInt(hex, 16).toString().padStart(10, '0');
+  return `${bleacher}-${dateStr}-${num}`;
+}
+
+
+async function saveBolNumber(workTrackerId: string, bolNumber: string): Promise<void> {
+  const now = new Date().toISOString();
+  const query = db
+    .updateTable('WorkTrackers')
+    .set({ bol_number: bolNumber, updated_at: now })
+    .where('id', '=', workTrackerId)
+    .compile();
+  await executeTypedMutationVoid(query);
+}
+
 // ─── Load logo as base64 for HTML embedding ───────────────────────────────────
 async function getLogoBase64(): Promise<string> {
   const asset = Asset.fromModule(require('../../assets/images/NEW-Bleacher-Rentals-logo.png'));
@@ -74,8 +102,9 @@ function buildBOLHtml(params: {
   pickupAddress: ReturnType<typeof useAddress>['address'];
   dropoffAddress: ReturnType<typeof useAddress>['address'];
   logoBase64: string;
+  bolNumber: string;
 }): string {
-  const { workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64 } = params;
+  const { workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64, bolNumber } = params;
 
   const pickupFull = pickupAddress
     ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province} ${pickupAddress.zip_postal}`
@@ -106,8 +135,6 @@ function buildBOLHtml(params: {
       padding: 20px;
       background: #fff;
     }
-
-    /* ── Top header ── */
     .top-row {
       display: flex;
       justify-content: space-between;
@@ -124,61 +151,28 @@ function buildBOLHtml(params: {
       font-weight: bold;
       letter-spacing: 2px;
     }
-
-    /* ── Generic bordered box ── */
     .box {
       border: 1px solid #000;
       margin-bottom: 4px;
       padding: 6px 8px;
     }
-
-    /* ── Two-column row ── */
     .two-col {
       display: flex;
       border: 1px solid #000;
       margin-bottom: 4px;
     }
-    .col {
-      flex: 1;
-      padding: 6px 8px;
-    }
-    .col-border {
-      flex: 1;
-      padding: 6px 8px;
-      border-left: 1px solid #000;
-    }
-
-    /* ── Labels ── */
-    .section-title {
-      font-weight: bold;
-      text-decoration: underline;
-      margin-bottom: 5px;
-      font-size: 9pt;
-    }
+    .col { flex: 1; padding: 6px 8px; }
+    .col-border { flex: 1; padding: 6px 8px; border-left: 1px solid #000; }
+    .section-title { font-weight: bold; text-decoration: underline; margin-bottom: 5px; font-size: 9pt; }
     .bold { font-weight: bold; }
     .label { font-weight: bold; }
-
-    /* ── Shipment detail lines ── */
-    .detail-line {
-      display: flex;
-      margin-bottom: 4px;
-      align-items: baseline;
-    }
-    .detail-line .label {
-      margin-right: 4px;
-      white-space: nowrap;
-    }
+    .detail-line { display: flex; margin-bottom: 4px; align-items: baseline; }
+    .detail-line .label { margin-right: 4px; white-space: nowrap; }
     .detail-line .val { flex: 1; }
-
-    /* ── Shipment grid ── */
     .shipment-grid { display: flex; gap: 16px; }
     .shipment-left { flex: 1; }
     .shipment-right { flex: 1; }
-
-    /* ── Legal text ── */
     .legal { font-size: 7.5pt; line-height: 1.45; margin-bottom: 3px; }
-
-    /* ── Pickup/Delivery side-by-side ── */
     .pd-row {
       display: flex;
       border: 1px solid #000;
@@ -186,59 +180,32 @@ function buildBOLHtml(params: {
       min-height: 130px;
     }
     .pd-col { flex: 1; padding: 6px 8px; }
-    .pd-col-border {
-      flex: 1;
-      padding: 6px 8px;
-      border-left: 1px solid #000;
-    }
-    .pd-title {
-      font-weight: bold;
-      text-decoration: underline;
-      text-align: center;
-      margin-bottom: 7px;
-    }
-    .pd-line {
-      display: flex;
-      margin-bottom: 5px;
-      align-items: baseline;
-    }
-    .pd-label {
-      font-weight: bold;
-      width: 130px;
-      flex-shrink: 0;
-      font-size: 8.5pt;
-    }
+    .pd-col-border { flex: 1; padding: 6px 8px; border-left: 1px solid #000; }
+    .pd-title { font-weight: bold; text-decoration: underline; text-align: center; margin-bottom: 7px; }
+    .pd-line { display: flex; margin-bottom: 5px; align-items: baseline; }
+    .pd-label { font-weight: bold; width: 130px; flex-shrink: 0; font-size: 8.5pt; }
     .pd-val { flex: 1; font-size: 8.5pt; }
-
-    /* ── Signatures ── */
     .sig-box { border: 1px solid #000; padding: 8px; }
     .sig-note { font-size: 8.5pt; margin-bottom: 10px; }
     .sig-row { display: flex; margin-bottom: 14px; }
     .sig-col { flex: 1; }
     .sig-col-right { flex: 1; padding-left: 20px; }
     .sig-label { font-weight: bold; font-size: 9pt; margin-bottom: 18px; }
-    .sig-line {
-      border-bottom: 1px solid #000;
-      width: 80%;
-      margin-top: 4px;
-    }
+    .sig-line { border-bottom: 1px solid #000; width: 80%; margin-top: 4px; }
   </style>
 </head>
 <body>
 
-  <!-- Top Row: Logo + Title -->
   <div class="top-row">
     <img src="${logoBase64}" />
     <div class="bol-title">BILL OF LADING</div>
   </div>
 
-  <!-- Project # / BOL # -->
   <div class="two-col">
     <div class="col"><span class="bold">Project #&nbsp;</span>${v(workTracker.project_number, '')}</div>
-    <div class="col-border"><span class="bold">BOL #</span></div>
+    <div class="col-border"><span class="bold">BOL #&nbsp;</span>${bolNumber}</div>
   </div>
 
-  <!-- Shipper / Contact -->
   <div class="two-col">
     <div class="col">
       <div class="bold">Shipper:</div>
@@ -252,7 +219,6 @@ function buildBOLHtml(params: {
     </div>
   </div>
 
-  <!-- Shipment Details -->
   <div class="box">
     <div class="section-title">SHIPMENT DETAILS:</div>
     <div class="shipment-grid">
@@ -301,7 +267,6 @@ function buildBOLHtml(params: {
     </div>
   </div>
 
-  <!-- Carrier / Payment Terms -->
   <div class="box">
     <div class="section-title">CARRIER:</div>
     <p class="legal">Carrier Liability agreed to a minimum of $100,000.00 cargo or equal to load declared value (whichever is greater). Load Declared value will not exceed $100,000 unless specified here: Actual load declared value is:</p>
@@ -310,7 +275,6 @@ function buildBOLHtml(params: {
     <p class="legal">Any discrepancies or damages noted at delivery must be documented and communicated immediately.</p>
   </div>
 
-  <!-- Pickup / Delivery -->
   <div class="pd-row">
     <div class="pd-col">
       <div class="pd-title">PICKUP INFORMATION (Trailer Origin)</div>
@@ -332,7 +296,6 @@ function buildBOLHtml(params: {
     </div>
   </div>
 
-  <!-- Signatures -->
   <div class="sig-box">
     <div class="sig-note"><strong>Signatures</strong> (Please sign when the unit is dropped off at the destination.)</div>
     <div class="sig-row">
@@ -424,15 +387,32 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
   const handleDownloadPDF = async () => {
     try {
       setPrinting(true);
+
+      // Always regenerate from current data and save — reflects any trip changes
+      const bolNumber = generateBolNumber(
+        workTracker.id,
+        bleacher?.bleacher_number,
+        workTracker.date
+      );
+      await saveBolNumber(workTracker.id, bolNumber);
+
       const logoBase64 = await getLogoBase64();
-      const html = buildBOLHtml({ workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64 });
+      const html = buildBOLHtml({
+        workTracker,
+        bleacher,
+        pickupAddress,
+        dropoffAddress,
+        logoBase64,
+        bolNumber,
+      });
+
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `BOL_Bleacher${bleacher?.bleacher_number ?? ''}_${workTracker.date ?? 'draft'}.pdf`,
+          dialogTitle: `${bolNumber}.pdf`,
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -454,9 +434,11 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
         <View style={styles.modalHeader}>
           <View>
             <Text style={styles.modalHeaderLabel}>BILL OF LADING</Text>
-            {workTracker.project_number && (
-              <Text style={styles.modalHeaderSub}>Project #{workTracker.project_number}</Text>
-            )}
+            <View style={styles.modalHeaderMeta}>
+              {workTracker.project_number && (
+                <Text style={styles.modalHeaderSub}>Project #{workTracker.project_number}</Text>
+              )}
+            </View>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="close" size={22} color={SURFACE} />
@@ -472,7 +454,6 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* ── Shipment Details ── */}
           <Section title="Shipment Details" icon="cube-outline">
             <InfoRow label="Item" value="Mobile Bleacher Trailer" />
             <InfoRow label="Unit Number" value={bleacher?.bleacher_number} />
@@ -489,7 +470,6 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section>
 
-          {/* ── Carrier & Payment ── */}
           <Section title="Carrier & Payment Terms" icon="document-text-outline">
             <Text style={styles.legalText}>
               Carrier liability agreed to a minimum of $100,000.00 cargo or equal to load declared value (whichever is greater).
@@ -499,7 +479,6 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </Text>
           </Section>
 
-          {/* ── Pickup ── */}
           <Section title="Pickup Information" icon="location-outline">
             <InfoRow label="Date" value={formatDate(workTracker.date)} />
             <InfoRow label="Time" value={workTracker.pickup_time} />
@@ -512,7 +491,6 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section>
 
-          {/* ── Delivery ── */}
           <Section title="Delivery Information" icon="flag-outline">
             <InfoRow label="Date" value={formatDate(workTracker.date)} />
             <InfoRow label="Time" value={workTracker.dropoff_time} />
@@ -525,8 +503,7 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section>
 
-          {/* ── Signature Block ──
-          <Section title="Signatures" icon="pencil-outline">
+          {/* <Section title="Signatures" icon="pencil-outline">
             <Text style={styles.sigNote}>Please sign when the unit is dropped off at the destination.</Text>
             <View style={styles.sigRow}>
               <View style={styles.sigBlock}>
@@ -560,7 +537,6 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </Text>
           </TouchableOpacity>
 
-          {/* ── Close Button ── */}
           <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
             <Text style={styles.doneBtnText}>Close</Text>
           </TouchableOpacity>
@@ -602,7 +578,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: BG },
   modalHeader: { backgroundColor: DARK_BLUE, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
   modalHeaderLabel: { fontSize: 18, fontWeight: '800', color: SURFACE, letterSpacing: 1.5 },
-  modalHeaderSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  modalHeaderMeta: { flexDirection: 'row', gap: 10, marginTop: 2 },
+  modalHeaderSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
   closeBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 6 },
   shipperBanner: { backgroundColor: LIGHT_BLUE, paddingHorizontal: 20, paddingVertical: 10 },
   shipperName: { fontSize: 13, fontWeight: '700', color: SURFACE },

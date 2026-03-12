@@ -1009,6 +1009,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           bleacher_uuid: string | null
+          bol_number: string | null
           completed_at: string | null
           created_at: string
           date: string | null
@@ -1043,6 +1044,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           bleacher_uuid?: string | null
+          bol_number?: string | null
           completed_at?: string | null
           created_at?: string
           date?: string | null
@@ -1077,6 +1079,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           bleacher_uuid?: string | null
+          bol_number?: string | null
           completed_at?: string | null
           created_at?: string
           date?: string | null

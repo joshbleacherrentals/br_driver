@@ -144,6 +144,7 @@ const WorkTrackersCols = {
   setup_required: column.integer,
   dropoff_instructions: column.text,
   project_number: column.text,
+  bol_number: column.text,
 
   worktracker_group_uuid: column.text,
   work_tracker_type_uuid: column.text,

@@ -45,6 +45,7 @@ export type WorkTracker = {
   dropoff_instructions: string | null;
 
   project_number: string | null;
+  bol_number: string | null;
 };
 
 
@@ -128,6 +129,7 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
         "setup_required",
         "dropoff_instructions",
         "project_number",
+        "bol_number",
       ])
       .where("driver_uuid", "=", driverId)
       .orderBy("date", "asc")
