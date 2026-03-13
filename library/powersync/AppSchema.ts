@@ -144,6 +144,12 @@ const WorkTrackersCols = {
   setup_required: column.integer,
   dropoff_instructions: column.text,
   project_number: column.text,
+  bol_number: column.text,
+
+  worktracker_group_uuid: column.text,
+  work_tracker_type_uuid: column.text,
+  distance_meters: column.integer,
+  drive_minutes: column.integer
   } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
