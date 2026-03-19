@@ -19,6 +19,12 @@
       "autoIncrement": true,
       "environment": "production",
       "channel": "production"
+    },
+    "development-prod": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "production",
+      "channel": "production"
     }
   },
   "submit": {

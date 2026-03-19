@@ -126,9 +126,14 @@ export type Database = {
           id: string
           linxup_device_id: string | null
           manufacturer: string | null
+          opening_direction:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
+          seat_length: number | null
           summer_account_manager_uuid: string | null
           summer_home_base_uuid: string | null
           tag_number: string | null
+          towing_length: number | null
           updated_at: string | null
           updated_by: string | null
           vin_number: string | null
@@ -147,9 +152,14 @@ export type Database = {
           id?: string
           linxup_device_id?: string | null
           manufacturer?: string | null
+          opening_direction?:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
+          seat_length?: number | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          towing_length?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
@@ -168,9 +178,14 @@ export type Database = {
           id?: string
           linxup_device_id?: string | null
           manufacturer?: string | null
+          opening_direction?:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
+          seat_length?: number | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          towing_length?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
@@ -646,18 +661,27 @@ export type Database = {
           },
         ]
       }
-      QboTokens: {
+      QboConnections: {
         Row: {
+          display_name: string
           encrypted_token_value: string
           id: string
+          qbo_tax_code_id: string | null
+          realm_id: string | null
         }
         Insert: {
+          display_name: string
           encrypted_token_value: string
           id?: string
+          qbo_tax_code_id?: string | null
+          realm_id?: string | null
         }
         Update: {
+          display_name?: string
           encrypted_token_value?: string
           id?: string
+          qbo_tax_code_id?: string | null
+          realm_id?: string | null
         }
         Relationships: []
       }
@@ -665,6 +689,9 @@ export type Database = {
         Row: {
           account_manager_uuid: string
           created_at: string
+          gross_margin_percent_annually: number
+          gross_margin_percent_quarterly: number
+          gross_margin_percent_weekly: number
           id: string
           quotes_annually: number
           quotes_quarterly: number
@@ -683,6 +710,9 @@ export type Database = {
         Insert: {
           account_manager_uuid: string
           created_at?: string
+          gross_margin_percent_annually?: number
+          gross_margin_percent_quarterly?: number
+          gross_margin_percent_weekly?: number
           id?: string
           quotes_annually?: number
           quotes_quarterly?: number
@@ -701,6 +731,9 @@ export type Database = {
         Update: {
           account_manager_uuid?: string
           created_at?: string
+          gross_margin_percent_annually?: number
+          gross_margin_percent_quarterly?: number
+          gross_margin_percent_weekly?: number
           id?: string
           quotes_annually?: number
           quotes_quarterly?: number
@@ -920,28 +953,45 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string
+          ein: string | null
+          hst: string | null
           id: string
           is_active: boolean
           logo_url: string | null
+          qbo_connection_uuid: string | null
           qbo_vendor_id: string | null
         }
         Insert: {
           created_at?: string
           display_name: string
+          ein?: string | null
+          hst?: string | null
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          qbo_connection_uuid?: string | null
           qbo_vendor_id?: string | null
         }
         Update: {
           created_at?: string
           display_name?: string
+          ein?: string | null
+          hst?: string | null
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          qbo_connection_uuid?: string | null
           qbo_vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vendors_qbo_connection_uuid_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       WorkTrackerGroups: {
         Row: {
@@ -1177,29 +1227,104 @@ export type Database = {
           },
         ]
       }
+      WorkTrackerTypeQboAccounts: {
+        Row: {
+          created_at: string
+          id: string
+          qbo_account_id: string
+          qbo_connection_uuid: string
+          work_tracker_type_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qbo_account_id: string
+          qbo_connection_uuid: string
+          work_tracker_type_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qbo_account_id?: string
+          qbo_connection_uuid?: string
+          work_tracker_type_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worktrackertypeqboaccounts_conn_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackertypeqboaccounts_type_fkey"
+            columns: ["work_tracker_type_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerTypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       WorkTrackerTypes: {
         Row: {
           created_at: string
           display_name: string
           id: string
-          qbo_category_id: number | null
           sort_order: number
         }
         Insert: {
           created_at?: string
           display_name: string
           id?: string
-          qbo_category_id?: number | null
           sort_order?: number
         }
         Update: {
           created_at?: string
           display_name?: string
           id?: string
-          qbo_category_id?: number | null
           sort_order?: number
         }
         Relationships: []
+      }
+      ZoneQboClasses: {
+        Row: {
+          created_at: string
+          id: string
+          qbo_class_id: string
+          qbo_connection_uuid: string
+          zone_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qbo_class_id: string
+          qbo_connection_uuid: string
+          zone_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qbo_class_id?: string
+          qbo_connection_uuid?: string
+          zone_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoneqboclasses_qbo_connection_uuid_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoneqboclasses_zone_uuid_fkey"
+            columns: ["zone_uuid"]
+            isOneToOne: false
+            referencedRelation: "Zones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       Zones: {
         Row: {
@@ -1208,7 +1333,6 @@ export type Database = {
           display_name: string
           id: string
           photo_path: string | null
-          qbo_class_id: string | null
         }
         Insert: {
           created_at?: string
@@ -1216,7 +1340,6 @@ export type Database = {
           display_name: string
           id?: string
           photo_path?: string | null
-          qbo_class_id?: string | null
         }
         Update: {
           created_at?: string
@@ -1224,7 +1347,6 @@ export type Database = {
           display_name?: string
           id?: string
           photo_path?: string | null
-          qbo_class_id?: string | null
         }
         Relationships: []
       }
@@ -1266,6 +1388,7 @@ export type Database = {
       get_week_start: { Args: { input_date: string }; Returns: string }
     }
     Enums: {
+      bleacher_opening_dir: "driver" | "passenger"
       bluebook_region: "CAN" | "US" | "Both"
       event_status: "quoted" | "booked" | "lost"
       pay_currency_type: "CAD" | "USD"
@@ -1421,6 +1544,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bleacher_opening_dir: ["driver", "passenger"],
       bluebook_region: ["CAN", "US", "Both"],
       event_status: ["quoted", "booked", "lost"],
       pay_currency_type: ["CAD", "USD"],

@@ -81,6 +81,10 @@ const BleacherCols = {
   tag_number: column.text,
   manufacturer: column.text,
   height_folded_ft: column.integer,
+  towing_length: column.integer,
+  opening_direction: column.text,
+  seat_length: column.integer,
+
   gvwr: column.integer,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
