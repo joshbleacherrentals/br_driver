@@ -22,6 +22,9 @@ export type BleacherData = {
     tag_number: string | null;
     manufacturer: string | null;
     height_folded_ft: number | null;
+    towing_length: number | null;
+    seat_length: number | null;
+    opening_direction: string | null;
     gvwr: number | null;
 };
 
@@ -55,6 +58,9 @@ export function useBleacher(bleacher_id: string | null): { bleacher: BleacherDat
         "tag_number",
         "manufacturer",
         "height_folded_ft",
+        "towing_length",
+        "seat_length",
+        "opening_direction",
         "gvwr"
     ])
     .where("id", "=", bleacher_id)
@@ -96,6 +102,9 @@ export function useBatchBleachers(bleacherIds: (string | null)[]): Record<string
         "tag_number",
         "manufacturer",
         "height_folded_ft",
+        "towing_length",
+        "seat_length",
+        "opening_direction",
         "gvwr"
       ])
       .where("id", "in", uniqueIds)
