@@ -4,7 +4,7 @@ import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import BillOfLading, { BOLButton } from './billOfLading';
+// import BillOfLading, { BOLButton } from './billOfLading';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -116,7 +116,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
             <View style={[styles.statusBadge, { backgroundColor: badge.color }]}>
               <Text style={styles.statusText}>{badge.text}</Text>
             </View>
-            <BOLButton onPress={() => setBolVisible(true)} />
+            {/* <BOLButton onPress={() => setBolVisible(true)} /> */}
           </View>
         )}
       </View>
@@ -254,11 +254,11 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         </View>
       )}
 
-      <BillOfLading
+      {/* <BillOfLading
         visible={bolVisible}
         workTracker={workTracker}
         onClose={() => setBolVisible(false)}
-      />
+      /> */}
     </View>
   );
 }

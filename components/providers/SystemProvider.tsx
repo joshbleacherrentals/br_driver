@@ -26,7 +26,6 @@ function decodeJwtExpMs(token: string): number | null {
     const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
 
-    // Prefer atob when available (RN often has it).
     let jsonStr: string | null = null;
 
     if (typeof globalThis.atob === "function") {
@@ -55,18 +54,13 @@ logger.useDefaults();
 logger.setLevel(LogLevel.WARN);
 
 function createOpenFactory() {
-  // Expo Go can't load native modules like `@powersync/op-sqlite`.
   DebugLogger.info(TAG, `Execution environment: ${Constants.executionEnvironment}`);
   if (isExpoGo) {
     DebugLogger.info(TAG, "Using SQLJSOpenFactory (Expo Go)");
     return new SQLJSOpenFactory({ dbFilename: "app.db" });
   }
 
-  // In dev-client / production builds, prefer op-sqlite when available,
-  // but fall back to SQL.js if the native module isn't present.
   try {
-    // Lazy require so Expo Go doesn't attempt to resolve the module.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
     DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
     return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
@@ -76,32 +70,43 @@ function createOpenFactory() {
   }
 }
 
+console.log('[SystemProvider] Creating openFactory...');
 const openFactory = createOpenFactory();
+console.log('[SystemProvider] openFactory created');
 
+console.log("ENV CHECK", {
+  SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  POWERSYNC_URL: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+});
+
+console.log('[SystemProvider] Creating PowerSyncDatabase...');
 export const powerSyncDb = new PowerSyncDatabase({
   schema: AppSchema,
   database: openFactory,
   logger,
 });
+console.log('[SystemProvider] PowerSyncDatabase created');
 
+console.log('[SystemProvider] Wrapping with Kysely...');
 export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
+console.log('[SystemProvider] Kysely wrap complete');
 
-// Attachment queue for driver document photos (license, insurance, medical card).
-// Initialized lazily once the BackendConnector (and its Supabase client) is available.
 export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
 export let inspectionPhotoAttachmentQueue: InspectionPhotoAttachmentQueue | undefined;
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
+  console.log('[SystemProvider] Component rendering...');
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  console.log('[SystemProvider] useAuth state:', { isLoaded, isSignedIn });
+  
   const connectedRef = useRef(false);
   const reconnectingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disposeStatusListenerRef = useRef<(() => void) | null>(null);
 
-  // Create connector ONCE
   const connector = useMemo(() => {
+    console.log('[SystemProvider] Creating BackendConnector...');
     const bc = new BackendConnector({
-      // PowerSync service requires `aud` to match `powersync.yaml`.
       getPowerSyncToken: async () => {
         try {
           return await getToken({ template: "powersync" });
@@ -109,8 +114,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           return null;
         }
       },
-      // Supabase calls should use the standard Clerk session token so Supabase's
-      // Clerk third-party auth integration can treat it as `authenticated`.
       getSupabaseToken: async () => {
         try {
           return await getToken();
@@ -120,7 +123,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       },
     });
 
-    // Set up attachment queue for driver documents and inspection photos
+    console.log('[SystemProvider] Creating SupabaseStorageAdapter...');
     const storage = new SupabaseStorageAdapter({
       client: bc.client,
       bucket: "driver-documents",
@@ -131,7 +134,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       storage,
       performInitialSync: false,
       onDownloadError: async (_attachment, error) => {
-        // Don't retry if the file doesn't exist in Supabase
         if (String(error).includes("Object not found") || String(error).includes("400")) {
           return { retry: false };
         }
@@ -148,10 +150,13 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       storage: inspectionStorage,
     });
 
+    console.log('[SystemProvider] BackendConnector and queues ready');
     return bc;
   }, [getToken]);
 
   useEffect(() => {
+    console.log('[SystemProvider] useEffect fired', { isLoaded, isSignedIn });
+
     const clearRefreshTimer = () => {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -168,9 +173,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     const scheduleTokenRefreshReconnect = async () => {
       clearRefreshTimer();
-
-      // We reconnect slightly *before* expiry to avoid PSYNC_S2103 spam.
-      // With very short token lifetimes, this will reconnect frequently.
       let token: string | null = null;
       try {
         token = await getToken({ template: "powersync" });
@@ -201,7 +203,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           const downloadErr: Error | undefined = flow?.downloadError;
           const uploadErr: Error | undefined = flow?.uploadError;
 
-          // Log all status changes for debugging
           if (downloadErr || uploadErr) {
             DebugLogger.warn(TAG, "Status changed with errors", {
               downloading: flow?.downloading,
@@ -223,6 +224,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     const connect = async () => {
       try {
+        console.log('[SystemProvider] connect() called');
         DebugLogger.info(TAG, "Connecting...");
         await powerSyncDb.connect(connector, {
           params: { app: "mobile" },
@@ -237,7 +239,9 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();
+        console.log('[SystemProvider] connect() complete');
       } catch (err: any) {
+        console.log('[SystemProvider] connect() FAILED:', err?.message);
         DebugLogger.error(TAG, "Connect FAILED", {
           error: err?.message ?? String(err),
           stack: err?.stack?.substring(0, 300),
@@ -267,11 +271,13 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // ⛔ Auth not ready → do nothing
-    if (!isLoaded) return;
+    if (!isLoaded) {
+      console.log('[SystemProvider] Auth not loaded yet, waiting...');
+      return;
+    }
 
-    // 🔌 Signed out → disconnect once
     if (!isSignedIn) {
+      console.log('[SystemProvider] Not signed in, disconnecting...');
       clearRefreshTimer();
       clearStatusListener();
 
@@ -284,12 +290,13 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // ✅ Already connected → ensure refresh scheduling exists
     if (connectedRef.current) {
+      console.log('[SystemProvider] Already connected, scheduling refresh...');
       void scheduleTokenRefreshReconnect();
       return;
     }
 
+    console.log('[SystemProvider] Starting connect...');
     void connect();
 
     return () => {
@@ -298,6 +305,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [isLoaded, isSignedIn, connector, getToken]);
 
+  console.log('[SystemProvider] Rendering children...');
   return <PowerSyncContext.Provider value={powerSyncDb}>{children}</PowerSyncContext.Provider>;
 };
 

@@ -22,6 +22,10 @@ if (!publishableKey) {
 const queryClient = new QueryClient();
 
 function RootLayoutContent() {
+  useEffect(() => {
+    console.log('[RootLayout] Component mounted');
+  }, []);
+
   useClerkSupabaseClient();
 
   const colorScheme = useColorScheme();

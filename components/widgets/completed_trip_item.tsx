@@ -16,7 +16,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import BillOfLading, { BOLButton } from './billOfLading';
+// import BillOfLading, { BOLButton } from './billOfLading';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -194,7 +194,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             <View style={styles.completedBadge}>
               <Text style={styles.completedText}>COMPLETED</Text>
             </View>
-            <BOLButton onPress={() => setBolVisible(true)} />
+            {/* <BOLButton onPress={() => setBolVisible(true)} /> */}
           </View>
         </View>
 
@@ -339,11 +339,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
 
-        <BillOfLading
+        {/* <BillOfLading
           visible={bolVisible}
           workTracker={workTracker}
           onClose={() => setBolVisible(false)}
-        />
+        /> */}
       </ScrollView>
     </SafeAreaView>
   );
