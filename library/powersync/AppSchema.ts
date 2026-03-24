@@ -47,7 +47,8 @@ const DriversCols = {
   phone_number: column.text,
   tax: column.integer,
   user_uuid: column.text,
-  vehicle_uuid: column.text
+  vehicle_uuid: column.text,
+  vendor_uuid: column.text,
 } satisfies PowerSyncColsFor<"Drivers">;
 const Drivers = new Table(DriversCols, { indexes: { user_uuid: ["user_uuid"] } });
 
@@ -75,6 +76,14 @@ const BleacherCols = {
   winter_account_manager_uuid: column.text,
   summer_home_base_uuid: column.text,
   winter_home_base_uuid: column.text,
+  hitch_type: column.text,
+  vin_number: column.text,
+  tag_number: column.text,
+  manufacturer: column.text,
+  height_folded_ft: column.integer,
+  bleacher_length: column.integer,
+  gvwr: column.integer,
+  opening_direction: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 
@@ -131,6 +140,18 @@ const WorkTrackersCols = {
 
   pre_inspection_uuid: column.text,
   post_inspection_uuid: column.text,
+
+  teardown_required: column.integer,
+  pickup_instructions: column.text,
+  setup_required: column.integer,
+  dropoff_instructions: column.text,
+  bol_number: column.text,
+
+  project_number: column.text,
+  worktracker_group_uuid: column.text,
+  work_tracker_type_uuid: column.text,
+  distance_meters: column.integer,
+  drive_minutes: column.integer,
   } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },

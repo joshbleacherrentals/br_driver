@@ -17,6 +17,14 @@ export type BleacherData = {
     winter_account_manager_uuid: string | null;
     summer_home_base_uuid: string | null;
     winter_home_base_uuid: string | null;
+    hitch_type: string | null;
+    vin_number: string | null;
+    tag_number: string | null;
+    manufacturer: string | null;
+    height_folded_ft: number | null;
+    bleacher_length: number | null;
+    gvwr: number | null;
+    opening_direction: string | null;
 };
 
 /**
@@ -44,6 +52,14 @@ export function useBleacher(bleacher_id: string | null): { bleacher: BleacherDat
         "winter_account_manager_uuid",
         "summer_home_base_uuid",
         "winter_home_base_uuid",
+        "hitch_type",
+        "vin_number",
+        "tag_number",
+        "manufacturer",
+        "height_folded_ft",
+        "bleacher_length",
+        "gvwr",
+        "opening_direction"
     ])
     .where("id", "=", bleacher_id)
     .limit(1)
@@ -79,6 +95,14 @@ export function useBatchBleachers(bleacherIds: (string | null)[]): Record<string
         "winter_account_manager_uuid",
         "summer_home_base_uuid",
         "winter_home_base_uuid",
+        "hitch_type",
+        "vin_number",
+        "tag_number",
+        "manufacturer",
+        "height_folded_ft",
+        "bleacher_length",
+        "gvwr",
+        "opening_direction"
       ])
       .where("id", "in", uniqueIds)
       .compile();

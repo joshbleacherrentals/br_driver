@@ -1,7 +1,7 @@
-import { db, powerSyncDb } from "@/components/providers/SystemProvider";
+import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useMemo } from "react";
 import { useUser } from "@clerk/clerk-expo";
+import { useMemo } from "react";
 
 
 export type WorkTracker = {
@@ -35,6 +35,14 @@ export type WorkTracker = {
   accepted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+
+  teardown_required: number | null;
+  pickup_instructions: string | null;
+  setup_required: number | null;
+  dropoff_instructions: string | null;
+
+  project_number: string | null;
+  bol_number: string | null;
 
   pre_inspection_uuid: string | null;
   post_inspection_uuid: string | null;
@@ -114,6 +122,15 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
         "accepted_at",
         "started_at",
         "completed_at",
+
+        "teardown_required",
+        "pickup_instructions",
+        "setup_required",
+        "dropoff_instructions",
+
+        "project_number",
+        "bol_number",
+
         "pre_inspection_uuid",
         "post_inspection_uuid",
       ])

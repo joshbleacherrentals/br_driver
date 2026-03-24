@@ -115,47 +115,77 @@ export type Database = {
       }
       Bleachers: {
         Row: {
+          bleacher_length: number | null
           bleacher_number: number
           bleacher_rows: number
           bleacher_seats: number
           created_at: string
           created_by: string | null
+          gvwr: number | null
+          height_folded_ft: number | null
+          hitch_type: string | null
           id: string
           linxup_device_id: string | null
+          manufacturer: string | null
+          opening_direction:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
           summer_account_manager_uuid: string | null
           summer_home_base_uuid: string | null
+          tag_number: string | null
           updated_at: string | null
           updated_by: string | null
+          vin_number: string | null
           winter_account_manager_uuid: string | null
           winter_home_base_uuid: string | null
         }
         Insert: {
+          bleacher_length?: number | null
           bleacher_number: number
           bleacher_rows: number
           bleacher_seats: number
           created_at?: string
           created_by?: string | null
+          gvwr?: number | null
+          height_folded_ft?: number | null
+          hitch_type?: string | null
           id?: string
           linxup_device_id?: string | null
+          manufacturer?: string | null
+          opening_direction?:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
+          tag_number?: string | null
           updated_at?: string | null
           updated_by?: string | null
+          vin_number?: string | null
           winter_account_manager_uuid?: string | null
           winter_home_base_uuid?: string | null
         }
         Update: {
+          bleacher_length?: number | null
           bleacher_number?: number
           bleacher_rows?: number
           bleacher_seats?: number
           created_at?: string
           created_by?: string | null
+          gvwr?: number | null
+          height_folded_ft?: number | null
+          hitch_type?: string | null
           id?: string
           linxup_device_id?: string | null
+          manufacturer?: string | null
+          opening_direction?:
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
+          tag_number?: string | null
           updated_at?: string | null
           updated_by?: string | null
+          vin_number?: string | null
           winter_account_manager_uuid?: string | null
           winter_home_base_uuid?: string | null
         }
@@ -373,13 +403,14 @@ export type Database = {
           is_active: boolean
           license_photo_path: string | null
           medical_card_photo_path: string | null
-          pay_currency: string
-          pay_per_unit: string
+          pay_currency: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents: number
           phone_number: string | null
           tax: number
           user_uuid: string | null
           vehicle_uuid: string | null
+          vendor_uuid: string | null
         }
         Insert: {
           account_manager_uuid?: string | null
@@ -390,13 +421,14 @@ export type Database = {
           is_active?: boolean
           license_photo_path?: string | null
           medical_card_photo_path?: string | null
-          pay_currency?: string
-          pay_per_unit?: string
+          pay_currency?: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents?: number
           phone_number?: string | null
           tax?: number
           user_uuid?: string | null
           vehicle_uuid?: string | null
+          vendor_uuid?: string | null
         }
         Update: {
           account_manager_uuid?: string | null
@@ -407,13 +439,14 @@ export type Database = {
           is_active?: boolean
           license_photo_path?: string | null
           medical_card_photo_path?: string | null
-          pay_currency?: string
-          pay_per_unit?: string
+          pay_currency?: Database["public"]["Enums"]["pay_currency_type"]
+          pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"]
           pay_rate_cents?: number
           phone_number?: string | null
           tax?: number
           user_uuid?: string | null
           vehicle_uuid?: string | null
+          vendor_uuid?: string | null
         }
         Relationships: [
           {
@@ -444,17 +477,27 @@ export type Database = {
             referencedRelation: "Vehicles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "drivers_vendor_uuid_fkey"
+            columns: ["vendor_uuid"]
+            isOneToOne: false
+            referencedRelation: "Vendors"
+            referencedColumns: ["id"]
+          },
         ]
       }
       Events: {
         Row: {
           address_uuid: string | null
           booked: boolean
+          booked_at: string | null
+          contract_revenue_cents: number | null
           created_at: string
           created_by_user_uuid: string | null
           event_end: string
           event_name: string
           event_start: string
+          event_status: Database["public"]["Enums"]["event_status"] | null
           fifteen_row: number | null
           goodshuffle_url: string | null
           hsl_hue: number | null
@@ -471,11 +514,14 @@ export type Database = {
         Insert: {
           address_uuid?: string | null
           booked?: boolean
+          booked_at?: string | null
+          contract_revenue_cents?: number | null
           created_at?: string
           created_by_user_uuid?: string | null
           event_end: string
           event_name: string
           event_start: string
+          event_status?: Database["public"]["Enums"]["event_status"] | null
           fifteen_row?: number | null
           goodshuffle_url?: string | null
           hsl_hue?: number | null
@@ -492,11 +538,14 @@ export type Database = {
         Update: {
           address_uuid?: string | null
           booked?: boolean
+          booked_at?: string | null
+          contract_revenue_cents?: number | null
           created_at?: string
           created_by_user_uuid?: string | null
           event_end?: string
           event_name?: string
           event_start?: string
+          event_status?: Database["public"]["Enums"]["event_status"] | null
           fifteen_row?: number | null
           goodshuffle_url?: string | null
           hsl_hue?: number | null
@@ -605,6 +654,104 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "Users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      QboConnections: {
+        Row: {
+          display_name: string
+          encrypted_token_value: string
+          id: string
+          qbo_tax_code_id: string | null
+          realm_id: string | null
+        }
+        Insert: {
+          display_name: string
+          encrypted_token_value: string
+          id?: string
+          qbo_tax_code_id?: string | null
+          realm_id?: string | null
+        }
+        Update: {
+          display_name?: string
+          encrypted_token_value?: string
+          id?: string
+          qbo_tax_code_id?: string | null
+          realm_id?: string | null
+        }
+        Relationships: []
+      }
+      ScorecardTargets: {
+        Row: {
+          account_manager_uuid: string
+          created_at: string
+          gross_margin_percent_annually: number
+          gross_margin_percent_quarterly: number
+          gross_margin_percent_weekly: number
+          id: string
+          quotes_annually: number
+          quotes_quarterly: number
+          quotes_weekly: number
+          sales_annually: number
+          sales_quarterly: number
+          sales_weekly: number
+          updated_at: string
+          value_of_revenue_annually_cents: number
+          value_of_revenue_quarterly_cents: number
+          value_of_revenue_weekly_cents: number
+          value_of_sales_annually_cents: number
+          value_of_sales_quarterly_cents: number
+          value_of_sales_weekly_cents: number
+        }
+        Insert: {
+          account_manager_uuid: string
+          created_at?: string
+          gross_margin_percent_annually?: number
+          gross_margin_percent_quarterly?: number
+          gross_margin_percent_weekly?: number
+          id?: string
+          quotes_annually?: number
+          quotes_quarterly?: number
+          quotes_weekly?: number
+          sales_annually?: number
+          sales_quarterly?: number
+          sales_weekly?: number
+          updated_at?: string
+          value_of_revenue_annually_cents?: number
+          value_of_revenue_quarterly_cents?: number
+          value_of_revenue_weekly_cents?: number
+          value_of_sales_annually_cents?: number
+          value_of_sales_quarterly_cents?: number
+          value_of_sales_weekly_cents?: number
+        }
+        Update: {
+          account_manager_uuid?: string
+          created_at?: string
+          gross_margin_percent_annually?: number
+          gross_margin_percent_quarterly?: number
+          gross_margin_percent_weekly?: number
+          id?: string
+          quotes_annually?: number
+          quotes_quarterly?: number
+          quotes_weekly?: number
+          sales_annually?: number
+          sales_quarterly?: number
+          sales_weekly?: number
+          updated_at?: string
+          value_of_revenue_annually_cents?: number
+          value_of_revenue_quarterly_cents?: number
+          value_of_revenue_weekly_cents?: number
+          value_of_sales_annually_cents?: number
+          value_of_sales_quarterly_cents?: number
+          value_of_sales_weekly_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ScorecardTargets_account_manager_uuid_fkey"
+            columns: ["account_manager_uuid"]
+            isOneToOne: true
+            referencedRelation: "AccountManagers"
             referencedColumns: ["id"]
           },
         ]
@@ -799,6 +946,88 @@ export type Database = {
         }
         Relationships: []
       }
+      Vendors: {
+        Row: {
+          created_at: string
+          display_name: string
+          ein: string | null
+          hst: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          qbo_connection_uuid: string | null
+          qbo_vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          ein?: string | null
+          hst?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          qbo_connection_uuid?: string | null
+          qbo_vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          ein?: string | null
+          hst?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          qbo_connection_uuid?: string | null
+          qbo_vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendors_qbo_connection_uuid_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      WorkTrackerGroups: {
+        Row: {
+          created_at: string
+          driver_uuid: string
+          id: string
+          qbo_bill_id: string | null
+          status: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          driver_uuid: string
+          id?: string
+          qbo_bill_id?: string | null
+          status?: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          driver_uuid?: string
+          id?: string
+          qbo_bill_id?: string | null
+          status?: Database["public"]["Enums"]["worktracker_group_status"]
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worktrackergroups_driver_uuid_fkey"
+            columns: ["driver_uuid"]
+            isOneToOne: false
+            referencedRelation: "Drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       WorkTrackerInspections: {
         Row: {
           created_at: string
@@ -827,11 +1056,15 @@ export type Database = {
         Row: {
           accepted_at: string | null
           bleacher_uuid: string | null
+          bol_number: string | null
           completed_at: string | null
           created_at: string
           date: string | null
+          distance_meters: number | null
+          drive_minutes: number | null
           driver_uuid: string | null
           dropoff_address_uuid: string | null
+          dropoff_instructions: string | null
           dropoff_poc: string | null
           dropoff_time: string | null
           id: string
@@ -839,24 +1072,34 @@ export type Database = {
           notes: string | null
           pay_cents: number | null
           pickup_address_uuid: string | null
+          pickup_instructions: string | null
           pickup_poc: string | null
           pickup_time: string | null
           post_inspection_uuid: string | null
           pre_inspection_uuid: string | null
+          project_number: string | null
           released_at: string | null
+          setup_required: boolean
           started_at: string | null
           status: Database["public"]["Enums"]["worktracker_status"]
+          teardown_required: boolean
           updated_at: string
           user_uuid: string | null
+          work_tracker_type_uuid: string | null
+          worktracker_group_uuid: string | null
         }
         Insert: {
           accepted_at?: string | null
           bleacher_uuid?: string | null
+          bol_number?: string | null
           completed_at?: string | null
           created_at?: string
           date?: string | null
+          distance_meters?: number | null
+          drive_minutes?: number | null
           driver_uuid?: string | null
           dropoff_address_uuid?: string | null
+          dropoff_instructions?: string | null
           dropoff_poc?: string | null
           dropoff_time?: string | null
           id?: string
@@ -864,24 +1107,34 @@ export type Database = {
           notes?: string | null
           pay_cents?: number | null
           pickup_address_uuid?: string | null
+          pickup_instructions?: string | null
           pickup_poc?: string | null
           pickup_time?: string | null
           post_inspection_uuid?: string | null
           pre_inspection_uuid?: string | null
+          project_number?: string | null
           released_at?: string | null
+          setup_required?: boolean
           started_at?: string | null
           status?: Database["public"]["Enums"]["worktracker_status"]
+          teardown_required?: boolean
           updated_at?: string
           user_uuid?: string | null
+          work_tracker_type_uuid?: string | null
+          worktracker_group_uuid?: string | null
         }
         Update: {
           accepted_at?: string | null
           bleacher_uuid?: string | null
+          bol_number?: string | null
           completed_at?: string | null
           created_at?: string
           date?: string | null
+          distance_meters?: number | null
+          drive_minutes?: number | null
           driver_uuid?: string | null
           dropoff_address_uuid?: string | null
+          dropoff_instructions?: string | null
           dropoff_poc?: string | null
           dropoff_time?: string | null
           id?: string
@@ -889,15 +1142,21 @@ export type Database = {
           notes?: string | null
           pay_cents?: number | null
           pickup_address_uuid?: string | null
+          pickup_instructions?: string | null
           pickup_poc?: string | null
           pickup_time?: string | null
           post_inspection_uuid?: string | null
           pre_inspection_uuid?: string | null
+          project_number?: string | null
           released_at?: string | null
+          setup_required?: boolean
           started_at?: string | null
           status?: Database["public"]["Enums"]["worktracker_status"]
+          teardown_required?: boolean
           updated_at?: string
           user_uuid?: string | null
+          work_tracker_type_uuid?: string | null
+          worktracker_group_uuid?: string | null
         }
         Relationships: [
           {
@@ -949,6 +1208,172 @@ export type Database = {
             referencedRelation: "Users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "worktrackers_work_tracker_type_uuid_fkey"
+            columns: ["work_tracker_type_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerTypes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackers_worktracker_group_uuid_fkey"
+            columns: ["worktracker_group_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerGroups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      WorkTrackerTypeQboAccounts: {
+        Row: {
+          created_at: string
+          id: string
+          qbo_account_id: string
+          qbo_connection_uuid: string
+          work_tracker_type_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qbo_account_id: string
+          qbo_connection_uuid: string
+          work_tracker_type_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qbo_account_id?: string
+          qbo_connection_uuid?: string
+          work_tracker_type_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worktrackertypeqboaccounts_conn_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worktrackertypeqboaccounts_type_fkey"
+            columns: ["work_tracker_type_uuid"]
+            isOneToOne: false
+            referencedRelation: "WorkTrackerTypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      WorkTrackerTypes: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      ZoneQboClasses: {
+        Row: {
+          created_at: string
+          id: string
+          qbo_class_id: string
+          qbo_connection_uuid: string
+          zone_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qbo_class_id: string
+          qbo_connection_uuid: string
+          zone_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qbo_class_id?: string
+          qbo_connection_uuid?: string
+          zone_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoneqboclasses_qbo_connection_uuid_fkey"
+            columns: ["qbo_connection_uuid"]
+            isOneToOne: false
+            referencedRelation: "QboConnections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoneqboclasses_zone_uuid_fkey"
+            columns: ["zone_uuid"]
+            isOneToOne: false
+            referencedRelation: "Zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      Zones: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          photo_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          photo_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          photo_path?: string | null
+        }
+        Relationships: []
+      }
+      ZoneStateProvinces: {
+        Row: {
+          created_at: string
+          id: string
+          state_province: string
+          zone_uuid: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state_province: string
+          zone_uuid: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state_province?: string
+          zone_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zonestateprovinces_zone_uuid_fkey"
+            columns: ["zone_uuid"]
+            isOneToOne: false
+            referencedRelation: "Zones"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -956,10 +1381,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_week_end: { Args: { input_date: string }; Returns: string }
+      get_week_start: { Args: { input_date: string }; Returns: string }
     }
     Enums: {
+      bleacher_opening_dir: "driver" | "passenger"
       bluebook_region: "CAN" | "US" | "Both"
+      event_status: "quoted" | "booked" | "lost"
+      pay_currency_type: "CAD" | "USD"
+      pay_per_unit_type: "KM" | "MI" | "HR"
       task_status:
         | "in_progress"
         | "backlog"
@@ -968,6 +1398,12 @@ export type Database = {
         | "in_staging"
         | "paused"
       task_type: "feature" | "bug"
+      worktracker_group_status:
+        | "draft"
+        | "qbo_bill_creating"
+        | "qbo_bill_created"
+        | "qbo_bill_error"
+        | "no_bill_ready_for_payment"
       worktracker_status:
         | "draft"
         | "released"
@@ -1105,7 +1541,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bleacher_opening_dir: ["driver", "passenger"],
       bluebook_region: ["CAN", "US", "Both"],
+      event_status: ["quoted", "booked", "lost"],
+      pay_currency_type: ["CAD", "USD"],
+      pay_per_unit_type: ["KM", "MI", "HR"],
       task_status: [
         "in_progress",
         "backlog",
@@ -1115,6 +1555,13 @@ export const Constants = {
         "paused",
       ],
       task_type: ["feature", "bug"],
+      worktracker_group_status: [
+        "draft",
+        "qbo_bill_creating",
+        "qbo_bill_created",
+        "qbo_bill_error",
+        "no_bill_ready_for_payment",
+      ],
       worktracker_status: [
         "draft",
         "released",

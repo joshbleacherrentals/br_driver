@@ -16,6 +16,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BillOfLading, { BOLButton } from './billOfLading';
 
 const DARK_BLUE = "#10365A";
 const LIGHT_BLUE = "#1D62A3";
@@ -47,6 +48,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const { Photos: preInspectPhotos } = useInspectionPhotos(workTracker.pre_inspection_uuid);
   const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid);
   const { Photos: postInspectPhotos } = useInspectionPhotos(workTracker.post_inspection_uuid);
+  const [ bolVisible, setBolVisible] = React.useState(false)
 
   const formatPay = (cents: number | null) =>
     cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
@@ -239,8 +241,11 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
             </Text>
             <Text style={styles.dateText}>{formatDate(workTracker.date)}</Text>
           </View>
-          <View style={styles.completedBadge}>
-            <Text style={styles.completedText}>COMPLETED</Text>
+          <View style={styles.badgeAndBol}>
+            <View style={styles.completedBadge}>
+              <Text style={styles.completedText}>COMPLETED</Text>
+            </View>
+            <BOLButton onPress={() => setBolVisible(true)} />
           </View>
         </View>
 
@@ -311,6 +316,27 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           {workTracker.pickup_poc && (
             <Text style={styles.detailText}>POC: {workTracker.pickup_poc}</Text>
           )}
+          {/* Tear Down Required */}
+          {workTracker.teardown_required !== null && workTracker.teardown_required !== undefined && (
+            <View style={styles.flagRow}>
+              <Ionicons
+                name={workTracker.teardown_required ? 'construct-outline' : 'checkmark-circle-outline'}
+                size={14}
+                color={workTracker.teardown_required ? '#FF9500' : '#8E8E93'}
+              />
+              <Text style={[styles.flagText, workTracker.teardown_required ? styles.flagTextActive : null]}>
+                Tear Down Required: {workTracker.teardown_required ? 'Yes' : 'No'}
+              </Text>
+            </View>
+          )}
+
+          {/* Pickup Instructions */}
+          {workTracker.pickup_instructions && (
+            <View style={styles.instructionsBox}>
+              <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
+              <Text style={styles.instructionsText}>{workTracker.pickup_instructions}</Text>
+            </View>
+          )}
         </View>
 
         {/* Pickup Inspection */}
@@ -343,6 +369,27 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
           {workTracker.dropoff_poc && (
             <Text style={styles.detailText}>POC: {workTracker.dropoff_poc}</Text>
           )}
+          {/* Set Up Required */}
+          {workTracker.setup_required !== null && workTracker.setup_required !== undefined && (
+            <View style={styles.flagRow}>
+              <Ionicons
+                name={workTracker.setup_required ? 'construct-outline' : 'checkmark-circle-outline'}
+                size={14}
+                color={workTracker.setup_required ? '#FF9500' : '#8E8E93'}
+              />
+              <Text style={[styles.flagText, workTracker.setup_required ? styles.flagTextActive : null]}>
+                Set Up Required: {workTracker.setup_required ? 'Yes' : 'No'}
+              </Text>
+            </View>
+          )}
+
+          {/* Dropoff Instructions */}
+          {workTracker.dropoff_instructions && (
+            <View style={styles.instructionsBox}>
+              <Text style={styles.instructionsLabel}>Drop-off Instructions</Text>
+              <Text style={styles.instructionsText}>{workTracker.dropoff_instructions}</Text>
+            </View>
+          )}
         </View>
 
         {/* Dropoff Inspection */}
@@ -352,12 +399,22 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
+
+        <BillOfLading
+          visible={bolVisible}
+          workTracker={workTracker}
+          onClose={() => setBolVisible(false)}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  badgeAndBol: {
+    alignItems: 'flex-end',
+    marginLeft: 12,
+  },
   container: { flex: 1, backgroundColor: '#F2F2F7' },
   scrollContent: { padding: 16, paddingBottom: 32 },
   header: {
@@ -398,6 +455,41 @@ const styles = StyleSheet.create({
   timelineValue: { fontSize: 14, fontWeight: '600', color: '#000' },
   addressText: { fontSize: 16, fontWeight: '600', color: '#0A84FF', marginBottom: 8 },
   detailText: { fontSize: 14, color: '#8E8E93', marginTop: 4 },
+  flagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+  },
+  flagText: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  flagTextActive: {
+    color: '#FF9500',
+    fontWeight: '600',
+  },
+  instructionsBox: {
+    backgroundColor: '#F0F4FF',
+    borderLeftWidth: 3,
+    borderLeftColor: '#1D62A3',
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 10,
+  },
+  instructionsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D62A3',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  instructionsText: {
+    fontSize: 13,
+    color: '#1C1C1E',
+    lineHeight: 18,
+  },
   inspectionSection: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16 },
   inspectionTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 4 },
   inspectionTime: { fontSize: 13, color: '#8E8E93', marginBottom: 12 },
@@ -425,6 +517,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
+    marginBottom: 16,
   },
   closeButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   photosContainer: {
