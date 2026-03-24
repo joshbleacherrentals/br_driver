@@ -3,7 +3,7 @@
     "name": "Bleacher Rentals Driver",
     "owner": "bleacher-rentals",
     "slug": "br_driver",
-    "version": "1.1.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "scheme": "brdriver",
     "userInterfaceStyle": "automatic",
@@ -37,7 +37,11 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
-      ]
+      ],
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -58,6 +62,7 @@
           }
         }
       ],
+      "expo-notifications",
       "expo-apple-authentication",
       "expo-router",
       "expo-secure-store",
