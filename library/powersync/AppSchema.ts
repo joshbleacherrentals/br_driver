@@ -81,7 +81,7 @@ const BleacherCols = {
   tag_number: column.text,
   manufacturer: column.text,
   height_folded_ft: column.integer,
-  bleacher_length: column.integer,
+  trailer_length: column.integer,
   gvwr: column.integer,
   opening_direction: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;

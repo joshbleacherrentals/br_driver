@@ -115,7 +115,6 @@ export type Database = {
       }
       Bleachers: {
         Row: {
-          bleacher_length: number | null
           bleacher_number: number
           bleacher_rows: number
           bleacher_seats: number
@@ -133,6 +132,7 @@ export type Database = {
           summer_account_manager_uuid: string | null
           summer_home_base_uuid: string | null
           tag_number: string | null
+          trailer_length: number | null
           updated_at: string | null
           updated_by: string | null
           vin_number: string | null
@@ -140,7 +140,6 @@ export type Database = {
           winter_home_base_uuid: string | null
         }
         Insert: {
-          bleacher_length?: number | null
           bleacher_number: number
           bleacher_rows: number
           bleacher_seats: number
@@ -158,6 +157,7 @@ export type Database = {
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          trailer_length?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
@@ -165,7 +165,6 @@ export type Database = {
           winter_home_base_uuid?: string | null
         }
         Update: {
-          bleacher_length?: number | null
           bleacher_number?: number
           bleacher_rows?: number
           bleacher_seats?: number
@@ -183,6 +182,7 @@ export type Database = {
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          trailer_length?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
