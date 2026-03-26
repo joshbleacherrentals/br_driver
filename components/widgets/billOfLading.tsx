@@ -6,15 +6,19 @@ import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
 import { Ionicons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
-// import * as Print from 'expo-print';
+import * as Print from 'expo-print';
+import * as Sharing from "expo-sharing";
 import React from 'react';
 import {
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -381,47 +385,49 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
       ? `${bleacher.bleacher_seats} seats`
       : null;
 
-  // const handleDownloadPDF = async () => {
-  //   try {
-  //     setPrinting(true);
+  const handleDownloadPDF = async () => {
+  try {
+    setPrinting(true);
 
-  //     // Always regenerate from current data and save — reflects any trip changes
-  //     const bolNumber = generateBolNumber(
-  //       workTracker.id,
-  //       bleacher?.bleacher_number,
-  //       workTracker.date
-  //     );
-  //     await saveBolNumber(workTracker.id, bolNumber);
+    const bolNumber = generateBolNumber(
+      workTracker.id,
+      bleacher?.bleacher_number,
+      workTracker.date
+    );
+    await saveBolNumber(workTracker.id, bolNumber);
 
-  //     const logoBase64 = await getLogoBase64();
-  //     const html = buildBOLHtml({
-  //       workTracker,
-  //       bleacher,
-  //       pickupAddress,
-  //       dropoffAddress,
-  //       logoBase64,
-  //       bolNumber,
-  //     });
+    const logoBase64 = await getLogoBase64();
+    const html = buildBOLHtml({
+      workTracker,
+      bleacher,
+      pickupAddress,
+      dropoffAddress,
+      logoBase64,
+      bolNumber,
+    });
 
-      // const { uri } = await Print.printToFileAsync({ html, base64: false });
-
-  //     const canShare = await Sharing.isAvailableAsync();
-  //     if (canShare) {
-  //       await Sharing.shareAsync(uri, {
-  //         mimeType: 'application/pdf',
-  //         dialogTitle: `${bolNumber}.pdf`,
-  //         UTI: 'com.adobe.pdf',
-  //       });
-  //     } else {
-  //       Alert.alert('Sharing not available', 'Unable to share files on this device.');
-  //     }
-  //   } catch (err) {
-  //     console.error('PDF generation error:', err);
-  //     Alert.alert('Error', 'Failed to generate PDF. Please try again.');
-  //   } finally {
-  //     setPrinting(false);
-  //   }
-  // };
+    if (Platform.OS === 'android') {
+      await Print.printAsync({ html });
+    } else {
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${bolNumber}.pdf`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Sharing not available', 'Unable to share files on this device.');
+      }
+    }
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+  } finally {
+    setPrinting(false);
+  }
+};
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -518,7 +524,7 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section> */}
 
-          {/* ── Download PDF Button ──
+          {/* ── Download PDF Button ── */}
           <TouchableOpacity
             style={[styles.downloadBtn, printing && styles.downloadBtnDisabled]}
             onPress={handleDownloadPDF}
@@ -532,7 +538,7 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             <Text style={styles.downloadBtnText}>
               {printing ? 'Generating PDF…' : 'Download PDF'}
             </Text>
-          </TouchableOpacity> */}
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
             <Text style={styles.doneBtnText}>Close</Text>

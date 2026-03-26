@@ -41,7 +41,7 @@ export default function BlueBookScreen() {
       {/* Header */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Image source={logo} style={styles.logo} />
-        <Text style={styles.headerTitle}>Driver's Blue Book</Text>
+        <Text style={styles.headerTitle}>Documents</Text>
         <View style={styles.logoPlaceholder} />
       </View>
 
