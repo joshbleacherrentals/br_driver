@@ -52,6 +52,13 @@ const DriversCols = {
 } satisfies PowerSyncColsFor<"Drivers">;
 const Drivers = new Table(DriversCols, { indexes: { user_uuid: ["user_uuid"] } });
 
+const DriverUnavailabilityCols = {
+  driver_uuid: column.text,
+  date_unavailable: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverUnavailability">;
+const DriverUnavailability = new Table(DriverUnavailabilityCols, { indexes: { driver_uuid: ["driver_uuid"] } });
+
 // addresses
 const AddressCols = {
   created_at: column.text,
@@ -184,6 +191,7 @@ const BlueBook = new Table(BlueBookCols, { indexes: { id: ["id"] } });
 export const AppSchema = new Schema({
   Users,
   Drivers,
+  DriverUnavailability,
   Bleachers,
   Addresses,
   AccountManagers,
