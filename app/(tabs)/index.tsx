@@ -4,7 +4,7 @@ import InspectionScreen from "@/components/widgets/inspection";
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
 import TripItem from "@/components/widgets/trip_item";
 import { useBatchAddresses } from '@/hooks/db/useAddress';
-import { useBatchBleachers } from '@/hooks/db/useBleacher';
+import { useAllBleachers, useBatchBleachers } from '@/hooks/db/useBleacher';
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
@@ -14,6 +14,7 @@ import {
   Alert,
   FlatList,
   Image,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -27,7 +28,7 @@ const MID_BLUE = "#164d82";
 type InspectionType = 'pickup' | 'dropoff';
 type ActiveTab = 'upcoming' | 'history';
 
-// ─── Week grouping helpers (carried over from CompletedTripsScreen) ───────────
+// ─── Week grouping helpers ────────────────────────────────────────────────────
 
 function getWeekStart(dateISO: string): Date {
   const d = new Date(dateISO + 'T00:00:00');
@@ -108,6 +109,19 @@ export default function TripsScreen() {
 
   const workTrackers = useWorkTrackers().workTrackers;
   const { isProfileComplete } = useProfileCompletion();
+
+  // All bleachers in the fleet — used to populate BleacherDropdown in TripItem
+  const { bleachers: allBleachersFleet } = useAllBleachers();
+  const bleacherOptions = useMemo(
+    () =>
+      allBleachersFleet
+        .map((b) => ({
+          uuid: b.id,
+          bleacher_number: b.bleacher_number ?? '—',
+        }))
+        .sort((a, b) => parseInt(String(a.bleacher_number)) - parseInt(String(b.bleacher_number))),
+    [allBleachersFleet]
+  );
 
   const logo = require('../../assets/images/adaptive-icon.png');
 
@@ -209,9 +223,12 @@ export default function TripsScreen() {
     ]);
   };
 
-  const handleArrived = async (workTrackerId: string) => {
+  // arrivedAt is captured locally in TripItem for the timer display.
+  // We only update status here — no arrived_at columns exist in the schema.
+  const handleArrived = async (workTrackerId: string, arrivedAt: string) => {
     const currentTrip = workTrackers?.find(t => t.id === workTrackerId);
     const isAtPickup = currentTrip?.status === 'dest_pickup';
+
     Alert.alert(
       "Arrived",
       `Have you arrived at the ${isAtPickup ? 'pickup' : 'drop-off'} location?`,
@@ -237,7 +254,36 @@ export default function TripsScreen() {
     );
   };
 
-  const handleStartInspection = (workTrackerId: string, type: 'pickup' | 'dropoff') => {
+  // Tracks the bleacher the driver selected in the dropdown.
+  // Keyed by workTrackerId so multiple trip cards don't conflict.
+  const [pendingBleacherUuids, setPendingBleacherUuids] = React.useState<Record<string, string>>({});
+
+  // Called on every dropdown change — state only, no DB write yet.
+  const handleBleacherChange = (workTrackerId: string, newBleacherUuid: string) => {
+    setPendingBleacherUuids(prev => ({ ...prev, [workTrackerId]: newBleacherUuid }));
+  };
+
+  // Called when driver taps "Start Pickup Inspection".
+  // Persists the selected bleacher (if changed) then opens the inspection screen.
+  const handleStartInspection = async (
+    workTrackerId: string,
+    type: 'pickup' | 'dropoff',
+    arrivedAt: string | null,
+  ) => {
+    const pendingUuid = pendingBleacherUuids[workTrackerId];
+    if (pendingUuid) {
+      try {
+        await executeTypedMutationVoid(
+          db.updateTable('WorkTrackers')
+            .set({ bleacher_uuid: pendingUuid, updated_at: new Date().toISOString() })
+            .where('id', '=', workTrackerId)
+            .compile()
+        );
+      } catch {
+        Alert.alert("Error", "Failed to save bleacher selection. Please try again.");
+        return;
+      }
+    }
     setInspectionData({ workTrackerId, type });
   };
 
@@ -345,7 +391,6 @@ export default function TripsScreen() {
           <Text style={[styles.toggleText, activeTab === 'upcoming' && styles.toggleTextActive]}>
             Upcoming
           </Text>
-          {/* Badge showing count of active trips */}
           {(workTrackers ?? []).filter(t => t.status !== 'completed' && t.status !== 'cancelled').length > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -380,11 +425,13 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
+              bleacherOptions={bleacherOptions}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
               onArrived={handleArrived}
               onStartInspection={handleStartInspection}
+              onBleacherChange={handleBleacherChange}
             />
           )}
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -513,8 +560,6 @@ export default function TripsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-import { StyleSheet } from 'react-native';
-
 const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
@@ -546,16 +591,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   badge: {
-  backgroundColor: '#004281',
-  borderRadius: 10,
-  minWidth: 18,
-  height: 18,
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 4,
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.15)',
-},
+    backgroundColor: '#004281',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
