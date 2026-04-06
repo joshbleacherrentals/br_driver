@@ -295,6 +295,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          document_path: string | null
           id: string
           is_active: boolean
           link: string | null
@@ -306,6 +307,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          document_path?: string | null
           id?: string
           is_active?: boolean
           link?: string | null
@@ -317,6 +319,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          document_path?: string | null
           id?: string
           is_active?: boolean
           link?: string | null

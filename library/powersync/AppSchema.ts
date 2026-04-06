@@ -178,6 +178,7 @@ const Vehicles = new Table(VehiclesCols, { indexes: { id: ["id"] } });
 const BlueBookCols = {
   name: column.text,
   link: column.text,
+  document_path: column.text,
   description: column.text,
   is_active: column.integer,
   region: column.text,
