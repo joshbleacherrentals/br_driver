@@ -91,6 +91,9 @@ const BleacherCols = {
   trailer_length: column.integer,
   gvwr: column.integer,
   opening_direction: column.text,
+  trailer_height_in: column.integer,
+  trailer_length_in: column.integer,
+  deleted: column.integer,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 

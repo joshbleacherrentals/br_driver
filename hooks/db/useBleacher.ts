@@ -25,6 +25,8 @@ export type BleacherData = {
     trailer_length: number | null;
     gvwr: number | null;
     opening_direction: string | null;
+    trailer_length_in: number | null;
+    trailer_height_in: number | null;
 };
 
 /**
@@ -59,7 +61,9 @@ export function useBleacher(bleacher_id: string | null): { bleacher: BleacherDat
         "height_folded_ft",
         "trailer_length",
         "gvwr",
-        "opening_direction"
+        "opening_direction",
+        "trailer_height_in",
+        "trailer_length_in",
     ])
     .where("id", "=", bleacher_id)
     .limit(1)
@@ -102,7 +106,9 @@ export function useBatchBleachers(bleacherIds: (string | null)[]): Record<string
         "height_folded_ft",
         "trailer_length",
         "gvwr",
-        "opening_direction"
+        "opening_direction",
+        "trailer_height_in",
+        "trailer_length_in",
       ])
       .where("id", "in", uniqueIds)
       .compile();
