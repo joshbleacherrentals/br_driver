@@ -1,6 +1,9 @@
 import { db, documentAttachmentQueue } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useEffect, useMemo, useState } from "react";
+import NetInfo from "@react-native-community/netinfo";
+import * as FileSystem from "expo-file-system/legacy";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "react-native";
 
 export type BlueBookData = {
     id: string;
@@ -37,78 +40,135 @@ export function useBlueBook(): { blueBookEntries: BlueBookData[] | null } {
 
 export type DocumentDownloadState =
   | { status: "idle" }
-  | { status: "checking" }
+  | { status: "loading"; localUri: null }
   | { status: "cached"; localUri: string }
-  | { status: "downloading" }
   | { status: "ready"; localUri: string }
-  | { status: "error"; message: string };
+  | { status: "waiting-for-wifi"; localUri: null }
+  | { status: "error"; localUri: null; message: string };
 
-/**
- * Manages the local cache state for a single BlueBook PDF.
- *
- * - On mount, checks if the file is already cached on disk.
- * - `download()` triggers a fetch from Supabase if not already cached.
- * - Returns a `localUri` (file:// path) once ready — pass to expo-sharing or IntentLauncher.
- */
 export function useBlueBookDocument(documentPath: string | null) {
   const [state, setState] = useState<DocumentDownloadState>({ status: "idle" });
 
-  // On mount (or when documentPath changes), check the cache.
+  const prevPathRef = useRef<string | null>(null);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+
+  const _doDownload = async (
+    path: string,
+    isMountedRef: { current: boolean }
+  ) => {
+    if (inFlightRef.current || !documentAttachmentQueue) return;
+
+    setState({ status: "loading", localUri: null });
+
+    const download = (async () => {
+      try {
+        const uri = await documentAttachmentQueue.ensureDownloaded(path);
+        if (isMountedRef.current) {
+          setState({ status: "ready", localUri: uri });
+        }
+      } catch (e) {
+        console.error("[BlueBookDownload] Failed:", e);
+        if (isMountedRef.current) {
+          setState({ status: "error", localUri: null, message: (e as any)?.message ?? "Download failed" });
+        }
+      } finally {
+        inFlightRef.current = null;
+      }
+    })();
+
+    inFlightRef.current = download;
+    await download;
+  };
+
   useEffect(() => {
     if (!documentPath || !documentAttachmentQueue) {
+      prevPathRef.current = null;
+      inFlightRef.current = null;
       setState({ status: "idle" });
       return;
     }
 
-    let cancelled = false;
-    setState({ status: "checking" });
+    const isMountedRef = { current: true };
+    const pathChanged = prevPathRef.current !== documentPath;
+    prevPathRef.current = documentPath;
 
-    documentAttachmentQueue.isDownloaded(documentPath).then((cached) => {
-      if (cancelled) return;
-      if (cached) {
-        const localUri = documentAttachmentQueue!.getLocalUri(documentPath);
-        setState({ status: "cached", localUri });
-      } else {
-        setState({ status: "idle" });
+    const localUri = documentAttachmentQueue.getLocalUri(documentPath);
+
+    const run = async () => {
+      if (pathChanged) {
+        inFlightRef.current = null;
+        const prevUri = state.status === "cached" || state.status === "ready" ? state.localUri : null;
+        if (prevUri && prevUri !== localUri) {
+          FileSystem.deleteAsync(prevUri, { idempotent: true }).catch(() => {});
+        }
       }
-    });
 
-    return () => { cancelled = true; };
+      if (inFlightRef.current) return;
+
+      const isCachedOnDisk = await documentAttachmentQueue!.isDownloaded(documentPath);
+      if (!isMountedRef.current) return;
+
+      if (isCachedOnDisk && !pathChanged) {
+        setState({ status: "cached", localUri });
+        return;
+      }
+
+      const net = await NetInfo.fetch();
+      const isWifi =
+        net.type === "wifi" ||
+        net.type === "ethernet" ||
+        (net.type === "other" && net.isConnected);
+
+      if (!isMountedRef.current) return;
+
+      if (isWifi) {
+        await _doDownload(documentPath, isMountedRef);
+      } else {
+        setState({ status: "waiting-for-wifi", localUri: null });
+      }
+    };
+
+    run();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [documentPath]);
 
-  /**
-   * Trigger a download. If already cached this resolves immediately.
-   * Returns the local file:// URI on success.
-   */
   const download = async (): Promise<string | null> => {
     if (!documentPath || !documentAttachmentQueue) return null;
 
-    setState({ status: "downloading" });
-    try {
-      const localUri = await documentAttachmentQueue.ensureDownloaded(documentPath);
-      setState({ status: "ready", localUri });
-      return localUri;
-    } catch (err: any) {
-      const message = err?.message ?? "Download failed";
-      setState({ status: "error", message });
+    const net = await NetInfo.fetch();
+    const isConnected = net.isConnected;
+
+    if (!isConnected) {
+      Alert.alert("No connection", "Connect to the internet to download this document.");
       return null;
     }
+
+    const isMountedRef = { current: true };
+    await _doDownload(documentPath, isMountedRef);
+    return documentAttachmentQueue.getLocalUri(documentPath);
   };
 
-  /**
-   * Force a fresh download even if already cached (e.g. after an admin update).
-   */
   const redownload = async (): Promise<string | null> => {
     if (!documentPath || !documentAttachmentQueue) return null;
 
-    setState({ status: "downloading" });
+    const net = await NetInfo.fetch();
+    if (!net.isConnected) {
+      Alert.alert("No connection", "Connect to the internet to refresh this document.");
+      return null;
+    }
+
+    setState({ status: "loading", localUri: null });
+    inFlightRef.current = null;
+
     try {
-      const localUri = await documentAttachmentQueue.redownload(documentPath);
-      setState({ status: "ready", localUri });
-      return localUri;
-    } catch (err: any) {
-      const message = err?.message ?? "Download failed";
-      setState({ status: "error", message });
+      const uri = await documentAttachmentQueue.redownload(documentPath);
+      setState({ status: "ready", localUri: uri });
+      return uri;
+    } catch (e) {
+      setState({ status: "error", localUri: null, message: (e as any)?.message ?? "Download failed" });
       return null;
     }
   };
@@ -116,7 +176,9 @@ export function useBlueBookDocument(documentPath: string | null) {
   const localUri =
     state.status === "cached" || state.status === "ready" ? state.localUri : null;
 
-  const isLoading = state.status === "checking" || state.status === "downloading";
+  const isLoading = state.status === "loading";
+  const isCached = state.status === "cached" || state.status === "ready";
+  const isWaitingForWifi = state.status === "waiting-for-wifi";
 
-  return { state, localUri, isLoading, download, redownload };
+  return { state, localUri, isLoading, isCached, isWaitingForWifi, download, redownload };
 }

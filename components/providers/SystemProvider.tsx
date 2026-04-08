@@ -3,6 +3,7 @@ import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import { DocumentAttachmentQueue } from "@/library/powersync/DocumentAttachmentQueue";
 import { InspectionPhotoAttachmentQueue } from "@/library/powersync/InspectionPhotoAttachmentQueue";
+import { NvisAttachmentQueue } from "@/library/powersync/NvisAttachmentQueue";
 import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
 import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
 import { useAuth } from "@clerk/clerk-expo";
@@ -77,6 +78,8 @@ export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
 export let inspectionPhotoAttachmentQueue: InspectionPhotoAttachmentQueue | undefined;
 /** Download-only queue for BlueBook PDFs from the `documents` Supabase bucket. */
 export let documentAttachmentQueue: DocumentAttachmentQueue | undefined;
+/** Download-only queue for bleacher NVIS PDFs from the `bleacher-nvis` Supabase bucket. */
+export let nvisAttachmentQueue: NvisAttachmentQueue | undefined;
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -114,6 +117,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     // Download-only — no upload, no attachments table involvement
     documentAttachmentQueue = new DocumentAttachmentQueue({
       storage: new SupabaseStorageAdapter({ client: bc.client, bucket: "documents" }),
+    });
+
+    // Download-only NVIS PDFs from bleacher-nvis bucket
+    nvisAttachmentQueue = new NvisAttachmentQueue({
+      storage: new SupabaseStorageAdapter({ client: bc.client, bucket: "bleacher-nvis" }),
     });
 
     return bc;
@@ -173,6 +181,10 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         if (documentAttachmentQueue) {
           await documentAttachmentQueue.init();
           DebugLogger.info(TAG, "DocumentAttachmentQueue initialized");
+        }
+        if (nvisAttachmentQueue) {
+          await nvisAttachmentQueue.init();
+          DebugLogger.info(TAG, "NvisAttachmentQueue initialized");
         }
         attachStatusListener();
         await scheduleTokenRefreshReconnect();

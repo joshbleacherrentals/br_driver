@@ -56,6 +56,7 @@ const DriverUnavailabilityCols = {
   driver_uuid: column.text,
   date_unavailable: column.text,
   updated_at: column.text,
+  
 } satisfies PowerSyncColsFor<"DriverUnavailability">;
 const DriverUnavailability = new Table(DriverUnavailabilityCols, { indexes: { driver_uuid: ["driver_uuid"] } });
 
@@ -91,6 +92,8 @@ const BleacherCols = {
   trailer_length: column.integer,
   gvwr: column.integer,
   opening_direction: column.text,
+  nvis_pdf_path: column.text,
+  deleted: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 

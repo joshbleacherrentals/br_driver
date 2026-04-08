@@ -1,5 +1,8 @@
+import BleacherDropdown, { BleacherOption } from '@/components/widgets/bleacherDropdown';
+import NvisPdfButton from '@/components/widgets/NvisPdfButton';
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
 import { useAddress } from '@/hooks/db/useAddress';
+import { useAllBleachers } from '@/hooks/db/useBleacher';
 import { BlueBookData, useBlueBook, useBlueBookDocument } from '@/hooks/db/useBlueBook';
 import { useDriver } from '@/hooks/db/useDriver';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +26,90 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const DARK_BLUE = "#10365A";
 const MID_BLUE = "#164d82";
+
+
+// ─── NVIS Lookup Card ─────────────────────────────────────────────────────────
+
+/**
+ * Shown at the bottom of the Documents list.
+ * Driver picks a bleacher from the dropdown; the NVIS PDF button appears
+ * and works identically to the one on trip cards.
+ */
+function NvisLookupCard() {
+  const { bleachers } = useAllBleachers();
+  const [selectedUuid, setSelectedUuid] = React.useState<string | null>(null);
+
+  const options: BleacherOption[] = React.useMemo(
+    () =>
+      bleachers
+        .map((b) => ({ uuid: b.id, bleacher_number: b.bleacher_number ?? '—' }))
+        .sort((a, b) => parseInt(String(a.bleacher_number)) - parseInt(String(b.bleacher_number))),
+    [bleachers]
+  );
+
+  const selectedBleacher = bleachers.find((b) => b.id === selectedUuid) ?? null;
+
+  return (
+    <View style={nvisStyles.card}>
+      <View style={nvisStyles.headerRow}>
+        <Ionicons name="document-text-outline" size={16} color="#93c5fd" />
+        <Text style={nvisStyles.title}>Bleacher NVIS Lookup</Text>
+      </View>
+      <Text style={nvisStyles.subtitle}>
+        Select a bleacher to view its NVIS PDF
+      </Text>
+
+      <View style={nvisStyles.inlineRow}>
+        <View style={{ flex: 1 }}>
+          <BleacherDropdown
+            options={options}
+            selectedUuid={selectedUuid}
+            onChange={setSelectedUuid}
+            placeholder="Search bleacher number…"
+          />
+        </View>
+
+        {selectedBleacher?.nvis_pdf_path && (
+          <NvisPdfButton
+            nvisPdfPath={selectedBleacher.nvis_pdf_path}
+            bleacherNumber={selectedBleacher.bleacher_number}
+          />
+        )}
+      </View>
+
+      {selectedBleacher && !selectedBleacher.nvis_pdf_path && (
+        <Text style={nvisStyles.noPdf}>No NVIS PDF on file for this bleacher.</Text>
+      )}
+    </View>
+  );
+}
+
+const nvisStyles = StyleSheet.create({
+  card: {
+    backgroundColor: MID_BLUE,
+    borderRadius: 12,
+    marginBottom: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#1e5799',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 10,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  subtitle: { fontSize: 12, color: '#7fb3d3', marginTop: -4 },
+  noPdf: { fontSize: 13, color: '#4a8fbb', fontStyle: 'italic' },
+  inlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+});
 
 // ─── Per-entry row ────────────────────────────────────────────────────────────
 
@@ -205,15 +292,13 @@ export default function BlueBookScreen() {
           Tap to open · Long-press to refresh
         </Text>
 
-        {visibleEntries === null ? (
-          <ActivityIndicator color="#93c5fd" style={{ marginTop: 40 }} />
-        ) : visibleEntries.length === 0 ? (
-          <Text style={styles.emptyText}>No entries available.</Text>
-        ) : (
+        <NvisLookupCard />
+
+        {visibleEntries && visibleEntries.length > 0 ? (
           visibleEntries.map((entry) => (
             <BlueBookEntry key={entry.id} entry={entry} />
           ))
-        )}
+        ) : null}
 
         <View style={{ height: 32 }} />
       </ScrollView>
