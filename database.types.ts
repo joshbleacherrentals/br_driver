@@ -486,6 +486,35 @@ export type Database = {
           },
         ]
       }
+      DriverUnavailability: {
+        Row: {
+          date_unavailable: string
+          driver_uuid: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          date_unavailable: string
+          driver_uuid?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          date_unavailable?: string
+          driver_uuid?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "DriverUnavailability_driver_uuid_fkey"
+            columns: ["driver_uuid"]
+            isOneToOne: false
+            referencedRelation: "Drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Events: {
         Row: {
           address_uuid: string | null
