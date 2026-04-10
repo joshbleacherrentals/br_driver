@@ -1,7 +1,7 @@
 import { db, nvisAttachmentQueue } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Network from "expo-network";
 import { sql } from "kysely";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
@@ -200,11 +200,11 @@ export function useNvisDocument(nvisPdfPath: string | null) {
       }
 
       // Check network before downloading
-      const net = await NetInfo.fetch();
+      const net = await Network.getNetworkStateAsync();
       const isWifi =
-        net.type === "wifi" ||
-        net.type === "ethernet" ||
-        (net.type === "other" && net.isConnected);
+        net.type === Network.NetworkStateType.WIFI ||
+        net.type === Network.NetworkStateType.ETHERNET ||
+        (net.type === Network.NetworkStateType.OTHER && net.isConnected);
 
       if (!isMountedRef.current) return;
 
@@ -225,11 +225,11 @@ export function useNvisDocument(nvisPdfPath: string | null) {
   const downloadManually = async () => {
     if (!nvisPdfPath || !nvisAttachmentQueue) return;
 
-    const net = await NetInfo.fetch();
+    const net = await Network.getNetworkStateAsync();
     const isWifi =
-      net.type === "wifi" ||
-      net.type === "ethernet" ||
-      (net.type === "other" && net.isConnected);
+      net.type === Network.NetworkStateType.WIFI ||
+      net.type === Network.NetworkStateType.ETHERNET ||
+      (net.type === Network.NetworkStateType.OTHER && net.isConnected);
 
     if (!isWifi && !net.isConnected) {
       Alert.alert("No connection", "Connect to the internet to download this PDF.");

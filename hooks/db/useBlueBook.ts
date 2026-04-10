@@ -1,7 +1,7 @@
 import { db, documentAttachmentQueue } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import NetInfo from "@react-native-community/netinfo";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Network from "expo-network";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 
@@ -113,11 +113,11 @@ export function useBlueBookDocument(documentPath: string | null) {
         return;
       }
 
-      const net = await NetInfo.fetch();
+      const net = await Network.getNetworkStateAsync();
       const isWifi =
-        net.type === "wifi" ||
-        net.type === "ethernet" ||
-        (net.type === "other" && net.isConnected);
+        net.type === Network.NetworkStateType.WIFI ||
+        net.type === Network.NetworkStateType.ETHERNET ||
+        (net.type === Network.NetworkStateType.OTHER && net.isConnected);
 
       if (!isMountedRef.current) return;
 
@@ -138,10 +138,13 @@ export function useBlueBookDocument(documentPath: string | null) {
   const download = async (): Promise<string | null> => {
     if (!documentPath || !documentAttachmentQueue) return null;
 
-    const net = await NetInfo.fetch();
-    const isConnected = net.isConnected;
+    const net = await Network.getNetworkStateAsync();
+    const isWifi =
+      net.type === Network.NetworkStateType.WIFI ||
+      net.type === Network.NetworkStateType.ETHERNET ||
+      (net.type === Network.NetworkStateType.OTHER && net.isConnected);
 
-    if (!isConnected) {
+    if (!isWifi && !net.isConnected) {
       Alert.alert("No connection", "Connect to the internet to download this document.");
       return null;
     }
@@ -154,7 +157,8 @@ export function useBlueBookDocument(documentPath: string | null) {
   const redownload = async (): Promise<string | null> => {
     if (!documentPath || !documentAttachmentQueue) return null;
 
-    const net = await NetInfo.fetch();
+    const net = await Network.getNetworkStateAsync();
+
     if (!net.isConnected) {
       Alert.alert("No connection", "Connect to the internet to refresh this document.");
       return null;

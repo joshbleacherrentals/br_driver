@@ -22,7 +22,6 @@
     "@powersync/op-sqlite": "^0.8.0",
     "@powersync/react": "^1.8.2",
     "@powersync/react-native": "^1.29.0",
-    "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
