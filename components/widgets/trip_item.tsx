@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BillOfLading, { BOLButton } from "./billOfLading";
+import NvisPdfButton from './NvisPdfButton';
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -155,11 +156,19 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       {/* Top Header: Bleacher & Pay */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
-          <Text style={styles.mainTitle}>
-            {bleacher_uuid && `Bleacher #${bleacher.bleacher_number}`}
-            {bleacher && pay_cents !== null && ' - '}
-            {pay_cents !== null && formatPay(pay_cents)}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.mainTitle}>
+              {bleacher_uuid && `Bleacher #${bleacher.bleacher_number}`}
+              {bleacher && pay_cents !== null && ' - '}
+              {pay_cents !== null && formatPay(pay_cents)}
+            </Text>
+
+            <NvisPdfButton
+              nvisPdfPath={bleacher?.nvis_pdf_path ?? null}
+              bleacherNumber={bleacher?.bleacher_number ?? null}
+            />
+          </View>
+
           <Text style={styles.dateText}>{formatDate(date)}</Text>
         </View>
         {badge && (
@@ -370,6 +379,12 @@ const styles = StyleSheet.create({
   topHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   topHeader: { flex: 1 },
   mainTitle: { fontSize: 24, fontWeight: '700', color: '#000', marginBottom: 4 },
+  titleRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+},
   dateText: { fontSize: 15, color: '#8E8E93', fontWeight: '500' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginLeft: 12 },
   statusText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },

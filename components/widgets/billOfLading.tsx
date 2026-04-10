@@ -564,13 +564,12 @@ const bolBtnStyles = StyleSheet.create({
   btn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     borderWidth: 1.5,
     borderColor: DARK_BLUE,
     borderRadius: 8,
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginTop: 12,
+    paddingHorizontal: 8,
+    marginTop: 8,
   },
   text: { fontSize: 13, fontWeight: '600', color: DARK_BLUE },
 });
