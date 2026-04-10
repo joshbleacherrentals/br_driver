@@ -9,15 +9,10 @@ import BleacherDropdown, { BleacherOption } from './bleacherDropdown';
 
 interface TripItemProps {
   workTracker: WorkTracker;
-  /** Full list of bleachers available in the fleet for the dropdown */
   bleacherOptions?: BleacherOption[];
   onAccept?: (workTrackerId: string) => void;
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
-  /**
-   * Called when driver taps "I've Arrived".
-   * arrivedAt is the ISO timestamp of arrival — persist this on your end.
-   */
   onArrived?: (workTrackerId: string, arrivedAt: string) => void;
   onStartInspection?: (
     workTrackerId: string,
@@ -26,10 +21,6 @@ interface TripItemProps {
   ) => void;
   onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -51,10 +42,6 @@ function useArrivalTimer(arrivedAt: string | null) {
 
   return elapsed;
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export default function TripItem({
   workTracker,
@@ -85,33 +72,52 @@ export default function TripItem({
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
-
-  // ISO string set when driver taps "I've Arrived" at the pickup location.
-  // Stored locally so the timer can run and the timestamp can be passed to
-  // onStartInspection when the driver taps "Start Pickup Inspection".
   const [pickupArrivedAt, setPickupArrivedAt] = React.useState<string | null>(null);
-
-  // Selected bleacher uuid — initialised from the trip, editable via dropdown.
   const [selectedBleacherUuid, setSelectedBleacherUuid] = React.useState<string>(
     bleacher_uuid ?? ''
   );
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
-  // Header always shows the original trip bleacher until inspection is confirmed.
   const { bleacher } = useBleacher(bleacher_uuid);
 
   const elapsed = useArrivalTimer(
     status === 'pickup_inspection' ? pickupArrivedAt : null
   );
 
-  // Don't render draft / completed items
+  // ── Filter bleacher options to same row count + same pickup address ──
+  const pickupStreet = pickupAddressData.address?.street ?? null;
+
+  const eligibleBleacherOptions = React.useMemo(() => {
+    if (!bleacherOptions.length) return bleacherOptions;
+
+    const currentRows = bleacher?.bleacher_rows ?? null;
+
+    return bleacherOptions.filter((opt) => {
+      // Must match row count — skip filter if either side is unknown
+      if (
+        currentRows !== null &&
+        opt.bleacher_rows != null &&
+        opt.bleacher_rows !== currentRows
+      ) {
+        return false;
+      }
+
+      // Must be at the pickup address — skip filter if either side is unknown
+      if (
+        pickupStreet &&
+        opt.resolved_address &&
+        opt.resolved_address.trim().toLowerCase() !== pickupStreet.trim().toLowerCase()
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [bleacherOptions, bleacher?.bleacher_rows, pickupStreet]);
+
   if (status === 'draft' || status === 'completed') return null;
   if (!bleacher) return null;
-
-  // -------------------------------------------------------------------------
-  // Formatters
-  // -------------------------------------------------------------------------
 
   const formatAddress = (type: 'pickup' | 'dropoff') => {
     const address =
@@ -149,10 +155,6 @@ export default function TripItem({
     return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
-  // -------------------------------------------------------------------------
-  // Maps
-  // -------------------------------------------------------------------------
-
   const openInMaps = async (address?: string) => {
     if (!address) return;
     const q = encodeURIComponent(address);
@@ -178,10 +180,6 @@ export default function TripItem({
     ]);
   };
 
-  // -------------------------------------------------------------------------
-  // Status badge
-  // -------------------------------------------------------------------------
-
   const getStatusBadge = () => {
     switch (status) {
       case 'released':        return { text: 'PENDING ACCEPTANCE', color: '#34C759' };
@@ -199,10 +197,6 @@ export default function TripItem({
   const badge = getStatusBadge();
   const showTeardown = teardown_required === 1;
   const showSetup    = setup_required    === 1;
-
-  // -------------------------------------------------------------------------
-  // Handlers
-  // -------------------------------------------------------------------------
 
   const handleArrived = (id: string) => {
     const now = new Date().toISOString();
@@ -236,10 +230,6 @@ export default function TripItem({
   const handleStartInspection = (id: string, type: 'pickup' | 'dropoff') => {
     onStartInspection?.(id, type, type === 'pickup' ? pickupArrivedAt : null);
   };
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
 
   return (
     <View style={styles.card}>
@@ -325,17 +315,15 @@ export default function TripItem({
       {/* ── Start Pickup Inspection block ── */}
       {status === 'pickup_inspection' && (
         <View style={styles.inspectionBlock}>
-          {/* Bleacher selector */}
           <View style={styles.bleacherSelectorBox}>
             <Text style={styles.bleacherSelectorLabel}>Confirm Bleacher</Text>
             <BleacherDropdown
-              options={bleacherOptions}
+              options={eligibleBleacherOptions}
               selectedUuid={selectedBleacherUuid || bleacher_uuid}
               onChange={handleBleacherChange}
             />
           </View>
 
-          {/* CTA */}
           <TouchableOpacity
             style={styles.inspectionButton}
             onPress={() => handleStartInspection(workTracker.id, 'pickup')}
@@ -434,10 +422,6 @@ export default function TripItem({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: 'flex-end', flexShrink: 0 },
   card: {
@@ -489,24 +473,11 @@ const styles = StyleSheet.create({
   primaryButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
   acceptButton: { backgroundColor: '#34C759', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
   acceptButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-
-  // Inspection block
-  inspectionBlock: {
-    marginTop: 12,
-    gap: 10,
-  },
-
-  // Arrival banner
+  inspectionBlock: { marginTop: 12, gap: 10 },
   arrivalBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#EBF3FD',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#BDD6F0',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#EBF3FD', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#BDD6F0',
   },
   arrivalBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   arrivalLabel: { fontSize: 13, fontWeight: '600', color: '#1D62A3' },
@@ -514,12 +485,8 @@ const styles = StyleSheet.create({
   arrivalTime: { fontSize: 14, fontWeight: '700', color: '#1C1C1E' },
   arrivalElapsed: { fontSize: 12, color: '#8E8E93', marginTop: 1 },
   arrivalTimeUnknown: { fontSize: 13, color: '#8E8E93', fontStyle: 'italic' },
-
-  // Bleacher selector
   bleacherSelectorBox: { gap: 6 },
   bleacherSelectorLabel: { fontSize: 12, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4 },
-
-  // Inspection button
   inspectionButton: { backgroundColor: '#FF9500', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
   inspectionButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });

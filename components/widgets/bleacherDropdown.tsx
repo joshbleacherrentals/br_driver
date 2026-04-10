@@ -1,21 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useState } from 'react';
 import {
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export interface BleacherOption {
   uuid: string;
   bleacher_number: number | string;
-  label?: string; // optional extra info, e.g. location/section
+  label?: string;
+  bleacher_rows?: number | null;
+  resolved_address?: string | null;
 }
 
 interface BleacherDropdownProps {
@@ -154,7 +156,6 @@ export default function BleacherDropdown({
 }
 
 const styles = StyleSheet.create({
-  // Trigger
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -170,11 +171,7 @@ const styles = StyleSheet.create({
   triggerText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
   triggerPlaceholder: { color: '#8E8E93', fontWeight: '400' },
   triggerTextDisabled: { color: '#C7C7CC' },
-
-  // Modal overlay
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-
-  // Bottom sheet
   sheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 16,
@@ -199,8 +196,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
-
-  // Search
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -212,8 +207,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-
-  // List
   emptyContainer: { flex: 1, alignItems: 'center', paddingTop: 32 },
   emptyText: { fontSize: 14, color: '#8E8E93' },
   listItem: {
