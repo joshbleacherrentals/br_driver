@@ -25,6 +25,13 @@ const UsersCols = {
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, { indexes: { status_uuid: ["status_uuid"] } });
 
+const DriverAvailabilityCols = {
+  driver_uuid: column.text,
+  date_unavailable: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverUnavailability">;
+const DriverAvailability = new Table(DriverAvailabilityCols, { indexes: { driver_uuid: ["driver_uuid"] } });
+
 const AccountManagerCols = {
   created_at: column.text,
   is_active: column.integer,

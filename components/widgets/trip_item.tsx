@@ -85,15 +85,16 @@ export default function TripItem({
     status === 'pickup_inspection' ? pickupArrivedAt : null
   );
 
-  // ── Filter bleacher options to same row count + same pickup address ──
   const pickupStreet = pickupAddressData.address?.street ?? null;
 
   const eligibleBleacherOptions = React.useMemo(() => {
-    if (!bleacherOptions.length) return bleacherOptions;
-
     const currentRows = bleacher?.bleacher_rows ?? null;
+    const currentUuid = bleacher_uuid ?? '';
 
-    return bleacherOptions.filter((opt) => {
+    const filtered = bleacherOptions.filter((opt) => {
+      // Always include the currently assigned bleacher
+      if (opt.uuid === currentUuid) return true;
+
       // Must match row count — skip filter if either side is unknown
       if (
         currentRows !== null &&
@@ -103,18 +104,19 @@ export default function TripItem({
         return false;
       }
 
-      // Must be at the pickup address — skip filter if either side is unknown
-      if (
-        pickupStreet &&
-        opt.resolved_address &&
-        opt.resolved_address.trim().toLowerCase() !== pickupStreet.trim().toLowerCase()
-      ) {
+      // Must have a known address and must match the pickup address
+      if (!opt.resolved_address || !pickupStreet) {
+        return false;
+      }
+      if (opt.resolved_address.trim().toLowerCase() !== pickupStreet.trim().toLowerCase()) {
         return false;
       }
 
       return true;
     });
-  }, [bleacherOptions, bleacher?.bleacher_rows, pickupStreet]);
+
+    return filtered;
+  }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
 
   if (status === 'draft' || status === 'completed') return null;
   if (!bleacher) return null;

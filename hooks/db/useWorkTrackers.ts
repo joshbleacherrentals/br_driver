@@ -44,9 +44,6 @@ export type DriverData = {
   id: string;
 }
 
-/**
- * Fetch WorkTrackers belonging to the Clerk user using PowerSync
- */
 export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
@@ -107,41 +104,36 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
   if (!compiled || !userData.data?.[0]?.id) return { workTrackers: [] };
   if (!compiledWT) return { workTrackers: [] };
 
-  console.log("[WorkTrackers] Fetching for Clerk user:", clerkUserId);
-  console.log("[WorkTrackers] Compiled user data:", userData);
-  console.log("[WorkTrackers] Compiled user query:", compiledWT);
-
   return { workTrackers: WTData.data };
 }
 
 // ---------------------------------------------------------------------------
-// Fleet-wide completed WorkTrackers for bleacher address resolution.
-// Only selects the fields needed to keep the query lean.
+// Fleet-wide WorkTrackers for bleacher address resolution.
+// No status filter — we want the last known dropoff regardless of status.
 // ---------------------------------------------------------------------------
 
-type CompletedDropoffRow = {
+export type DropoffRow = {
   bleacher_uuid: string | null;
   dropoff_address_uuid: string | null;
   date: string | null;
 };
 
-export function useCompletedDropoffsByBleachers(
+export function useDropoffsByBleachers(
   bleacherIds: string[],
   targetDate: string,
-): { rows: CompletedDropoffRow[] } {
+): { rows: DropoffRow[] } {
   const compiled = useMemo(() => {
     if (bleacherIds.length === 0) return null;
     return db
       .selectFrom('WorkTrackers')
       .select(['bleacher_uuid', 'dropoff_address_uuid', 'date'])
       .where('bleacher_uuid', 'in', bleacherIds)
-      .where('status', '=', 'completed')
       .where('date', '<=', targetDate)
       .where('dropoff_address_uuid', 'is not', null)
       .orderBy('date', 'desc')
       .compile();
   }, [bleacherIds, targetDate]);
 
-  const result = useTypedQuery(compiled, expect<CompletedDropoffRow>());
+  const result = useTypedQuery(compiled, expect<DropoffRow>());
   return { rows: result.data ?? [] };
 }
