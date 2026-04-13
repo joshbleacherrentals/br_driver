@@ -55,11 +55,11 @@ export default function TabLayout() {
               }}
             />
             <Tabs.Screen
-              name="completedTrips"
+              name="driverAvailability"
               options={{
-                title: "History",
+                title: "Calendar",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="clock-rotate-left" size={24} color={color} />
+                  <FontAwesome6 name="calendar-days" size={24} color={color} />
                 ),
               }}
             />
@@ -81,17 +81,6 @@ export default function TabLayout() {
                 ),
               }}
             />
-            {process.env.EXPO_PUBLIC_LOG_VISIBLE === "true" &&
-              (console.log("Logs tab visible", process.env.EXPO_PUBLIC_LOG_VISIBLE),
-              (
-                <Tabs.Screen
-                  name="logs"
-                  options={{
-                    title: "Logs",
-                    tabBarIcon: ({ color }) => <FontAwesome6 name="bug" size={24} color={color} />,
-                  }}
-                />
-              ))}
           </Tabs>
         )}
       </SignedIn>
