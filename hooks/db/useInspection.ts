@@ -9,6 +9,7 @@ export type InspectionData = {
     walk_around_complete: number | null;
     issues_found: number | null;
     issue_description: string | null;
+    answers_json: string | null;
 };
 
 export type InspectionPhotosData = {
@@ -35,6 +36,7 @@ export function useInspection(inspection_id: string | null): { inspection: Inspe
       "walk_around_complete",
       "issues_found",
       "issue_description",
+      "answers_json"
     ])
     .where("id", "=", inspection_id)
     .limit(1)
