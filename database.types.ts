@@ -120,19 +120,23 @@ export type Database = {
           bleacher_seats: number
           created_at: string
           created_by: string | null
+          deleted: boolean
           gvwr: number | null
           height_folded_ft: number | null
           hitch_type: string | null
           id: string
           linxup_device_id: string | null
           manufacturer: string | null
+          nvis_pdf_path: string | null
           opening_direction:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null
           summer_account_manager_uuid: string | null
           summer_home_base_uuid: string | null
           tag_number: string | null
+          trailer_height_in: number | null
           trailer_length: number | null
+          trailer_length_in: number | null
           updated_at: string | null
           updated_by: string | null
           vin_number: string | null
@@ -145,19 +149,23 @@ export type Database = {
           bleacher_seats: number
           created_at?: string
           created_by?: string | null
+          deleted?: boolean
           gvwr?: number | null
           height_folded_ft?: number | null
           hitch_type?: string | null
           id?: string
           linxup_device_id?: string | null
           manufacturer?: string | null
+          nvis_pdf_path?: string | null
           opening_direction?:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          trailer_height_in?: number | null
           trailer_length?: number | null
+          trailer_length_in?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
@@ -170,19 +178,23 @@ export type Database = {
           bleacher_seats?: number
           created_at?: string
           created_by?: string | null
+          deleted?: boolean
           gvwr?: number | null
           height_folded_ft?: number | null
           hitch_type?: string | null
           id?: string
           linxup_device_id?: string | null
           manufacturer?: string | null
+          nvis_pdf_path?: string | null
           opening_direction?:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null
           summer_account_manager_uuid?: string | null
           summer_home_base_uuid?: string | null
           tag_number?: string | null
+          trailer_height_in?: number | null
           trailer_length?: number | null
+          trailer_length_in?: number | null
           updated_at?: string | null
           updated_by?: string | null
           vin_number?: string | null
@@ -295,6 +307,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          document_path: string | null
           id: string
           is_active: boolean
           link: string | null
@@ -306,6 +319,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          document_path?: string | null
           id?: string
           is_active?: boolean
           link?: string | null
@@ -317,6 +331,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          document_path?: string | null
           id?: string
           is_active?: boolean
           link?: string | null
@@ -337,6 +352,7 @@ export type Database = {
           rows: string
           rows_quick_filter: number | null
           season: string | null
+          show_address_tooltip: boolean
           state_provinces: string
           summer_home_base_uuids: string
           updated_at: string
@@ -353,6 +369,7 @@ export type Database = {
           rows?: string
           rows_quick_filter?: number | null
           season?: string | null
+          show_address_tooltip?: boolean
           state_provinces?: string
           summer_home_base_uuids?: string
           updated_at?: string
@@ -369,6 +386,7 @@ export type Database = {
           rows?: string
           rows_quick_filter?: number | null
           season?: string | null
+          show_address_tooltip?: boolean
           state_provinces?: string
           summer_home_base_uuids?: string
           updated_at?: string
@@ -654,6 +672,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      InspectionQuestions: {
+        Row: {
+          id: string
+          is_active: boolean
+          question_text: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          required: boolean
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          question_text: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          required?: boolean
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          question_text?: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          required?: boolean
+          sort_order?: number
+        }
+        Relationships: []
       }
       Notifications: {
         Row: {
@@ -1059,6 +1104,7 @@ export type Database = {
       }
       WorkTrackerInspections: {
         Row: {
+          answers_json: string | null
           created_at: string
           id: string
           issue_description: string | null
@@ -1066,6 +1112,7 @@ export type Database = {
           walk_around_complete: boolean
         }
         Insert: {
+          answers_json?: string | null
           created_at?: string
           id?: string
           issue_description?: string | null
@@ -1073,6 +1120,7 @@ export type Database = {
           walk_around_complete?: boolean
         }
         Update: {
+          answers_json?: string | null
           created_at?: string
           id?: string
           issue_description?: string | null
@@ -1419,6 +1467,7 @@ export type Database = {
       event_status: "quoted" | "booked" | "lost"
       pay_currency_type: "CAD" | "USD"
       pay_per_unit_type: "KM" | "MI" | "HR"
+      question_type: "text" | "checkbox" | "photo"
       task_status:
         | "in_progress"
         | "backlog"
@@ -1575,6 +1624,7 @@ export const Constants = {
       event_status: ["quoted", "booked", "lost"],
       pay_currency_type: ["CAD", "USD"],
       pay_per_unit_type: ["KM", "MI", "HR"],
+      question_type: ["text", "checkbox", "photo"],
       task_status: [
         "in_progress",
         "backlog",
