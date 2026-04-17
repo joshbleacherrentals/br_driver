@@ -24,27 +24,6 @@ interface TripItemProps {
   onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
 
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function useArrivalTimer(arrivedAt: string | null) {
-  const [elapsed, setElapsed] = React.useState<number>(0);
-
-  React.useEffect(() => {
-    if (!arrivedAt) { setElapsed(0); return; }
-    const start = new Date(arrivedAt).getTime();
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [arrivedAt]);
-
-  return elapsed;
-}
-
 export default function TripItem({
   workTracker,
   bleacherOptions = [],
@@ -74,7 +53,6 @@ export default function TripItem({
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
-  const [pickupArrivedAt, setPickupArrivedAt] = React.useState<string | null>(null);
   const [selectedBleacherUuid, setSelectedBleacherUuid] = React.useState<string>(
     bleacher_uuid ?? ''
   );
@@ -86,12 +64,7 @@ export default function TripItem({
   const { bleacher } = useBleacher(bleacher_uuid);
   const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid ?? null);
   const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
-
-  const elapsed = useArrivalTimer(
-    status === 'pickup_inspection' ? pickupArrivedAt : null
-  );
   if (status === 'draft' || status === 'completed') return null;
-  if (!bleacher) return null;
 
   const pickupStreet = pickupAddressData.address?.street ?? null;
 
@@ -125,9 +98,6 @@ export default function TripItem({
 
     return filtered;
   }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
-
-  if (status === 'draft' || status === 'completed') return null;
-  if (!bleacher) return null;
 
   const formatAddress = (type: 'pickup' | 'dropoff') => {
     const address =
@@ -210,7 +180,6 @@ export default function TripItem({
 
   const handleArrived = (id: string) => {
     const now = new Date().toISOString();
-    setPickupArrivedAt(now);
     onArrived?.(id, now);
   };
 
@@ -238,7 +207,7 @@ export default function TripItem({
   };
 
   const handleStartInspection = (id: string, type: 'pickup' | 'dropoff') => {
-    onStartInspection?.(id, type, type === 'pickup' ? pickupArrivedAt : null);
+    onStartInspection?.(id, type, type === 'pickup' ? pickup_time : dropoff_time);
   };
 
   return (
@@ -248,7 +217,7 @@ export default function TripItem({
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
           <Text style={styles.mainTitle}>
-            {bleacher_uuid && `Bleacher #${bleacher.bleacher_number}`}
+            {bleacher_uuid && bleacher && `Bleacher #${bleacher.bleacher_number}`}
             {bleacher && pay_cents !== null && ' - '}
             {pay_cents !== null && formatPay(pay_cents)}
           </Text>
@@ -311,7 +280,7 @@ export default function TripItem({
       {/* ── "I've Arrived" button (pickup leg) ── */}
       {status === 'dest_pickup' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id)}>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
             <Text style={styles.primaryButtonText}>I've Arrived</Text>
           </TouchableOpacity>
         </View>
@@ -407,7 +376,7 @@ export default function TripItem({
 
       {status === 'dest_dropoff' && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id)}>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
             <Text style={styles.primaryButtonText}>I've Arrived</Text>
           </TouchableOpacity>
         </View>
@@ -422,13 +391,6 @@ export default function TripItem({
         </TouchableOpacity>
       )}
 
-      {status === 'dest_dropoff' && (
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}
-          >
-            <Text style={styles.primaryButtonText}>I've Arrived</Text>
       {postInspection && (
         <>
           <TouchableOpacity style={styles.viewInspectionButton} onPress={() => setPostInspectionVisible(true)}>
