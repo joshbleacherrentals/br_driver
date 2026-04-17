@@ -189,13 +189,24 @@ export default function InspectionScreen({
   onCancel,
 }: InspectionScreenProps) {
   const { questions } = useInspectionQuestions();
-
-  const [walkAroundComplete, setWalkAroundComplete] = useState(false);
   const [answers, setAnswers] = useState<AnswerMap>({});
+  const checkboxQuestions = questions.filter((q) => q.question_type === 'checkbox');
+  const allChecked =
+    checkboxQuestions.every((q) => answers[q.id]?.checked === true);
+  const [walkAroundComplete, setWalkAroundComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Answer helpers ──────────────────────────────────────────────────────────
 
+    const handleCheckAll = () => {
+      const shouldCheckAll = !allChecked;
+      setWalkAroundComplete(shouldCheckAll);
+      const newAnswers = { ...answers };
+      for (const q of checkboxQuestions) {
+        newAnswers[q.id] = { ...newAnswers[q.id], checked: shouldCheckAll };
+      }
+      setAnswers(newAnswers);
+    };
   const setTextAnswer = (questionId: string, text: string) =>
     setAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], text } }));
 
@@ -422,6 +433,23 @@ export default function InspectionScreen({
           <Text style={styles.subtitle}>Complete the inspection before proceeding</Text>
         </View>
 
+        {/* Check All button — only shown if there are checkbox questions */}
+        {checkboxQuestions.length > 0 && (
+          <TouchableOpacity
+            style={[styles.checkAllButton, allChecked && styles.checkAllButtonChecked]}
+            onPress={handleCheckAll}
+          >
+            <Ionicons
+              name={allChecked ? 'checkmark-done-circle' : 'checkmark-done-circle-outline'}
+              size={20}
+              color={allChecked ? '#34C759' : '#0A84FF'}
+            />
+            <Text style={[styles.checkAllText, allChecked && styles.checkAllTextChecked]}>
+              {allChecked ? 'All Items Checked' : 'Check All Items'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Dynamic questions */}
         {questions.map((question) => {
           if (question.question_type === 'text') {
@@ -497,6 +525,30 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700', color: '#3C3C3C' },
   formLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EBF5FF', borderWidth: 1, borderColor: '#0A84FF', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
   formLinkText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#0A84FF' },
+  checkAllButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  backgroundColor: '#EBF5FF',
+  borderWidth: 1.5,
+  borderColor: '#0A84FF',
+  borderRadius: 10,
+  paddingVertical: 13,
+  marginBottom: 8,
+},
+  checkAllButtonChecked: {
+    backgroundColor: '#E8F9ED',
+    borderColor: '#34C759',
+  },
+  checkAllText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  checkAllTextChecked: {
+    color: '#34C759',
+  },
   checkbox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F8F8F8', borderRadius: 8, borderWidth: 2, borderColor: '#E5E7EB' },
   checkboxChecked: { borderColor: '#0A84FF', backgroundColor: '#EBF5FF' },
   checkboxLabel: { flex: 1, fontSize: 15, color: '#000', marginRight: 8 },

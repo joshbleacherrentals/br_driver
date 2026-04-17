@@ -71,3 +71,23 @@ export function useInspectionPhotos(inspection_id: string | null): { Photos: Ins
 
   return { Photos: photosData.data };
 }
+
+// Shared type for a parsed answer entry
+export type ParsedAnswer = {
+  question_text: string;
+  question_type: 'text' | 'checkbox' | 'photo';
+  required: boolean;
+  answer_text?: string | null;
+  answer_boolean?: boolean | null;
+  photos?: { storage_path: string }[];
+};
+
+export function parseInspectionAnswers(answers_json: string | null): ParsedAnswer[] {
+  if (!answers_json) return [];
+  try {
+    const map = JSON.parse(answers_json) as Record<string, ParsedAnswer>;
+    return Object.values(map);
+  } catch {
+    return [];
+  }
+}
