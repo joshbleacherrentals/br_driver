@@ -1,5 +1,6 @@
 import { DamageReportData } from "@/hooks/db/useDamageReport";
 import { Ionicons } from "@expo/vector-icons";
+import { usePowerSyncQuery } from "@powersync/react-native";
 import React from "react";
 import { Alert, StyleSheet, TouchableOpacity } from "react-native";
 
@@ -49,6 +50,13 @@ export default function BleacherDamageBadge({
     damageReport.is_safe_to_haul
   );
 
+  // Fetch the count of damage photos so we can mention it in the alert
+  const photoRows = usePowerSyncQuery<{ cnt: number }>(
+    `SELECT COUNT(*) AS cnt FROM "DamageReportPhotos" WHERE damage_report_uuid = ? AND photo_path IS NOT NULL`,
+    [damageReport.id]
+  );
+  const photoCount = photoRows?.[0]?.cnt ?? 0;
+
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return "—";
     try {
@@ -63,19 +71,28 @@ export default function BleacherDamageBadge({
       ? `Bleacher #${bleacherNumber}: Damage Report`
       : "Damage Report";
 
-    const message = [
+    const lines = [
       `Reported: ${formatDateTime(damageReport.created_at)}`,
       "",
-      "\nDamage Severity:",
+      "Damage Severity:",
       `• Seating Configuration: ${severityLabel(damageReport.is_safe_to_sit)}`,
       `• Hauling Configuration: ${severityLabel(damageReport.is_safe_to_haul)}`,
-      damageReport.note ? `\nNotes:\n${damageReport.note}` : "",
-      "\n[WARNING] This damage report is unresolved. Exercise caution when setting up or hauling this bleacher.",
-    ]
-      .filter((line) => line !== "")
-      .join("\n");
+    ];
 
-    Alert.alert(title, message, [{ text: "Close", style: "cancel" }]);
+    if (damageReport.note) {
+      lines.push("", `Notes:\n${damageReport.note}`);
+    }
+
+    if (photoCount > 0) {
+      lines.push("", `📷 ${photoCount} damage photo${photoCount !== 1 ? "s" : ""} attached`);
+    }
+
+    lines.push(
+      "",
+      "[WARNING] This damage report is unresolved. Exercise caution when setting up or hauling this bleacher."
+    );
+
+    Alert.alert(title, lines.join("\n"), [{ text: "Close", style: "cancel" }]);
   };
 
   return (

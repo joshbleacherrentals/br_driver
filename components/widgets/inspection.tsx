@@ -11,10 +11,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { db, inspectionPhotoAttachmentQueue } from '../providers/SystemProvider';
+import {
+  damageReportPhotoAttachmentQueue,
+  db,
+  inspectionPhotoAttachmentQueue,
+} from '../providers/SystemProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,7 +30,6 @@ interface DocumentPhoto {
   ext?: string;
 }
 
-/** One answer entry keyed by question ID */
 type AnswerMap = Record<string, {
   text?: string;
   checked?: boolean;
@@ -67,10 +70,16 @@ function getExtFromUri(uri: string): string | undefined {
 
 // ─── Damage Severity Selector ─────────────────────────────────────────────────
 
-const SEVERITY_OPTIONS: { value: DamageSeverity; label: string; color: string; bg: string; icon: string }[] = [
-  { value: null, label: 'None',  color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' },
-  { value: 0,    label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline'  },
-  { value: 1,    label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning'           },
+const SEVERITY_OPTIONS: {
+  value: DamageSeverity;
+  label: string;
+  color: string;
+  bg: string;
+  icon: string;
+}[] = [
+  { value: null, label: 'None',  color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle'  },
+  { value: 0,    label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline'    },
+  { value: 1,    label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning'            },
 ];
 
 function DamageSeveritySelector({
@@ -82,8 +91,6 @@ function DamageSeveritySelector({
   value: DamageSeverity;
   onChange: (v: DamageSeverity) => void;
 }) {
-  const selected = SEVERITY_OPTIONS.find((o) => o.value === value) ?? SEVERITY_OPTIONS[0];
-
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{label}</Text>
@@ -95,12 +102,19 @@ function DamageSeveritySelector({
               key={String(opt.value)}
               style={[
                 severityStyles.option,
-                { borderColor: active ? opt.color : '#E5E7EB', backgroundColor: active ? opt.bg : '#F8F8F8' },
+                {
+                  borderColor: active ? opt.color : '#E5E7EB',
+                  backgroundColor: active ? opt.bg : '#F8F8F8',
+                },
               ]}
               onPress={() => onChange(opt.value)}
               activeOpacity={0.7}
             >
-              <Ionicons name={opt.icon as any} size={20} color={active ? opt.color : '#8E8E93'} />
+              <Ionicons
+                name={opt.icon as any}
+                size={20}
+                color={active ? opt.color : '#8E8E93'}
+              />
               <Text style={[severityStyles.optionLabel, { color: active ? opt.color : '#8E8E93' }]}>
                 {opt.label}
               </Text>
@@ -308,13 +322,15 @@ export default function InspectionScreen({
       base64: true,
     });
     if (!result.canceled && result.assets?.length) {
-      const newPhotos: DocumentPhoto[] = result.assets.map((asset) => ({
-        uri: asset.uri,
-        base64: asset.base64 ?? undefined,
-        isNew: true,
-        ext: getExtFromUri(asset.uri) ?? 'jpg',
-      }));
-      addPhotosToQuestion(questionId, newPhotos);
+      addPhotosToQuestion(
+        questionId,
+        result.assets.map((asset) => ({
+          uri: asset.uri,
+          base64: asset.base64 ?? undefined,
+          isNew: true,
+          ext: getExtFromUri(asset.uri) ?? 'jpg',
+        }))
+      );
     }
   };
 
@@ -354,9 +370,7 @@ export default function InspectionScreen({
       }
     }
 
-    if (damageFound === null) {
-      return 'Please indicate if damage was found';
-    }
+    if (damageFound === null) return 'Please indicate if damage was found';
 
     if (damageFound === true) {
       if (!damageNote.trim()) return 'Damage notes are required';
@@ -366,9 +380,10 @@ export default function InspectionScreen({
     return null;
   };
 
-  // ── Photo upload helper ─────────────────────────────────────────────────────
+  // ── Photo upload helpers ────────────────────────────────────────────────────
 
-  const savePhotoToQueue = async (
+  /** Saves an inspection-question photo → inspection-photos bucket. */
+  const saveInspectionPhoto = async (
     photo: DocumentPhoto,
     inspectionId: string,
     questionId: string,
@@ -383,6 +398,37 @@ export default function InspectionScreen({
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
     const record = await inspectionPhotoAttachmentQueue.savePhoto(photo.base64, filename);
     return record.id;
+  };
+
+  /**
+   * Saves a damage photo → damage-report-photos bucket, then inserts a row
+   * into DamageReportPhotos so PowerSync tracks and syncs it.
+   */
+  const saveDamagePhoto = async (
+    photo: DocumentPhoto,
+    damageReportId: string,
+    photoIndex: number,
+  ): Promise<void> => {
+    if (!photo.isNew || !photo.base64) return;
+    if (!damageReportPhotoAttachmentQueue) {
+      console.warn('damageReportPhotoAttachmentQueue not initialized');
+      return;
+    }
+
+    const ext = photo.ext ?? 'jpg';
+    const filename = `${damageReportId}/photo_${photoIndex}_${Date.now()}.${ext}`;
+    const record = await damageReportPhotoAttachmentQueue.savePhoto(photo.base64, filename);
+
+    // Insert the DamageReportPhotos row so PowerSync watches this file
+    await executeTypedMutation(
+      db.insertInto('DamageReportPhotos')
+        .values({
+          id: generateUUID(),
+          damage_report_uuid: damageReportId,
+          photo_path: record.id,
+        })
+        .compile()
+    );
   };
 
   // ── Submit ──────────────────────────────────────────────────────────────────
@@ -400,7 +446,7 @@ export default function InspectionScreen({
       const inspectionId = generateUUID();
       const now = new Date().toISOString();
 
-      // 1️⃣ Build the answers JSON — self-describing, keyed by question ID
+      // 1️⃣ Build answers JSON — inspection-question photos go to inspection-photos bucket
       const answersPayload: Record<string, {
         question_text: string | null;
         question_type: string | null;
@@ -431,14 +477,11 @@ export default function InspectionScreen({
 
         } else if (question.question_type === 'photo') {
           const photos = answer?.photos ?? [];
-
-          // Upload each photo and collect its storage path
           const uploadedPhotos: { storage_path: string }[] = [];
+
           for (let i = 0; i < photos.length; i++) {
-            const storagePath = await savePhotoToQueue(photos[i], inspectionId, question.id, i);
-            if (storagePath) {
-              uploadedPhotos.push({ storage_path: storagePath });
-            }
+            const storagePath = await saveInspectionPhoto(photos[i], inspectionId, question.id, i);
+            if (storagePath) uploadedPhotos.push({ storage_path: storagePath });
           }
 
           answersPayload[question.id] = {
@@ -464,46 +507,18 @@ export default function InspectionScreen({
           .compile()
       );
 
-      // 3️⃣ Insert damage report if damage was found
+      // 3️⃣ Insert damage report + photos if damage was found
       if (damageFound) {
         const damageId = generateUUID();
 
-        // Upload damage photos and embed storage paths into answers_json
-        // so they're visible in the inspection summary photo gallery.
-        const uploadedDamagePhotos: { storage_path: string }[] = [];
-        for (let i = 0; i < damagePhotos.length; i++) {
-          const path = await savePhotoToQueue(damagePhotos[i], inspectionId, 'damage', i);
-          if (path) uploadedDamagePhotos.push({ storage_path: path });
-        }
-
-        // Persist damage photos as a synthetic answer in answers_json so the
-        // summary widget can display them in the photo gallery.
-        if (uploadedDamagePhotos.length > 0) {
-          answersPayload['__damage_photos__'] = {
-            question_text: 'Damage Photos',
-            question_type: 'photo',
-            required: false,
-            photos: uploadedDamagePhotos,
-          };
-
-          // Update the already-inserted inspection record with the damage photos
-          await executeTypedMutation(
-            db.updateTable('WorkTrackerInspections')
-              .set({ answers_json: JSON.stringify(answersPayload) })
-              .where('id', '=', inspectionId)
-              .compile()
-          );
-        }
-
+        // Insert DamageReports first so photos can reference it by UUID
         await executeTypedMutation(
           db.insertInto('DamageReports')
             .values({
               id: damageId,
               inspection_uuid: inspectionId,
               bleacher_uuid: bleacherUuid,
-              // null  = no damage (won't reach here),
-              // 0     = minor,
-              // 1     = major
+              // null = none, 0 = minor, 1 = major
               is_safe_to_sit: seatingDamage,
               is_safe_to_haul: haulingDamage,
               note: damageNote,
@@ -513,9 +528,15 @@ export default function InspectionScreen({
             })
             .compile()
         );
+
+        // Upload each damage photo → damage-report-photos bucket
+        // and insert a DamageReportPhotos row per photo
+        for (let i = 0; i < damagePhotos.length; i++) {
+          await saveDamagePhoto(damagePhotos[i], damageId, i);
+        }
       }
 
-      // 4️⃣ Link inspection to the WorkTracker
+      // 4️⃣ Link inspection UUID to the WorkTracker
       const inspectionField = inspectionType === 'pickup'
         ? { pre_inspection_uuid: inspectionId }
         : { post_inspection_uuid: inspectionId };
@@ -535,7 +556,10 @@ export default function InspectionScreen({
 
     } catch (error) {
       console.error('Error submitting inspection:', error);
-      Alert.alert('Error', `Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Alert.alert(
+        'Error',
+        `Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -643,24 +667,21 @@ export default function InspectionScreen({
           </View>
         </View>
 
-        {/* Damage detail — only shown when damage is found */}
+        {/* Damage detail */}
         {damageFound === true && (
           <>
-            {/* Seating configuration damage */}
             <DamageSeveritySelector
               label="Seating Configuration Damage"
               value={seatingDamage}
               onChange={setSeatingDamage}
             />
 
-            {/* Hauling configuration damage */}
             <DamageSeveritySelector
               label="Hauling Configuration Damage"
               value={haulingDamage}
               onChange={setHaulingDamage}
             />
 
-            {/* Damage notes */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Damage Notes</Text>
@@ -677,9 +698,12 @@ export default function InspectionScreen({
               />
             </View>
 
-            {/* Damage photos */}
             <PhotoQuestion
-              question={{ id: 'damage_photos', question_text: 'Damage Photos', required: true } as any}
+              question={{
+                id: 'damage_photos',
+                question_text: 'Damage Photos',
+                required: true,
+              } as any}
               photos={damagePhotos}
               onAddFromCamera={async () => {
                 const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -714,13 +738,15 @@ export default function InspectionScreen({
                   base64: true,
                 });
                 if (!result.canceled && result.assets?.length) {
-                  const newPhotos = result.assets.map((asset) => ({
-                    uri: asset.uri,
-                    base64: asset.base64 ?? undefined,
-                    isNew: true,
-                    ext: getExtFromUri(asset.uri) ?? 'jpg',
-                  }));
-                  setDamagePhotos((prev) => [...prev, ...newPhotos]);
+                  setDamagePhotos((prev) => [
+                    ...prev,
+                    ...result.assets.map((asset) => ({
+                      uri: asset.uri,
+                      base64: asset.base64 ?? undefined,
+                      isNew: true,
+                      ext: getExtFromUri(asset.uri) ?? 'jpg',
+                    })),
+                  ]);
                 }
               }}
               onRemove={(index) =>
@@ -764,23 +790,12 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   requiredBadge: { backgroundColor: '#FF3B30', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   requiredText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },
-  bold: { fontWeight: '700', color: '#3C3C3C' },
   checkAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#EBF5FF',
-    borderWidth: 1.5,
-    borderColor: '#0A84FF',
-    borderRadius: 10,
-    paddingVertical: 13,
-    marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: '#EBF5FF', borderWidth: 1.5, borderColor: '#0A84FF',
+    borderRadius: 10, paddingVertical: 13, marginBottom: 8,
   },
-  checkAllButtonChecked: {
-    backgroundColor: '#E8F9ED',
-    borderColor: '#34C759',
-  },
+  checkAllButtonChecked: { backgroundColor: '#E8F9ED', borderColor: '#34C759' },
   checkAllText: { fontSize: 15, fontWeight: '600', color: '#0A84FF' },
   checkAllTextChecked: { color: '#34C759' },
   checkbox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F8F8F8', borderRadius: 8, borderWidth: 2, borderColor: '#E5E7EB' },
@@ -802,32 +817,17 @@ const styles = StyleSheet.create({
   submitButtonDisabled: { backgroundColor: '#A8E6B7' },
   submitButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   damageToggle: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F8F8F8',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, padding: 14, borderRadius: 10, borderWidth: 2,
+    borderColor: '#E5E7EB', backgroundColor: '#F8F8F8',
   },
   damageToggleYes: { borderColor: '#FF3B30', backgroundColor: '#FFEBEA' },
-  damageToggleNo:  { borderColor: '#34C759', backgroundColor: '#E8F9ED' },
+  damageToggleNo: { borderColor: '#34C759', backgroundColor: '#E8F9ED' },
   damageToggleText: { fontSize: 15, fontWeight: '600', color: '#8E8E93' },
 });
 
 const severityStyles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  option: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-  },
+  option: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 10, borderWidth: 2 },
   optionLabel: { fontSize: 13, fontWeight: '600' },
 });

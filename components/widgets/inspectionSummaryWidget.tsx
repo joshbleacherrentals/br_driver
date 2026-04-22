@@ -1,7 +1,11 @@
-import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
+import {
+  damageReportPhotoAttachmentQueue,
+  inspectionPhotoAttachmentQueue,
+} from '@/components/providers/SystemProvider';
 import { DamageReportData } from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
 import { Ionicons } from '@expo/vector-icons';
+import { usePowerSyncQuery } from '@powersync/react-native';
 import React, { useState } from 'react';
 import {
   Dimensions,
@@ -26,20 +30,32 @@ interface InspectionSummaryWidgetProps {
   defaultExpanded?: boolean;
 }
 
-function getLocalUriForAttachment(storagePath: string): string | null {
+// ─── URI resolvers ────────────────────────────────────────────────────────────
+
+function getInspectionPhotoUri(storagePath: string): string | null {
   if (!storagePath || !inspectionPhotoAttachmentQueue) return null;
   const localPath = inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
   return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
 }
 
+function getDamagePhotoUri(storagePath: string): string | null {
+  if (!storagePath || !damageReportPhotoAttachmentQueue) return null;
+  const localPath = damageReportPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
+  return damageReportPhotoAttachmentQueue.getLocalUri(localPath);
+}
+
+// ─── Damage photo hook ────────────────────────────────────────────────────────
+
+function useDamageReportPhotos(damageReportId: string | null): { storage_path: string }[] {
+  const rows = usePowerSyncQuery<{ photo_path: string }>(
+    `SELECT photo_path FROM "DamageReportPhotos" WHERE damage_report_uuid = ? AND photo_path IS NOT NULL`,
+    damageReportId ? [damageReportId] : ['__none__']
+  );
+  return (rows ?? []).map((r) => ({ storage_path: r.photo_path }));
+}
+
 // ─── Severity helpers ─────────────────────────────────────────────────────────
 
-/**
- * Maps the DB integer to a display config.
- *  null  → None   (green)
- *  0     → Minor  (yellow)
- *  1     → Major  (red)
- */
 function severityConfig(value: number | null): {
   label: string;
   color: string;
@@ -63,7 +79,15 @@ function SeverityBadge({ value }: { value: number | null }) {
 
 // ─── Damage summary card ──────────────────────────────────────────────────────
 
-function DamageCard({ damage }: { damage: DamageReportData }) {
+function DamageCard({
+  damage,
+  onPhotoPress,
+}: {
+  damage: DamageReportData;
+  onPhotoPress: (photos: { storage_path: string }[], index: number) => void;
+}) {
+  const photos = useDamageReportPhotos(damage.id);
+
   return (
     <View style={damageCard.container}>
       {/* Title row */}
@@ -72,14 +96,14 @@ function DamageCard({ damage }: { damage: DamageReportData }) {
         <Text style={damageCard.title}>Damage Found</Text>
       </View>
 
-      {/* Seating configuration damage */}
+      {/* Seating configuration */}
       <View style={damageCard.row}>
         <Text style={damageCard.label}>Seating Configuration</Text>
         <SeverityBadge value={damage.is_safe_to_sit} />
       </View>
 
-      {/* Hauling configuration damage */}
-      <View style={[damageCard.row, { borderBottomWidth: 0 }]}>
+      {/* Hauling configuration */}
+      <View style={[damageCard.row, { borderBottomWidth: photos.length > 0 || !!damage.note ? 1 : 0 }]}>
         <Text style={damageCard.label}>Hauling Configuration</Text>
         <SeverityBadge value={damage.is_safe_to_haul} />
       </View>
@@ -91,29 +115,79 @@ function DamageCard({ damage }: { damage: DamageReportData }) {
           <Text style={damageCard.notesText}>{damage.note}</Text>
         </View>
       )}
+
+      {/* Damage photos */}
+      {photos.length > 0 && (
+        <View style={damageCard.photosSection}>
+          <Text style={damageCard.photosLabel}>
+            Damage Photos ({photos.length})
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={damageCard.photoRow}
+          >
+            {photos.map((photo, photoIndex) => {
+              const uri = getDamagePhotoUri(photo.storage_path);
+              return (
+                <TouchableOpacity
+                  key={photoIndex}
+                  style={damageCard.photoThumb}
+                  onPress={() => onPhotoPress(photos, photoIndex)}
+                  activeOpacity={0.8}
+                >
+                  {uri ? (
+                    <>
+                      <Image
+                        source={{ uri }}
+                        style={damageCard.photoThumbImage}
+                        resizeMode="cover"
+                      />
+                      <View style={damageCard.photoExpandIcon}>
+                        <Ionicons name="expand-outline" size={14} color="#FFF" />
+                      </View>
+                    </>
+                  ) : (
+                    <View style={damageCard.photoThumbPlaceholder}>
+                      <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
+                      <Text style={damageCard.photoThumbPlaceholderText}>Syncing...</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
 
-// ─── Full-screen photo gallery modal ─────────────────────────────────────────
+// ─── Photo gallery modal ──────────────────────────────────────────────────────
 
+/**
+ * `resolveUri` lets the caller decide which attachment queue to use —
+ * inspection photos and damage photos live in different queues/buckets.
+ */
 function PhotoGalleryModal({
   visible,
   photos,
   initialIndex,
   questionText,
+  resolveUri,
   onClose,
 }: {
   visible: boolean;
   photos: { storage_path: string }[];
   initialIndex: number;
   questionText: string;
+  resolveUri: (storagePath: string) => string | null;
   onClose: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   const uris = photos
-    .map((p) => getLocalUriForAttachment(p.storage_path))
+    .map((p) => resolveUri(p.storage_path))
     .filter(Boolean) as string[];
 
   return (
@@ -170,23 +244,14 @@ function PhotoGalleryModal({
               keyExtractor={(_, i) => String(i)}
               renderItem={({ item: uri }) => (
                 <View style={gallery.imageContainer}>
-                  <Image
-                    source={{ uri }}
-                    style={gallery.image}
-                    resizeMode="contain"
-                  />
+                  <Image source={{ uri }} style={gallery.image} resizeMode="contain" />
                 </View>
               )}
             />
-
-            {/* Dot indicators */}
             {uris.length > 1 && (
               <View style={gallery.dots}>
                 {uris.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[gallery.dot, i === currentIndex && gallery.dotActive]}
-                  />
+                  <View key={i} style={[gallery.dot, i === currentIndex && gallery.dotActive]} />
                 ))}
               </View>
             )}
@@ -197,7 +262,16 @@ function PhotoGalleryModal({
   );
 }
 
-// ─── Full inspection detail modal ────────────────────────────────────────────
+// ─── Gallery state type ───────────────────────────────────────────────────────
+
+type GalleryState = {
+  photos: { storage_path: string }[];
+  questionText: string;
+  initialIndex: number;
+  isDamage: boolean; // determines which URI resolver to use
+};
+
+// ─── Full inspection detail modal ─────────────────────────────────────────────
 
 export function InspectionDetailModal({
   visible,
@@ -212,21 +286,15 @@ export function InspectionDetailModal({
   title: string;
   onClose: () => void;
 }) {
-  const [galleryState, setGalleryState] = useState<{
-    photos: { storage_path: string }[];
-    questionText: string;
-    initialIndex: number;
-  } | null>(null);
+  const [galleryState, setGalleryState] = useState<GalleryState | null>(null);
 
   const answers = parseInspectionAnswers(inspection.answers_json);
+  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return '';
     try { return new Date(iso).toLocaleString(); } catch { return iso ?? ''; }
   };
-
-  // Only show the damage card when this inspection actually caused the report
-  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
 
   return (
     <>
@@ -246,12 +314,11 @@ export function InspectionDetailModal({
           </View>
 
           <ScrollView contentContainerStyle={detail.scrollContent}>
-            {/* Timestamp */}
             <Text style={detail.timestamp}>
               Completed: {formatDateTime(inspection.created_at)}
             </Text>
 
-            {/* Dynamic answers */}
+            {/* Dynamic inspection answers */}
             {answers.map((answer, index) => (
               <View key={index} style={detail.answerCard}>
                 <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
@@ -289,7 +356,7 @@ export function InspectionDetailModal({
                         style={detail.photoRow}
                       >
                         {answer.photos.map((photo, photoIndex) => {
-                          const uri = getLocalUriForAttachment(photo.storage_path);
+                          const uri = getInspectionPhotoUri(photo.storage_path);
                           return (
                             <TouchableOpacity
                               key={photoIndex}
@@ -299,6 +366,7 @@ export function InspectionDetailModal({
                                   photos: answer.photos!,
                                   questionText: answer.question_text,
                                   initialIndex: photoIndex,
+                                  isDamage: false,
                                 })
                               }
                               activeOpacity={0.8}
@@ -330,19 +398,32 @@ export function InspectionDetailModal({
               </View>
             ))}
 
-            {/* Damage report — only shown when this inspection triggered the damage */}
-            {hasDamage && <DamageCard damage={damage!} />}
+            {/* Damage card — includes photos fetched from DamageReportPhotos */}
+            {hasDamage && (
+              <DamageCard
+                damage={damage!}
+                onPhotoPress={(photos, index) =>
+                  setGalleryState({
+                    photos,
+                    questionText: 'Damage Photos',
+                    initialIndex: index,
+                    isDamage: true,
+                  })
+                }
+              />
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
-      {/* Photo gallery — layered on top of detail modal */}
+      {/* Gallery — uses the correct queue based on photo source */}
       {galleryState && (
         <PhotoGalleryModal
           visible={!!galleryState}
           photos={galleryState.photos}
           initialIndex={galleryState.initialIndex}
           questionText={galleryState.questionText}
+          resolveUri={galleryState.isDamage ? getDamagePhotoUri : getInspectionPhotoUri}
           onClose={() => setGalleryState(null)}
         />
       )}
@@ -368,8 +449,6 @@ export default function InspectionSummaryWidget({
     (a) => a.question_type === 'photo' && (a.photos?.length ?? 0) > 0
   );
   const totalPhotos = photoAnswers.reduce((sum, a) => sum + (a.photos?.length ?? 0), 0);
-
-  // Only show damage UI when the report belongs to this specific inspection
   const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
 
   const formatDateTime = (iso?: string | null) => {
@@ -394,7 +473,6 @@ export default function InspectionSummaryWidget({
             </View>
           </View>
           <View style={styles.headerRight}>
-            {/* Damage warning badge in the collapsed header */}
             {hasDamage && (
               <View style={styles.damagePill}>
                 <Ionicons name="warning" size={12} color="#FF3B30" />
@@ -416,8 +494,6 @@ export default function InspectionSummaryWidget({
         {/* Expanded summary */}
         {expanded && (
           <View style={styles.body}>
-
-            {/* Dynamic answers */}
             {answers.map((answer, index) => (
               <View
                 key={index}
@@ -458,7 +534,7 @@ export default function InspectionSummaryWidget({
               </View>
             ))}
 
-            {/* Damage summary rows — inline in the collapsed summary */}
+            {/* Inline damage summary (collapsed view) */}
             {hasDamage && (
               <View style={styles.damageSummaryBlock}>
                 <View style={styles.damageSummaryTitle}>
@@ -478,7 +554,6 @@ export default function InspectionSummaryWidget({
               </View>
             )}
 
-            {/* View full inspection button */}
             <TouchableOpacity
               style={styles.viewFullButton}
               onPress={() => setDetailVisible(true)}
@@ -492,22 +567,15 @@ export default function InspectionSummaryWidget({
           </View>
         )}
 
-        {/* Collapsed quick-access row: photos or damage */}
+        {/* Collapsed quick-access */}
         {!expanded && (totalPhotos > 0 || hasDamage) && (
           <TouchableOpacity
             style={styles.collapsedPhotoButton}
             onPress={() => setDetailVisible(true)}
           >
-            {hasDamage && (
-              <Ionicons name="warning" size={14} color="#FF3B30" />
-            )}
-            {totalPhotos > 0 && (
-              <Ionicons name="images-outline" size={14} color="#0A84FF" />
-            )}
-            <Text style={[
-              styles.collapsedPhotoText,
-              hasDamage && { color: '#FF3B30' },
-            ]}>
+            {hasDamage && <Ionicons name="warning" size={14} color="#FF3B30" />}
+            {totalPhotos > 0 && <Ionicons name="images-outline" size={14} color="#0A84FF" />}
+            <Text style={[styles.collapsedPhotoText, hasDamage && { color: '#FF3B30' }]}>
               {hasDamage
                 ? `Damage report${totalPhotos > 0 ? ` · ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}` : ''}`
                 : `View ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}`}
@@ -607,6 +675,14 @@ const damageCard = StyleSheet.create({
   notes: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
   notesLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
   notesText: { fontSize: 14, color: '#000', lineHeight: 20 },
+  photosSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
+  photosLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 },
+  photoRow: { flexDirection: 'row' },
+  photoThumb: { width: 100, height: 100, borderRadius: 8, marginRight: 8, overflow: 'hidden', backgroundColor: '#F2F2F7' },
+  photoThumbImage: { width: '100%', height: '100%' },
+  photoExpandIcon: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: 3 },
+  photoThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  photoThumbPlaceholderText: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
 });
 
 const severityBadge = StyleSheet.create({
