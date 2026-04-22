@@ -1,54 +1,106 @@
+import BleacherDamageBadge from '@/components/widgets/bleacherDamageBadge';
+import { InspectionDetailModal } from '@/components/widgets/inspectionSummaryWidget';
 import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
+import { useDamageReport } from '@/hooks/db/useDamageReport';
+import { useInspection } from '@/hooks/db/useInspection';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BillOfLading, { BOLButton } from "./billOfLading";
+import BleacherDropdown, { BleacherOption } from './bleacherDropdown';
 
 interface TripItemProps {
   workTracker: WorkTracker;
+  bleacherOptions?: BleacherOption[];
   onAccept?: (workTrackerId: string) => void;
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
-  onArrived?: (workTrackerId: string) => void;
-  onStartInspection?: (workTrackerId: string, inspectionType: 'pickup' | 'dropoff') => void;
+  onArrived?: (workTrackerId: string, arrivedAt: string) => void;
+  onStartInspection?: (
+    workTrackerId: string,
+    bleacherUuid: string | null,
+    inspectionType: 'pickup' | 'dropoff',
+  ) => void;
+  onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
 
-export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, onArrived, onStartInspection }: TripItemProps) {
-  const { status, pickup_address_uuid, dropoff_address_uuid, date, pickup_time, dropoff_time, pickup_poc, dropoff_poc, bleacher_uuid, pay_cents, notes, teardown_required, pickup_instructions, setup_required, dropoff_instructions } = workTracker;
+export default function TripItem({
+  workTracker,
+  bleacherOptions = [],
+  onAccept,
+  onStartTrip,
+  onSkip,
+  onArrived,
+  onStartInspection,
+  onBleacherChange,
+}: TripItemProps) {
+  const {
+    status,
+    pickup_address_uuid,
+    dropoff_address_uuid,
+    date,
+    pickup_time,
+    dropoff_time,
+    pickup_poc,
+    dropoff_poc,
+    bleacher_uuid,
+    pay_cents,
+    notes,
+    teardown_required,
+    pickup_instructions,
+    setup_required,
+    dropoff_instructions,
+  } = workTracker;
+
   const [bolVisible, setBolVisible] = React.useState(false);
+  const [selectedBleacherUuid, setSelectedBleacherUuid] = React.useState<string>(
+    bleacher_uuid ?? ''
+  );
+  const [preInspectionVisible, setPreInspectionVisible] = React.useState(false);
+  const [postInspectionVisible, setPostInspectionVisible] = React.useState(false);
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
   const { bleacher } = useBleacher(bleacher_uuid);
+  const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid ?? null);
+  const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
 
-  // Don't render draft items
-  if (status === 'draft' || status === 'completed') {
-    return null;
-  }
+  // ── Damage report for the assigned bleacher ─────────────────────────────
+  const { damageReport } = useDamageReport(bleacher_uuid);
 
-  if (!bleacher) {
-    return null;
-  }
+  if (status === 'draft' || status === 'completed') return null;
 
-  const formatAddress = (addressType: 'pickup' | 'dropoff') => {
-    const address = addressType === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
+  const pickupStreet = pickupAddressData.address?.street ?? null;
+
+  const eligibleBleacherOptions = React.useMemo(() => {
+    const currentRows = bleacher?.bleacher_rows ?? null;
+    const currentUuid = bleacher_uuid ?? '';
+
+    return bleacherOptions.filter((opt) => {
+      if (opt.uuid === currentUuid) return true;
+      if (
+        currentRows !== null &&
+        opt.bleacher_rows != null &&
+        opt.bleacher_rows !== currentRows
+      ) return false;
+      if (!opt.resolved_address || !pickupStreet) return false;
+      if (opt.resolved_address.trim().toLowerCase() !== pickupStreet.trim().toLowerCase()) return false;
+      return true;
+    });
+  }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
+
+  const formatAddress = (type: 'pickup' | 'dropoff') => {
+    const address = type === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
     if (!address) return 'Address not set';
-
-    // return `${address.street}, ${address.city}, ${address.state_province}`;
-    return `${address.street}`
+    return `${address.street}`;
   };
 
-  const formatPay = (cents: number | null) => {
-    if (cents === null) return '';
-    return `$${(cents / 100).toFixed(2)}`;
-  };
+  const formatPay = (cents: number | null) =>
+    cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
 
-  const formatTime = (time: string | null) => {
-    if (!time) return '';
-    return time;
-  };
+  const formatTime = (time: string | null) => time ?? '';
 
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return 'Date not set';
@@ -56,14 +108,14 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
       const d = new Date(dateISO + 'T00:00:00');
       const day = d.getDate();
       const ord = (n: number) => {
-        const s = ["th", "st", "nd", "rd"];
+        const s = ['th', 'st', 'nd', 'rd'];
         const v = n % 100;
         return (s as any)[(v - 20) % 10] || (s as any)[v] || s[0];
       };
       const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
       const month_short = d.toLocaleDateString(undefined, { month: 'short' });
       return `${weekday}, ${month_short} ${day}${ord(day)}`;
-    } catch (error) {
+    } catch {
       return 'Invalid date';
     }
   };
@@ -71,95 +123,92 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
   const openInMaps = async (address?: string) => {
     if (!address) return;
     const q = encodeURIComponent(address);
-
     const allOptions = [
-      {
-        label: 'Apple Maps',
-        url: `maps://?q=${q}`,
-        fallbackUrl: `http://maps.apple.com/?q=${q}`,
-        iosOnly: true,
-      },
-      {
-        label: 'Google Maps',
-        url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`,
-        fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`,
-        iosOnly: false,
-      },
-      {
-        label: 'Waze',
-        url: `waze://?q=${q}&navigate=false`,
-        fallbackUrl: `https://waze.com/ul?q=${q}`,
-        iosOnly: false,
-      },
+      { label: 'Apple Maps', url: `maps://?q=${q}`, fallbackUrl: `http://maps.apple.com/?q=${q}`, iosOnly: true },
+      { label: 'Google Maps', url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`, fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`, iosOnly: false },
+      { label: 'Waze', url: `waze://?q=${q}&navigate=false`, fallbackUrl: `https://waze.com/ul?q=${q}`, iosOnly: false },
     ];
-
     const visibleOptions = allOptions.filter((o) => !o.iosOnly || Platform.OS === 'ios');
-
-    Alert.alert(
-      'Open in Maps',
-      'Choose an app:',
-      [
-        ...visibleOptions.map((option) => ({
-          text: option.label,
-          onPress: async () => {
-            try {
-              const supported = await Linking.canOpenURL(option.url);
-              if (supported) {
-                await Linking.openURL(option.url);
-              } else {
-                // App not installed, open web fallback
-                await Linking.openURL(option.fallbackUrl);
-              }
-            } catch (error) {
-              console.error('Error opening maps:', error);
-              Alert.alert('Error', 'Could not open maps');
-            }
-          },
-        })),
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Open in Maps', 'Choose an app:', [
+      ...visibleOptions.map((option) => ({
+        text: option.label,
+        onPress: async () => {
+          try {
+            const supported = await Linking.canOpenURL(option.url);
+            await Linking.openURL(supported ? option.url : option.fallbackUrl);
+          } catch {
+            Alert.alert('Error', 'Could not open maps');
+          }
+        },
+      })),
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const getStatusBadge = () => {
     switch (status) {
-        case 'released':
-            return { text: 'PENDING ACCEPTANCE', color: '#34C759' };
-        case 'accepted':
-            return { text: 'ACCEPTED', color: '#34C759' };
-        case 'dest_pickup':
-            return { text: 'EN ROUTE', color: '#FF9500' };
-        case 'pickup_inspection':
-            return { text: 'EN ROUTE', color: '#FF9500' };
-        case 'dest_dropoff':
-            return { text: 'EN ROUTE', color: '#FF9500' };
-        case 'dropoff_inspection':
-            return { text: 'EN ROUTE', color: '#FF9500' };
-        case 'completed':
-            return { text: 'COMPLETED', color: '#8E8E93' };
-        case 'cancelled':
-            return { text: 'CANCELLED', color: '#FF3B30' };
-        default:
-            return null;
+      case 'released':          return { text: 'PENDING ACCEPTANCE', color: '#34C759' };
+      case 'accepted':          return { text: 'ACCEPTED',           color: '#34C759' };
+      case 'dest_pickup':       return { text: 'EN ROUTE',           color: '#FF9500' };
+      case 'pickup_inspection': return { text: 'EN ROUTE',           color: '#FF9500' };
+      case 'dest_dropoff':      return { text: 'EN ROUTE',           color: '#FF9500' };
+      case 'dropoff_inspection':return { text: 'EN ROUTE',           color: '#FF9500' };
+      case 'completed':         return { text: 'COMPLETED',          color: '#8E8E93' };
+      case 'cancelled':         return { text: 'CANCELLED',          color: '#FF3B30' };
+      default: return null;
     }
   };
 
   const badge = getStatusBadge();
-
-  // Only render flags/instructions when they require driver action
   const showTeardown = teardown_required === 1;
-  const showSetup = setup_required === 1;
+  const showSetup    = setup_required    === 1;
+
+  const handleBleacherChange = (uuid: string) => {
+    const original = bleacher_uuid ?? '';
+    if (uuid !== original) {
+      Alert.alert(
+        'Change Bleacher?',
+        'This will update the bleacher assigned to this trip when you start the inspection. Are you sure?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: () => {
+              setSelectedBleacherUuid(uuid);
+              onBleacherChange?.(workTracker.id, uuid);
+            },
+          },
+        ]
+      );
+    } else {
+      setSelectedBleacherUuid(uuid);
+      onBleacherChange?.(workTracker.id, uuid);
+    }
+  };
+
+  const handleStartInspection = (id: string, bleacherUuid: string | null, type: 'pickup' | 'dropoff') => {
+    onStartInspection?.(id, bleacherUuid, type);
+  };
 
   return (
     <View style={styles.card}>
-      {/* Top Header: Bleacher & Pay */}
+
+      {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
-          <Text style={styles.mainTitle}>
-            {bleacher_uuid && `Bleacher #${bleacher.bleacher_number}`}
-            {bleacher && pay_cents !== null && ' - '}
-            {pay_cents !== null && formatPay(pay_cents)}
-          </Text>
+          {/* Title row: bleacher number + damage badge inline */}
+          <View style={styles.titleRow}>
+            <Text style={styles.mainTitle}>
+              {bleacher_uuid && bleacher && `Bleacher #${bleacher.bleacher_number} `}
+              {damageReport && (
+                <BleacherDamageBadge
+                  damageReport={damageReport}
+                  bleacherNumber={bleacher?.bleacher_number}
+                />
+              )}
+              {pay_cents !== null && formatPay(pay_cents)}
+            </Text>
+          </View>
           <Text style={styles.dateText}>{formatDate(date)}</Text>
         </View>
         {badge && (
@@ -172,7 +221,7 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         )}
       </View>
 
-      {/* Notes — only if present */}
+      {/* Notes */}
       {!!notes && (
         <View style={styles.notesBox}>
           <Text style={styles.notesLabel}>Notes</Text>
@@ -182,38 +231,32 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
 
       <View style={styles.divider} />
 
-      {/* PICKUP */}
+      {/* ── PICKUP ── */}
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
             <Ionicons name="location" size={16} color="#000" />
             <Text style={styles.locationLabel}>PICKUP</Text>
           </View>
-          {pickup_time && (
-            <Text style={styles.timeText}>{formatTime(pickup_time)}</Text>
-          )}
+          {pickup_time && <Text style={styles.timeText}>{formatTime(pickup_time)}</Text>}
         </View>
-
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             const addr = pickupAddressData.address;
             openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
-          }} 
+          }}
           activeOpacity={0.7}
         >
           <Text style={styles.addressText}>{formatAddress('pickup')}</Text>
         </TouchableOpacity>
-        {!!pickup_poc && <Text style={styles.detailText}>POC: {pickup_poc}</Text>}
 
-        {/* Only shown when tear-down is required */}
+        {!!pickup_poc && <Text style={styles.detailText}>POC: {pickup_poc}</Text>}
         {showTeardown && (
           <View style={styles.flagRow}>
             <Ionicons name="construct-outline" size={14} color="#FF9500" />
             <Text style={[styles.flagText, styles.flagTextActive]}>Tear Down Required</Text>
           </View>
         )}
-
-        {/* Only shown when instructions exist */}
         {!!pickup_instructions && (
           <View style={styles.instructionsBox}>
             <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
@@ -222,66 +265,80 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         )}
       </View>
 
+      {/* I've Arrived (pickup) */}
       {status === 'dest_pickup' && (
         <View style={styles.buttonRow}>
-            {/* <TouchableOpacity
-                style={styles.skipButton}
-                onPress={() => onSkip?.(workTracker.id)}
-            >
-                <Text style={styles.skipButtonText}>Skip</Text>
-            </TouchableOpacity> */}
-            <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => onArrived?.(workTracker.id)}
-            >
-                <Text style={styles.primaryButtonText}>I've Arrived</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
+            <Text style={styles.primaryButtonText}>Arrived at Pickup</Text>
+          </TouchableOpacity>
         </View>
       )}
 
+      {/* Start Pickup Inspection */}
       {status === 'pickup_inspection' && (
-        <TouchableOpacity
-          style={styles.inspectionButton}
-          onPress={() => onStartInspection?.(workTracker.id, 'pickup')}
-        >
-          <Text style={styles.inspectionButtonText}>Start Pickup Inspection</Text>
-        </TouchableOpacity>
+        <View style={styles.inspectionBlock}>
+          <View style={styles.bleacherSelectorBox}>
+            <Text style={styles.bleacherSelectorLabel}>Confirm Bleacher</Text>
+            <BleacherDropdown
+              options={eligibleBleacherOptions}
+              selectedUuid={selectedBleacherUuid || bleacher_uuid}
+              onChange={handleBleacherChange}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.inspectionButton}
+            onPress={() => handleStartInspection(workTracker.id, workTracker.bleacher_uuid, 'pickup')}
+          >
+            <Text style={styles.inspectionButtonText}>Start Inspection</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {preInspection && (
+        <>
+          <TouchableOpacity style={styles.viewInspectionButton} onPress={() => setPreInspectionVisible(true)}>
+            <Ionicons name="clipboard-outline" size={14} color="#34C759" />
+            <Text style={styles.viewInspectionText}>View Pickup Inspection</Text>
+            <Ionicons name="chevron-forward" size={14} color="#34C759" />
+          </TouchableOpacity>
+          <InspectionDetailModal
+            visible={preInspectionVisible}
+            inspection={preInspection}
+            damage={damageReport}
+            title="Pickup Inspection"
+            onClose={() => setPreInspectionVisible(false)}
+          />
+        </>
       )}
 
       <View style={styles.divider} />
 
-      {/* DROP-OFF */}
+      {/* ── DROP-OFF ── */}
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
             <Ionicons name="location" size={16} color="#000" />
             <Text style={styles.locationLabel}>DROP-OFF</Text>
           </View>
-          {dropoff_time && (
-            <Text style={styles.timeText}>{formatTime(dropoff_time)}</Text>
-          )}
+          {dropoff_time && <Text style={styles.timeText}>{formatTime(dropoff_time)}</Text>}
         </View>
-
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             const addr = dropoffAddressData.address;
             openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
-          }} 
+          }}
           activeOpacity={0.7}
         >
           <Text style={styles.addressText}>{formatAddress('dropoff')}</Text>
         </TouchableOpacity>
-        {!!dropoff_poc && <Text style={styles.detailText}>POC: {dropoff_poc}</Text>}
 
-        {/* Only shown when set-up is required */}
+        {!!dropoff_poc && <Text style={styles.detailText}>POC: {dropoff_poc}</Text>}
         {showSetup && (
           <View style={styles.flagRow}>
             <Ionicons name="construct-outline" size={14} color="#FF9500" />
             <Text style={[styles.flagText, styles.flagTextActive]}>Set Up Required</Text>
           </View>
         )}
-
-        {/* Only shown when instructions exist */}
         {!!dropoff_instructions && (
           <View style={styles.instructionsBox}>
             <Text style={styles.instructionsLabel}>Drop-off Instructions</Text>
@@ -290,57 +347,50 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         )}
       </View>
 
-      {/* Action buttons based on status */}
+      {/* Action buttons */}
       {status === 'released' && (
-        <TouchableOpacity
-          style={styles.acceptButton}
-          onPress={() => onAccept?.(workTracker.id)}
-        >
+        <TouchableOpacity style={styles.acceptButton} onPress={() => onAccept?.(workTracker.id)}>
           <Text style={styles.acceptButtonText}>Accept Trip</Text>
         </TouchableOpacity>
       )}
-
       {status === 'accepted' && (
         <View style={styles.buttonRow}>
-          {/* <TouchableOpacity
-            style={styles.skipButton}
-            onPress={() => onSkip?.(workTracker.id)}
-          >
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity> */}
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => onStartTrip?.(workTracker.id)}
-          >
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onStartTrip?.(workTracker.id)}>
             <Text style={styles.primaryButtonText}>Start Trip</Text>
           </TouchableOpacity>
         </View>
       )}
-
+      {status === 'dest_dropoff' && (
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
+            <Text style={styles.primaryButtonText}>Arrived at Dropoff</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {status === 'dropoff_inspection' && (
         <TouchableOpacity
           style={styles.inspectionButton}
-          onPress={() => onStartInspection?.(workTracker.id, 'dropoff')}
+          onPress={() => handleStartInspection(workTracker.id, workTracker.bleacher_uuid, 'dropoff')}
         >
-          <Text style={styles.inspectionButtonText}>Start Dropoff Inspection</Text>
+          <Text style={styles.inspectionButtonText}>Start Inspection</Text>
         </TouchableOpacity>
       )}
 
-      {status === 'dest_dropoff' && (
-        <View style={styles.buttonRow}>
-          {/* <TouchableOpacity
-            style={styles.skipButton}
-            onPress={() => onSkip?.(workTracker.id)}
-          >
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity> */}
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => onArrived?.(workTracker.id)}
-          >
-            <Text style={styles.primaryButtonText}>I've Arrived</Text>
+      {postInspection && (
+        <>
+          <TouchableOpacity style={styles.viewInspectionButton} onPress={() => setPostInspectionVisible(true)}>
+            <Ionicons name="clipboard-outline" size={14} color="#34C759" />
+            <Text style={styles.viewInspectionText}>View Dropoff Inspection</Text>
+            <Ionicons name="chevron-forward" size={14} color="#34C759" />
           </TouchableOpacity>
-        </View>
+          <InspectionDetailModal
+            visible={postInspectionVisible}
+            inspection={postInspection}
+            damage={damageReport}
+            title="Dropoff Inspection"
+            onClose={() => setPostInspectionVisible(false)}
+          />
+        </>
       )}
 
       <BillOfLading
@@ -348,28 +398,19 @@ export default function TripItem({ workTracker, onAccept, onStartTrip, onSkip, o
         workTracker={workTracker}
         onClose={() => setBolVisible(false)}
       />
+
     </View>
   );
 }
 
-
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: 'flex-end', flexShrink: 0 },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 6,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginVertical: 6, marginHorizontal: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   topHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   topHeader: { flex: 1 },
-  mainTitle: { fontSize: 24, fontWeight: '700', color: '#000', marginBottom: 4 },
+  // ── new: title row holds bleacher text + damage badge side-by-side ──
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 },
+  mainTitle: { fontSize: 24, fontWeight: '700', color: '#000' },
   dateText: { fontSize: 15, color: '#8E8E93', fontWeight: '500' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginLeft: 12 },
   statusText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },
@@ -387,27 +428,19 @@ const styles = StyleSheet.create({
   flagRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
   flagText: { fontSize: 13, color: '#8E8E93' },
   flagTextActive: { color: '#FF9500', fontWeight: '600' },
-  instructionsBox: {
-    backgroundColor: '#F0F4FF',
-    borderLeftWidth: 3,
-    borderLeftColor: '#1D62A3',
-    borderRadius: 6,
-    padding: 10,
-    marginTop: 8,
-  },
+  instructionsBox: { backgroundColor: '#F0F4FF', borderLeftWidth: 3, borderLeftColor: '#1D62A3', borderRadius: 6, padding: 10, marginTop: 8 },
   instructionsLabel: { fontSize: 11, fontWeight: '700', color: '#1D62A3', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
   instructionsText: { fontSize: 13, color: '#1C1C1E', lineHeight: 18 },
   buttonRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  skipButton: { flex: 1, backgroundColor: '#F2F2F7', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
-  skipButtonText: { fontSize: 15, fontWeight: '600', color: '#000' },
   primaryButton: { flex: 2, backgroundColor: '#0A84FF', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
   primaryButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
   acceptButton: { backgroundColor: '#34C759', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
   acceptButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  startButton: { backgroundColor: '#0A84FF', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-  startButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  arrivedButton: { backgroundColor: '#0A84FF', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-  arrivedButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  inspectionButton: { backgroundColor: '#FF9500', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
+  inspectionBlock: { marginTop: 12, gap: 10 },
+  bleacherSelectorBox: { gap: 6 },
+  bleacherSelectorLabel: { fontSize: 12, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4 },
+  inspectionButton: { backgroundColor: '#FF9500', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
   inspectionButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  viewInspectionButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: '#34C759', alignSelf: 'flex-start', marginTop: 10 },
+  viewInspectionText: { fontSize: 13, fontWeight: '600', color: '#34C759' },
 });

@@ -1,5 +1,6 @@
 import { db } from "@/components/providers/SystemProvider";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { sql } from "kysely";
 import { useMemo } from "react";
 
 
@@ -123,4 +124,45 @@ export function useBatchBleachers(bleacherIds: (string | null)[]): Record<string
     });
     return result;
   }, [bleacherData.data]);
+}
+
+/**
+ * Fetch every bleacher in the fleet, sorted by bleacher_number ascending.
+ * Use this to populate the BleacherDropdown options.
+ */
+export function useAllBleachers(): { bleachers: BleacherData[] } {
+  const compiled = useMemo(
+    () =>
+      db
+        .selectFrom("Bleachers")
+        .select([
+        "id",
+        "created_at",
+        "bleacher_number",
+        "bleacher_rows",
+        "bleacher_seats",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "linxup_device_id",
+        "summer_account_manager_uuid",
+        "winter_account_manager_uuid",
+        "summer_home_base_uuid",
+        "winter_home_base_uuid",
+        "hitch_type",
+        "vin_number",
+        "tag_number",
+        "manufacturer",
+        "height_folded_ft",
+        "trailer_length",
+        "gvwr",
+        "opening_direction"
+      ])
+        .orderBy(sql`CAST(bleacher_number AS INTEGER)`, "asc")
+        .compile(),
+    []
+  );
+ 
+  const result = useTypedQuery(compiled, expect<BleacherData>());
+  return { bleachers: result.data ?? [] };
 }
