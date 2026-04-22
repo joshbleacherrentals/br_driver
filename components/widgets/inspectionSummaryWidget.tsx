@@ -1,25 +1,27 @@
 import { inspectionPhotoAttachmentQueue } from '@/components/providers/SystemProvider';
+import { DamageReportData } from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface InspectionSummaryWidgetProps {
   inspection: InspectionData | null;
+  damage: DamageReportData | null;
   title: string;
   defaultExpanded?: boolean;
 }
@@ -28,6 +30,69 @@ function getLocalUriForAttachment(storagePath: string): string | null {
   if (!storagePath || !inspectionPhotoAttachmentQueue) return null;
   const localPath = inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
   return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
+}
+
+// ─── Severity helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Maps the DB integer to a display config.
+ *  null  → None   (green)
+ *  0     → Minor  (yellow)
+ *  1     → Major  (red)
+ */
+function severityConfig(value: number | null): {
+  label: string;
+  color: string;
+  bg: string;
+  icon: 'checkmark-circle' | 'warning-outline' | 'warning';
+} {
+  if (value === 0) return { label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline' };
+  if (value === 1) return { label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning' };
+  return { label: 'None', color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' };
+}
+
+function SeverityBadge({ value }: { value: number | null }) {
+  const cfg = severityConfig(value);
+  return (
+    <View style={[severityBadge.pill, { backgroundColor: cfg.bg }]}>
+      <Ionicons name={cfg.icon} size={13} color={cfg.color} />
+      <Text style={[severityBadge.text, { color: cfg.color }]}>{cfg.label}</Text>
+    </View>
+  );
+}
+
+// ─── Damage summary card ──────────────────────────────────────────────────────
+
+function DamageCard({ damage }: { damage: DamageReportData }) {
+  return (
+    <View style={damageCard.container}>
+      {/* Title row */}
+      <View style={damageCard.titleRow}>
+        <Ionicons name="warning" size={15} color="#FF3B30" />
+        <Text style={damageCard.title}>Damage Found</Text>
+      </View>
+
+      {/* Seating configuration damage */}
+      <View style={damageCard.row}>
+        <Text style={damageCard.label}>Seating Configuration</Text>
+        <SeverityBadge value={damage.is_safe_to_sit} />
+      </View>
+
+      {/* Hauling configuration damage */}
+      <View style={[damageCard.row, { borderBottomWidth: 0 }]}>
+        <Text style={damageCard.label}>Hauling Configuration</Text>
+        <SeverityBadge value={damage.is_safe_to_haul} />
+      </View>
+
+      {/* Notes */}
+      {!!damage.note && (
+        <View style={damageCard.notes}>
+          <Text style={damageCard.notesLabel}>Notes</Text>
+          <Text style={damageCard.notesText}>{damage.note}</Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 // ─── Full-screen photo gallery modal ─────────────────────────────────────────
@@ -63,7 +128,11 @@ function PhotoGalleryModal({
 
         {/* Header */}
         <View style={gallery.header}>
-          <TouchableOpacity style={gallery.closeButton} onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            style={gallery.closeButton}
+            onPress={onClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Ionicons name="close" size={26} color="#FFF" />
           </TouchableOpacity>
           <View style={gallery.headerCenter}>
@@ -133,11 +202,13 @@ function PhotoGalleryModal({
 export function InspectionDetailModal({
   visible,
   inspection,
+  damage,
   title,
   onClose,
 }: {
   visible: boolean;
   inspection: InspectionData;
+  damage: DamageReportData | null;
   title: string;
   onClose: () => void;
 }) {
@@ -153,6 +224,9 @@ export function InspectionDetailModal({
     if (!iso) return '';
     try { return new Date(iso).toLocaleString(); } catch { return iso ?? ''; }
   };
+
+  // Only show the damage card when this inspection actually caused the report
+  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
 
   return (
     <>
@@ -176,24 +250,6 @@ export function InspectionDetailModal({
             <Text style={detail.timestamp}>
               Completed: {formatDateTime(inspection.created_at)}
             </Text>
-
-            {/* Walk-around */}
-            <View style={detail.answerCard}>
-              <Text style={detail.answerCardLabel}>Walk-around Inspection</Text>
-              <View style={detail.answerCardValue}>
-                {inspection.walk_around_complete ? (
-                  <>
-                    <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-                    <Text style={[detail.answerValueText, { color: '#34C759' }]}>Complete</Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="close-circle" size={20} color="#FF3B30" />
-                    <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>Not complete</Text>
-                  </>
-                )}
-              </View>
-            </View>
 
             {/* Dynamic answers */}
             {answers.map((answer, index) => (
@@ -273,6 +329,9 @@ export function InspectionDetailModal({
                 )}
               </View>
             ))}
+
+            {/* Damage report — only shown when this inspection triggered the damage */}
+            {hasDamage && <DamageCard damage={damage!} />}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -295,6 +354,7 @@ export function InspectionDetailModal({
 
 export default function InspectionSummaryWidget({
   inspection,
+  damage,
   title,
   defaultExpanded = false,
 }: InspectionSummaryWidgetProps) {
@@ -308,6 +368,9 @@ export default function InspectionSummaryWidget({
     (a) => a.question_type === 'photo' && (a.photos?.length ?? 0) > 0
   );
   const totalPhotos = photoAnswers.reduce((sum, a) => sum + (a.photos?.length ?? 0), 0);
+
+  // Only show damage UI when the report belongs to this specific inspection
+  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return '';
@@ -331,6 +394,13 @@ export default function InspectionSummaryWidget({
             </View>
           </View>
           <View style={styles.headerRight}>
+            {/* Damage warning badge in the collapsed header */}
+            {hasDamage && (
+              <View style={styles.damagePill}>
+                <Ionicons name="warning" size={12} color="#FF3B30" />
+                <Text style={styles.damagePillText}>Damage</Text>
+              </View>
+            )}
             <View style={styles.completedPill}>
               <Ionicons name="checkmark-circle" size={13} color="#34C759" />
               <Text style={styles.completedPillText}>Completed</Text>
@@ -346,29 +416,15 @@ export default function InspectionSummaryWidget({
         {/* Expanded summary */}
         {expanded && (
           <View style={styles.body}>
-            {/* Walk-around row */}
-            <View style={styles.answerRow}>
-              <Text style={styles.answerLabel}>Walk-around complete</Text>
-              <View style={styles.answerValue}>
-                {inspection.walk_around_complete ? (
-                  <>
-                    <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                    <Text style={[styles.answerValueText, { color: '#34C759' }]}>Yes</Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons name="close-circle" size={16} color="#FF3B30" />
-                    <Text style={[styles.answerValueText, { color: '#FF3B30' }]}>No</Text>
-                  </>
-                )}
-              </View>
-            </View>
 
             {/* Dynamic answers */}
             {answers.map((answer, index) => (
               <View
                 key={index}
-                style={[styles.answerRow, index === answers.length - 1 && !totalPhotos && styles.answerRowLast]}
+                style={[
+                  styles.answerRow,
+                  index === answers.length - 1 && !totalPhotos && !hasDamage && styles.answerRowLast,
+                ]}
               >
                 <Text style={styles.answerLabel}>{answer.question_text}</Text>
                 <View style={styles.answerValue}>
@@ -402,7 +458,27 @@ export default function InspectionSummaryWidget({
               </View>
             ))}
 
-            {/* View full inspection button — always shown when expanded */}
+            {/* Damage summary rows — inline in the collapsed summary */}
+            {hasDamage && (
+              <View style={styles.damageSummaryBlock}>
+                <View style={styles.damageSummaryTitle}>
+                  <Ionicons name="warning" size={14} color="#FF3B30" />
+                  <Text style={styles.damageSummaryTitleText}>Damage Found</Text>
+                </View>
+
+                <View style={styles.damageSummaryRow}>
+                  <Text style={styles.damageSummaryLabel}>Seating Config</Text>
+                  <SeverityBadge value={damage!.is_safe_to_sit} />
+                </View>
+
+                <View style={[styles.damageSummaryRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.damageSummaryLabel}>Hauling Config</Text>
+                  <SeverityBadge value={damage!.is_safe_to_haul} />
+                </View>
+              </View>
+            )}
+
+            {/* View full inspection button */}
             <TouchableOpacity
               style={styles.viewFullButton}
               onPress={() => setDetailVisible(true)}
@@ -416,15 +492,25 @@ export default function InspectionSummaryWidget({
           </View>
         )}
 
-        {/* When collapsed, still show the view full button if photos exist (quick access) */}
-        {!expanded && totalPhotos > 0 && (
+        {/* Collapsed quick-access row: photos or damage */}
+        {!expanded && (totalPhotos > 0 || hasDamage) && (
           <TouchableOpacity
             style={styles.collapsedPhotoButton}
             onPress={() => setDetailVisible(true)}
           >
-            <Ionicons name="images-outline" size={14} color="#0A84FF" />
-            <Text style={styles.collapsedPhotoText}>
-              View {totalPhotos} photo{totalPhotos !== 1 ? 's' : ''}
+            {hasDamage && (
+              <Ionicons name="warning" size={14} color="#FF3B30" />
+            )}
+            {totalPhotos > 0 && (
+              <Ionicons name="images-outline" size={14} color="#0A84FF" />
+            )}
+            <Text style={[
+              styles.collapsedPhotoText,
+              hasDamage && { color: '#FF3B30' },
+            ]}>
+              {hasDamage
+                ? `Damage report${totalPhotos > 0 ? ` · ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}` : ''}`
+                : `View ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}`}
             </Text>
           </TouchableOpacity>
         )}
@@ -433,6 +519,7 @@ export default function InspectionSummaryWidget({
       <InspectionDetailModal
         visible={detailVisible}
         inspection={inspection}
+        damage={damage}
         title={title}
         onClose={() => setDetailVisible(false)}
       />
@@ -452,6 +539,8 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   completedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E8F9ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   completedPillText: { fontSize: 11, fontWeight: '600', color: '#34C759' },
+  damagePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFEBEA', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  damagePillText: { fontSize: 11, fontWeight: '600', color: '#FF3B30' },
   body: { paddingHorizontal: 14, paddingBottom: 4, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
   answerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
   answerRowLast: { borderBottomWidth: 0 },
@@ -460,6 +549,11 @@ const styles = StyleSheet.create({
   answerValueText: { fontSize: 13, fontWeight: '500', color: '#000' },
   photoPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EBF5FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   photoPillText: { fontSize: 11, fontWeight: '600', color: '#0A84FF' },
+  damageSummaryBlock: { borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 10, marginBottom: 4 },
+  damageSummaryTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  damageSummaryTitleText: { fontSize: 13, fontWeight: '700', color: '#FF3B30' },
+  damageSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+  damageSummaryLabel: { fontSize: 13, color: '#3C3C3C' },
   viewFullButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', marginTop: 4 },
   viewFullText: { fontSize: 14, fontWeight: '600', color: '#0A84FF' },
   collapsedPhotoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7' },
@@ -502,4 +596,20 @@ const gallery = StyleSheet.create({
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: { fontSize: 16, fontWeight: '600', color: '#8E8E93' },
   emptySubtext: { fontSize: 13, color: '#555' },
+});
+
+const damageCard = StyleSheet.create({
+  container: { backgroundColor: '#FFF', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#FFCDD2' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  title: { fontSize: 14, fontWeight: '700', color: '#FF3B30' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+  label: { fontSize: 14, color: '#3C3C3C', fontWeight: '500' },
+  notes: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
+  notesLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  notesText: { fontSize: 14, color: '#000', lineHeight: 20 },
+});
+
+const severityBadge = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  text: { fontSize: 12, fontWeight: '600' },
 });

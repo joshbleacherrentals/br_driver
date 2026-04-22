@@ -35,8 +35,17 @@ type AnswerMap = Record<string, {
 
 type InspectionType = 'pickup' | 'dropoff';
 
+/**
+ * Damage severity for seating / hauling configuration.
+ *  null  → None   (green)
+ *  0     → Minor  (yellow)
+ *  1     → Major  (red)
+ */
+type DamageSeverity = null | 0 | 1;
+
 interface InspectionScreenProps {
   workTrackerId: string;
+  bleacherUuid: string | null;
   inspectionType: InspectionType;
   onComplete: () => void;
   onCancel: () => void;
@@ -56,7 +65,52 @@ function getExtFromUri(uri: string): string | undefined {
   return uri.match(/\.(\w+)$/)?.[1]?.toLowerCase();
 }
 
-const GOOGLE_FORM_URL = 'https://forms.gle/dUSERuQ2UGSCVpoHA';
+// ─── Damage Severity Selector ─────────────────────────────────────────────────
+
+const SEVERITY_OPTIONS: { value: DamageSeverity; label: string; color: string; bg: string; icon: string }[] = [
+  { value: null, label: 'None',  color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' },
+  { value: 0,    label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline'  },
+  { value: 1,    label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning'           },
+];
+
+function DamageSeveritySelector({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: DamageSeverity;
+  onChange: (v: DamageSeverity) => void;
+}) {
+  const selected = SEVERITY_OPTIONS.find((o) => o.value === value) ?? SEVERITY_OPTIONS[0];
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{label}</Text>
+      <View style={severityStyles.row}>
+        {SEVERITY_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <TouchableOpacity
+              key={String(opt.value)}
+              style={[
+                severityStyles.option,
+                { borderColor: active ? opt.color : '#E5E7EB', backgroundColor: active ? opt.bg : '#F8F8F8' },
+              ]}
+              onPress={() => onChange(opt.value)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={opt.icon as any} size={20} color={active ? opt.color : '#8E8E93'} />
+              <Text style={[severityStyles.optionLabel, { color: active ? opt.color : '#8E8E93' }]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 // ─── Question renderers ───────────────────────────────────────────────────────
 
@@ -184,6 +238,7 @@ function PhotoQuestion({
 
 export default function InspectionScreen({
   workTrackerId,
+  bleacherUuid,
   inspectionType,
   onComplete,
   onCancel,
@@ -191,22 +246,29 @@ export default function InspectionScreen({
   const { questions } = useInspectionQuestions();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const checkboxQuestions = questions.filter((q) => q.question_type === 'checkbox');
-  const allChecked =
-    checkboxQuestions.every((q) => answers[q.id]?.checked === true);
+  const allChecked = checkboxQuestions.every((q) => answers[q.id]?.checked === true);
   const [walkAroundComplete, setWalkAroundComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Damage report state
+  const [damageFound, setDamageFound] = useState<boolean | null>(null);
+  const [seatingDamage, setSeatingDamage] = useState<DamageSeverity>(null);
+  const [haulingDamage, setHaulingDamage] = useState<DamageSeverity>(null);
+  const [damageNote, setDamageNote] = useState('');
+  const [damagePhotos, setDamagePhotos] = useState<DocumentPhoto[]>([]);
+
   // ── Answer helpers ──────────────────────────────────────────────────────────
 
-    const handleCheckAll = () => {
-      const shouldCheckAll = !allChecked;
-      setWalkAroundComplete(shouldCheckAll);
-      const newAnswers = { ...answers };
-      for (const q of checkboxQuestions) {
-        newAnswers[q.id] = { ...newAnswers[q.id], checked: shouldCheckAll };
-      }
-      setAnswers(newAnswers);
-    };
+  const handleCheckAll = () => {
+    const shouldCheckAll = !allChecked;
+    setWalkAroundComplete(shouldCheckAll);
+    const newAnswers = { ...answers };
+    for (const q of checkboxQuestions) {
+      newAnswers[q.id] = { ...newAnswers[q.id], checked: shouldCheckAll };
+    }
+    setAnswers(newAnswers);
+  };
+
   const setTextAnswer = (questionId: string, text: string) =>
     setAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], text } }));
 
@@ -231,7 +293,7 @@ export default function InspectionScreen({
       },
     }));
 
-  // ── Image pickers (scoped per question) ────────────────────────────────────
+  // ── Image pickers ───────────────────────────────────────────────────────────
 
   const pickImageForQuestion = async (questionId: string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -291,6 +353,16 @@ export default function InspectionScreen({
         return `"${q.question_text}" requires at least one photo`;
       }
     }
+
+    if (damageFound === null) {
+      return 'Please indicate if damage was found';
+    }
+
+    if (damageFound === true) {
+      if (!damageNote.trim()) return 'Damage notes are required';
+      if (!damagePhotos.length) return 'At least one damage photo is required';
+    }
+
     return null;
   };
 
@@ -316,108 +388,158 @@ export default function InspectionScreen({
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-  const validationError = validate();
-  if (validationError) {
-    Alert.alert('Required', validationError);
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    const inspectionId = generateUUID();
-    const now = new Date().toISOString();
-
-    // 1️⃣ Build the answers JSON — keyed by question ID, stores question text
-    //    alongside the answer so the record is self-describing even if questions change
-    const answersPayload: Record<string, {
-      question_text: string | null;
-      question_type: string | null;
-      required: boolean;
-      answer_text?: string | null;
-      answer_boolean?: boolean | null;
-      photos?: { storage_path: string }[];
-    }> = {};
-
-    for (const question of questions) {
-      const answer = answers[question.id];
-
-      if (question.question_type === 'text') {
-        answersPayload[question.id] = {
-          question_text: question.question_text,
-          question_type: 'text',
-          required: !!question.required,
-          answer_text: answer?.text?.trim() ?? null,
-        };
-
-      } else if (question.question_type === 'checkbox') {
-        answersPayload[question.id] = {
-          question_text: question.question_text,
-          question_type: 'checkbox',
-          required: !!question.required,
-          answer_boolean: answer?.checked ?? false,
-        };
-
-      } else if (question.question_type === 'photo') {
-        const photos = answer?.photos ?? [];
-
-        // Upload photos and collect storage paths
-        const uploadedPhotos: { storage_path: string }[] = [];
-        for (let i = 0; i < photos.length; i++) {
-          const storagePath = await savePhotoToQueue(photos[i], inspectionId, question.id, i);
-          if (storagePath) {
-            uploadedPhotos.push({ storage_path: storagePath });
-          }
-        }
-
-        answersPayload[question.id] = {
-          question_text: question.question_text,
-          question_type: 'photo',
-          required: !!question.required,
-          photos: uploadedPhotos,
-        };
-      }
+    const validationError = validate();
+    if (validationError) {
+      Alert.alert('Required', validationError);
+      return;
     }
 
-    // 2️⃣ Insert inspection record with answers embedded as JSON
-    await executeTypedMutation(
-      db.insertInto('WorkTrackerInspections')
-        .values({
-          id: inspectionId,
-          created_at: now,
-          walk_around_complete: walkAroundComplete ? 1 : 0,
-          issues_found: 0,
-          issue_description: null,
-          answers_json: JSON.stringify(answersPayload),
-        })
-        .compile()
-    );
+    setIsSubmitting(true);
 
-    // 3️⃣ Update WorkTracker
-    const inspectionField = inspectionType === 'pickup'
-      ? { pre_inspection_uuid: inspectionId }
-      : { post_inspection_uuid: inspectionId };
+    try {
+      const inspectionId = generateUUID();
+      const now = new Date().toISOString();
 
-    await executeTypedMutation(
-      db.updateTable('WorkTrackers')
-        .set({ ...inspectionField, updated_at: now })
-        .where('id', '=', workTrackerId)
-        .compile()
-    );
+      // 1️⃣ Build the answers JSON — self-describing, keyed by question ID
+      const answersPayload: Record<string, {
+        question_text: string | null;
+        question_type: string | null;
+        required: boolean;
+        answer_text?: string | null;
+        answer_boolean?: boolean | null;
+        photos?: { storage_path: string }[];
+      }> = {};
 
-    Alert.alert(
-      'Success',
-      `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed successfully!`,
-      [{ text: 'OK', onPress: onComplete }]
-    );
+      for (const question of questions) {
+        const answer = answers[question.id];
 
-  } catch (error) {
-    console.error('Error submitting inspection:', error);
-    Alert.alert('Error', `Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+        if (question.question_type === 'text') {
+          answersPayload[question.id] = {
+            question_text: question.question_text,
+            question_type: 'text',
+            required: !!question.required,
+            answer_text: answer?.text?.trim() ?? null,
+          };
+
+        } else if (question.question_type === 'checkbox') {
+          answersPayload[question.id] = {
+            question_text: question.question_text,
+            question_type: 'checkbox',
+            required: !!question.required,
+            answer_boolean: answer?.checked ?? false,
+          };
+
+        } else if (question.question_type === 'photo') {
+          const photos = answer?.photos ?? [];
+
+          // Upload each photo and collect its storage path
+          const uploadedPhotos: { storage_path: string }[] = [];
+          for (let i = 0; i < photos.length; i++) {
+            const storagePath = await savePhotoToQueue(photos[i], inspectionId, question.id, i);
+            if (storagePath) {
+              uploadedPhotos.push({ storage_path: storagePath });
+            }
+          }
+
+          answersPayload[question.id] = {
+            question_text: question.question_text,
+            question_type: 'photo',
+            required: !!question.required,
+            photos: uploadedPhotos,
+          };
+        }
+      }
+
+      // 2️⃣ Insert inspection record
+      await executeTypedMutation(
+        db.insertInto('WorkTrackerInspections')
+          .values({
+            id: inspectionId,
+            created_at: now,
+            walk_around_complete: walkAroundComplete ? 1 : 0,
+            issues_found: damageFound ? 1 : 0,
+            issue_description: null,
+            answers_json: JSON.stringify(answersPayload),
+          })
+          .compile()
+      );
+
+      // 3️⃣ Insert damage report if damage was found
+      if (damageFound) {
+        const damageId = generateUUID();
+
+        // Upload damage photos and embed storage paths into answers_json
+        // so they're visible in the inspection summary photo gallery.
+        const uploadedDamagePhotos: { storage_path: string }[] = [];
+        for (let i = 0; i < damagePhotos.length; i++) {
+          const path = await savePhotoToQueue(damagePhotos[i], inspectionId, 'damage', i);
+          if (path) uploadedDamagePhotos.push({ storage_path: path });
+        }
+
+        // Persist damage photos as a synthetic answer in answers_json so the
+        // summary widget can display them in the photo gallery.
+        if (uploadedDamagePhotos.length > 0) {
+          answersPayload['__damage_photos__'] = {
+            question_text: 'Damage Photos',
+            question_type: 'photo',
+            required: false,
+            photos: uploadedDamagePhotos,
+          };
+
+          // Update the already-inserted inspection record with the damage photos
+          await executeTypedMutation(
+            db.updateTable('WorkTrackerInspections')
+              .set({ answers_json: JSON.stringify(answersPayload) })
+              .where('id', '=', inspectionId)
+              .compile()
+          );
+        }
+
+        await executeTypedMutation(
+          db.insertInto('DamageReports')
+            .values({
+              id: damageId,
+              inspection_uuid: inspectionId,
+              bleacher_uuid: bleacherUuid,
+              // null  = no damage (won't reach here),
+              // 0     = minor,
+              // 1     = major
+              is_safe_to_sit: seatingDamage,
+              is_safe_to_haul: haulingDamage,
+              note: damageNote,
+              created_at: now,
+              resolved_at: null,
+              maintenance_event_uuid: null,
+            })
+            .compile()
+        );
+      }
+
+      // 4️⃣ Link inspection to the WorkTracker
+      const inspectionField = inspectionType === 'pickup'
+        ? { pre_inspection_uuid: inspectionId }
+        : { post_inspection_uuid: inspectionId };
+
+      await executeTypedMutation(
+        db.updateTable('WorkTrackers')
+          .set({ ...inspectionField, updated_at: now })
+          .where('id', '=', workTrackerId)
+          .compile()
+      );
+
+      Alert.alert(
+        'Success',
+        `${inspectionType === 'pickup' ? 'Pickup' : 'Dropoff'} inspection completed successfully!`,
+        [{ text: 'OK', onPress: onComplete }]
+      );
+
+    } catch (error) {
+      console.error('Error submitting inspection:', error);
+      Alert.alert('Error', `Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -433,7 +555,7 @@ export default function InspectionScreen({
           <Text style={styles.subtitle}>Complete the inspection before proceeding</Text>
         </View>
 
-        {/* Check All button — only shown if there are checkbox questions */}
+        {/* Check All button */}
         {checkboxQuestions.length > 0 && (
           <TouchableOpacity
             style={[styles.checkAllButton, allChecked && styles.checkAllButtonChecked]}
@@ -487,7 +609,128 @@ export default function InspectionScreen({
           return null;
         })}
 
-        {/* Submit */}
+        {/* Damage found toggle */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Was damage found?</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+            <TouchableOpacity
+              style={[styles.damageToggle, damageFound === true && styles.damageToggleYes]}
+              onPress={() => setDamageFound(true)}
+            >
+              <Ionicons
+                name="warning"
+                size={18}
+                color={damageFound === true ? '#FF3B30' : '#8E8E93'}
+              />
+              <Text style={[styles.damageToggleText, damageFound === true && { color: '#FF3B30' }]}>
+                Yes
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.damageToggle, damageFound === false && styles.damageToggleNo]}
+              onPress={() => setDamageFound(false)}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color={damageFound === false ? '#34C759' : '#8E8E93'}
+              />
+              <Text style={[styles.damageToggleText, damageFound === false && { color: '#34C759' }]}>
+                No
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Damage detail — only shown when damage is found */}
+        {damageFound === true && (
+          <>
+            {/* Seating configuration damage */}
+            <DamageSeveritySelector
+              label="Seating Configuration Damage"
+              value={seatingDamage}
+              onChange={setSeatingDamage}
+            />
+
+            {/* Hauling configuration damage */}
+            <DamageSeveritySelector
+              label="Hauling Configuration Damage"
+              value={haulingDamage}
+              onChange={setHaulingDamage}
+            />
+
+            {/* Damage notes */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Damage Notes</Text>
+                <View style={styles.requiredBadge}>
+                  <Text style={styles.requiredText}>REQUIRED</Text>
+                </View>
+              </View>
+              <TextInput
+                style={styles.textInput}
+                value={damageNote}
+                onChangeText={setDamageNote}
+                placeholder="Describe the damage..."
+                multiline
+              />
+            </View>
+
+            {/* Damage photos */}
+            <PhotoQuestion
+              question={{ id: 'damage_photos', question_text: 'Damage Photos', required: true } as any}
+              photos={damagePhotos}
+              onAddFromCamera={async () => {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission needed', 'We need camera permissions to take photos');
+                  return;
+                }
+                const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
+                if (!result.canceled && result.assets?.length) {
+                  const asset = result.assets[0];
+                  setDamagePhotos((prev) => [
+                    ...prev,
+                    {
+                      uri: asset.uri,
+                      base64: asset.base64 ?? undefined,
+                      isNew: true,
+                      ext: getExtFromUri(asset.uri) ?? 'jpg',
+                    },
+                  ]);
+                }
+              }}
+              onAddFromLibrary={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission needed', 'We need camera roll permissions to add photos');
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ['images'],
+                  allowsMultipleSelection: true,
+                  quality: 0.8,
+                  base64: true,
+                });
+                if (!result.canceled && result.assets?.length) {
+                  const newPhotos = result.assets.map((asset) => ({
+                    uri: asset.uri,
+                    base64: asset.base64 ?? undefined,
+                    isNew: true,
+                    ext: getExtFromUri(asset.uri) ?? 'jpg',
+                  }));
+                  setDamagePhotos((prev) => [...prev, ...newPhotos]);
+                }
+              }}
+              onRemove={(index) =>
+                setDamagePhotos((prev) => prev.filter((_, i) => i !== index))
+              }
+            />
+          </>
+        )}
+
+        {/* Submit / Cancel */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -509,7 +752,7 @@ export default function InspectionScreen({
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-// (unchanged from original — paste your existing StyleSheet here)
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F2F2F7' },
   scrollContent: { padding: 16 },
@@ -521,34 +764,25 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   requiredBadge: { backgroundColor: '#FF3B30', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   requiredText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },
-  sectionSubtitle: { fontSize: 14, color: '#8E8E93', marginBottom: 12 },
   bold: { fontWeight: '700', color: '#3C3C3C' },
-  formLinkButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EBF5FF', borderWidth: 1, borderColor: '#0A84FF', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
-  formLinkText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#0A84FF' },
   checkAllButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  backgroundColor: '#EBF5FF',
-  borderWidth: 1.5,
-  borderColor: '#0A84FF',
-  borderRadius: 10,
-  paddingVertical: 13,
-  marginBottom: 8,
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#EBF5FF',
+    borderWidth: 1.5,
+    borderColor: '#0A84FF',
+    borderRadius: 10,
+    paddingVertical: 13,
+    marginBottom: 8,
+  },
   checkAllButtonChecked: {
     backgroundColor: '#E8F9ED',
     borderColor: '#34C759',
   },
-  checkAllText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0A84FF',
-  },
-  checkAllTextChecked: {
-    color: '#34C759',
-  },
+  checkAllText: { fontSize: 15, fontWeight: '600', color: '#0A84FF' },
+  checkAllTextChecked: { color: '#34C759' },
   checkbox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F8F8F8', borderRadius: 8, borderWidth: 2, borderColor: '#E5E7EB' },
   checkboxChecked: { borderColor: '#0A84FF', backgroundColor: '#EBF5FF' },
   checkboxLabel: { flex: 1, fontSize: 15, color: '#000', marginRight: 8 },
@@ -567,4 +801,33 @@ const styles = StyleSheet.create({
   submitButton: { flex: 2, backgroundColor: '#34C759', padding: 16, borderRadius: 8, alignItems: 'center' },
   submitButtonDisabled: { backgroundColor: '#A8E6B7' },
   submitButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  damageToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F8F8F8',
+  },
+  damageToggleYes: { borderColor: '#FF3B30', backgroundColor: '#FFEBEA' },
+  damageToggleNo:  { borderColor: '#34C759', backgroundColor: '#E8F9ED' },
+  damageToggleText: { fontSize: 15, fontWeight: '600', color: '#8E8E93' },
+});
+
+const severityStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  option: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  optionLabel: { fontSize: 13, fontWeight: '600' },
 });

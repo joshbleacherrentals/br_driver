@@ -42,7 +42,6 @@ export function useResolvedBleacherAddresses(
     return map;
   }, [rows]);
 
-  console.log('[useResolveAddress] wtMap size:', Object.keys(wtMap).length);
 
   // ── Step 3: fall back to seasonal home base for bleachers with no history ──
   const addressUuidMap = useMemo(() => {
@@ -62,8 +61,6 @@ export function useResolvedBleacherAddresses(
     [addressUuidMap]
   );
 
-  console.log('[useResolveAddress] uniqueAddressUuids:', uniqueAddressUuids.length);
-
   const addrQuery = useMemo(() => {
     if (uniqueAddressUuids.length === 0) return null;
     return db
@@ -74,8 +71,6 @@ export function useResolvedBleacherAddresses(
   }, [uniqueAddressUuids]);
 
   const addrResult = useTypedQuery(addrQuery, expect<AddressRow>());
-
-  console.log('[useResolveAddress] addrResult:', addrResult.data?.length, addrResult.data?.[0]);
 
   const addressStreetMap = useMemo(() => {
     const map: Record<string, string | null> = {};

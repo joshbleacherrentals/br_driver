@@ -1,6 +1,8 @@
+import BleacherDamageBadge from '@/components/widgets/bleacherDamageBadge';
 import InspectionSummaryWidget from '@/components/widgets/inspectionSummaryWidget';
 import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
+import { useDamageReport } from '@/hooks/db/useDamageReport';
 import { useInspection } from '@/hooks/db/useInspection';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,12 +26,13 @@ interface CompletedTripProps {
 }
 
 export default function CompletedTrips({ workTracker, onClose }: CompletedTripProps) {
-  const { address: pickupAddress } = useAddress(workTracker.pickup_address_uuid);
-  const { address: dropoffAddress } = useAddress(workTracker.dropoff_address_uuid);
-  const { bleacher } = useBleacher(workTracker.bleacher_uuid);
-  const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid ?? null);
+  const { address: pickupAddress }   = useAddress(workTracker.pickup_address_uuid);
+  const { address: dropoffAddress }  = useAddress(workTracker.dropoff_address_uuid);
+  const { bleacher }                 = useBleacher(workTracker.bleacher_uuid);
+  const { inspection: preInspection }  = useInspection(workTracker.pre_inspection_uuid ?? null);
   const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
-  const [bolVisible, setBolVisible] = React.useState(false);
+  const { damageReport }             = useDamageReport(workTracker.bleacher_uuid);
+  const [bolVisible, setBolVisible]  = React.useState(false);
 
   const formatPay = (cents: number | null) =>
     cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
@@ -59,8 +62,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
     try {
       if (dateISO.length === 10 && dateISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const [year, month, day] = dateISO.split('-').map(Number);
-        const d = new Date(year, month - 1, day);
-        return d.toLocaleString();
+        return new Date(year, month - 1, day).toLocaleString();
       }
       return new Date(dateISO).toLocaleString();
     } catch {
@@ -72,9 +74,9 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
     if (!address) return;
     const q = encodeURIComponent(address);
     const allOptions = [
-      { label: 'Apple Maps', url: `maps://?q=${q}`, fallbackUrl: `http://maps.apple.com/?q=${q}`, iosOnly: true },
-      { label: 'Google Maps', url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`, fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`, iosOnly: false },
-      { label: 'Waze', url: `waze://?q=${q}&navigate=false`, fallbackUrl: `https://waze.com/ul?q=${q}`, iosOnly: false },
+      { label: 'Apple Maps',  url: `maps://?q=${q}`,                                                     fallbackUrl: `http://maps.apple.com/?q=${q}`,                        iosOnly: true  },
+      { label: 'Google Maps', url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`, fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`,  iosOnly: false },
+      { label: 'Waze',        url: `waze://?q=${q}&navigate=false`,                                      fallbackUrl: `https://waze.com/ul?q=${q}`,                            iosOnly: false },
     ];
     const visibleOptions = allOptions.filter((o) => !o.iosOnly || Platform.OS === 'ios');
     Alert.alert('Open in Maps', 'Choose an app:', [
@@ -97,15 +99,26 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Completed Trip</Text>
-            <Text style={styles.subtitle}>
-              {bleacher && `Bleacher #${bleacher.bleacher_number}`}
-              {workTracker.bleacher_uuid && workTracker.pay_cents && ' - '}
-              {workTracker.pay_cents && formatPay(workTracker.pay_cents)}
-            </Text>
+          <View style={styles.headerLeft}>
+            {/* Title row: bleacher label + damage badge */}
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Completed Trip</Text>
+            </View>
+            <View style={styles.subtitleRow}>
+              <Text style={styles.subtitle}>
+                {bleacher && `Bleacher #${bleacher.bleacher_number}`}
+                {workTracker.bleacher_uuid && workTracker.pay_cents && ' - '}
+                {workTracker.pay_cents && formatPay(workTracker.pay_cents)}
+              </Text>
+              {damageReport && (
+                <BleacherDamageBadge
+                  damageReport={damageReport}
+                  bleacherNumber={bleacher?.bleacher_number}
+                />
+              )}
+            </View>
             <Text style={styles.dateText}>{formatDate(workTracker.date)}</Text>
           </View>
           <View style={styles.badgeAndBol}>
@@ -193,6 +206,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         {/* Pickup Inspection */}
         <InspectionSummaryWidget
           inspection={preInspection}
+          damage={damageReport}
           title="Pickup Inspection"
           defaultExpanded={true}
         />
@@ -243,11 +257,12 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         {/* Dropoff Inspection */}
         <InspectionSummaryWidget
           inspection={postInspection}
+          damage={damageReport}
           title="Dropoff Inspection"
           defaultExpanded={true}
         />
 
-        {/* Close Button */}
+        {/* Close */}
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
@@ -268,8 +283,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F2F2F7' },
   scrollContent: { padding: 16, paddingBottom: 32 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  headerLeft: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 },
   title: { fontSize: 28, fontWeight: '700', color: '#000' },
-  subtitle: { fontSize: 18, fontWeight: '600', color: '#000', marginTop: 4 },
+  subtitle: { fontSize: 18, fontWeight: '600', color: '#000' },
   dateText: { fontSize: 15, color: '#8E8E93', marginTop: 2 },
   completedBadge: { backgroundColor: '#8E8E93', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   completedText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },

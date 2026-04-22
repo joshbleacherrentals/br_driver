@@ -126,6 +126,26 @@ const WorkTrackerInspectionsCols = {
 } satisfies PowerSyncColsFor<"WorkTrackerInspections">
 const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, { indexes: { id: ["id"] } });
 
+// damage reports
+const DamageReportsCols = {
+  inspection_uuid: column.text,
+  bleacher_uuid: column.text,
+  is_safe_to_sit: column.integer,
+  is_safe_to_haul: column.integer,
+  note: column.text,
+  created_at: column.text,
+  resolved_at: column.text,
+  maintenance_event_uuid: column.text,
+} satisfies PowerSyncColsFor<"DamageReports">
+const DamageReports = new Table(DamageReportsCols, { indexes: {bleacher_uuid: ["bleacher_uuid"]}});
+
+const DamageReportPhotos = {
+  damage_report_uuid: column.text,
+  photo_path: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DamageReportPhotos">
+const DamageReportPhotosTable = new Table(DamageReportPhotos, { indexes: { damage_report_uuid: ["damage_report_uuid"] } });
+
 // inspectionPhotos
 const InspectionsPhotosCols = {
   created_at: column.text,
@@ -221,6 +241,7 @@ export const AppSchema = new Schema({
   AccountManagers,
   WorkTrackerInspections,
   InspectionQuestions,
+  DamageReports,
   InspectionPhotos,
   WorkTrackers,
   Vehicles,
