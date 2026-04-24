@@ -99,6 +99,7 @@ export default function TripsScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('upcoming');
   const [inspectionData, setInspectionData] = useState<{
     workTrackerId: string;
+    bleacherUuid: string | null;
     type: InspectionType;
   } | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<WorkTracker | null>(null);
@@ -113,7 +114,6 @@ export default function TripsScreen() {
 
   // ── Resolve addresses for all bleachers at the top level (not inside useMemo) ──
   const resolvedAddresses = useResolvedBleacherAddresses(allBleachersFleet, today);
-  console.log('[resolvedAddresses]', JSON.stringify(resolvedAddresses, null, 2));
 
   const bleacherOptions = useMemo(
     () =>
@@ -261,15 +261,14 @@ export default function TripsScreen() {
 
   const handleStartInspection = async (
     workTrackerId: string,
+    bleacherUuid: string | null,
     type: 'pickup' | 'dropoff',
-    arrivedAt: string | null,
   ) => {
-    const pendingUuid = pendingBleacherUuids[workTrackerId];
-    if (pendingUuid) {
+    if (bleacherUuid) {
       try {
         await executeTypedMutationVoid(
           db.updateTable('WorkTrackers')
-            .set({ bleacher_uuid: pendingUuid, updated_at: new Date().toISOString() })
+            .set({ bleacher_uuid: bleacherUuid, updated_at: new Date().toISOString() })
             .where('id', '=', workTrackerId)
             .compile()
         );
@@ -278,7 +277,7 @@ export default function TripsScreen() {
         return;
       }
     }
-    setInspectionData({ workTrackerId, type });
+    setInspectionData({ workTrackerId, bleacherUuid , type });
   };
 
   const handleSkip = async (workTrackerId: string) => {
@@ -330,6 +329,7 @@ export default function TripsScreen() {
       <InspectionScreen
         workTrackerId={inspectionData.workTrackerId}
         inspectionType={inspectionData.type}
+        bleacherUuid={inspectionData.bleacherUuid}
         onComplete={() => { void handleInspectionComplete(inspectionData.workTrackerId); }}
         onCancel={() => setInspectionData(null)}
       />

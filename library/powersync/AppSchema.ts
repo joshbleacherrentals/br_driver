@@ -6,8 +6,7 @@ export const USERS_TABLE = "Users";
 export const DRIVERS_TABLE = "Drivers";
 export const INSPECTION_TABLE = "WorkTrackerInspections";
 export const WORK_TRACKER_TABLE = "WorkTrackers";
-export const PHOTO_TABLE = "InspectionPhotos"
-
+export const PHOTO_TABLE = "InspectionPhotos";
 
 // users
 const UsersCols = {
@@ -35,9 +34,9 @@ const DriverAvailability = new Table(DriverAvailabilityCols, { indexes: { driver
 const AccountManagerCols = {
   created_at: column.text,
   is_active: column.integer,
-  user_uuid: column.text
+  user_uuid: column.text,
 } satisfies PowerSyncColsFor<"AccountManagers">;
-const AccountManagers = new Table(AccountManagerCols, {indexes: { id: ["id"]}});
+const AccountManagers = new Table(AccountManagerCols, { indexes: { id: ["id"] } });
 
 // drivers
 const DriversCols = {
@@ -98,75 +97,100 @@ const BleacherCols = {
   trailer_length: column.integer,
   gvwr: column.integer,
   opening_direction: column.text,
+  deleted: column.integer,
+  trailer_length_in: column.integer,
+  trailer_height_in: column.integer,
+  nvis_pdf_path: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
+
+// inspection questions
+const InspectionQuestionsCols = {
+  question_text: column.text,
+  required: column.integer,
+  question_type: column.text,
+  is_active: column.integer,
+  sort_order: column.integer,
+} satisfies PowerSyncColsFor<"InspectionQuestions">;
+const InspectionQuestions = new Table(InspectionQuestionsCols, { indexes: { id: ["id"] } });
 
 // inspection
 const WorkTrackerInspectionsCols = {
   created_at: column.text,
   walk_around_complete: column.integer,
   issues_found: column.integer,
-  issue_description: column.text
-} satisfies PowerSyncColsFor<"WorkTrackerInspections">
+  issue_description: column.text,
+  answers_json: column.text,
+} satisfies PowerSyncColsFor<"WorkTrackerInspections">;
 const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, { indexes: { id: ["id"] } });
+
+// damage reports
+const DamageReportsCols = {
+  inspection_uuid: column.text,
+  bleacher_uuid: column.text,
+  is_safe_to_sit: column.integer,
+  is_safe_to_haul: column.integer,
+  note: column.text,
+  created_at: column.text,
+  resolved_at: column.text,
+  maintenance_event_uuid: column.text,
+} satisfies PowerSyncColsFor<"DamageReports">;
+const DamageReports = new Table(DamageReportsCols, { indexes: { bleacher_uuid: ["bleacher_uuid"] } });
+
+// damage report photos
+const DamageReportPhotosCols = {
+  damage_report_uuid: column.text,
+  photo_path: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DamageReportPhotos">;
+const DamageReportPhotos = new Table(DamageReportPhotosCols, {
+  indexes: { damage_report_uuid: ["damage_report_uuid"] },
+});
 
 // inspectionPhotos
 const InspectionsPhotosCols = {
   created_at: column.text,
   inspection_uuid: column.text,
   storage_path: column.text,
-  caption: column.text
-} satisfies PowerSyncColsFor<"InspectionPhotos">
+  caption: column.text,
+} satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, { indexes: { id: ["id"] } });
 
 // worktracker
-
 const WorkTrackersCols = {
   created_at: column.text,
   updated_at: column.text,
-
   date: column.text,
-
   pickup_time: column.text,
   pickup_poc: column.text,
-
   dropoff_time: column.text,
   dropoff_poc: column.text,
-
   pay_cents: column.integer,
-
   notes: column.text,
   internal_notes: column.text,
-
   pickup_address_uuid: column.text,
   dropoff_address_uuid: column.text,
-
   bleacher_uuid: column.text,
   driver_uuid: column.text,
   user_uuid: column.text,
-
   status: column.text,
-
   released_at: column.text,
   accepted_at: column.text,
   started_at: column.text,
   completed_at: column.text,
-
   pre_inspection_uuid: column.text,
   post_inspection_uuid: column.text,
-
   teardown_required: column.integer,
   pickup_instructions: column.text,
   setup_required: column.integer,
   dropoff_instructions: column.text,
   bol_number: column.text,
-
   project_number: column.text,
   worktracker_group_uuid: column.text,
   work_tracker_type_uuid: column.text,
   distance_meters: column.integer,
   drive_minutes: column.integer,
-  } satisfies PowerSyncColsFor<"WorkTrackers">;
+} satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
 });
@@ -178,7 +202,7 @@ const VehiclesCols = {
   model: column.text,
   year: column.integer,
   vin_number: column.text,
-} satisfies PowerSyncColsFor<"Vehicles">
+} satisfies PowerSyncColsFor<"Vehicles">;
 const Vehicles = new Table(VehiclesCols, { indexes: { id: ["id"] } });
 
 // BlueBook
@@ -191,9 +215,9 @@ const BlueBookCols = {
   sort_order: column.integer,
   created_at: column.text,
   updated_at: column.text,
-} satisfies PowerSyncColsFor<"BlueBook">
+  document_path: column.text,
+} satisfies PowerSyncColsFor<"BlueBook">;
 const BlueBook = new Table(BlueBookCols, { indexes: { id: ["id"] } });
-
 
 export const AppSchema = new Schema({
   Users,
@@ -203,6 +227,9 @@ export const AppSchema = new Schema({
   Addresses,
   AccountManagers,
   WorkTrackerInspections,
+  InspectionQuestions,
+  DamageReports,
+  DamageReportPhotos,
   InspectionPhotos,
   WorkTrackers,
   Vehicles,

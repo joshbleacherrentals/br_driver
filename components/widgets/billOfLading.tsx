@@ -60,6 +60,16 @@ function v(value: string | number | null | undefined, fallback = '—'): string 
   return value !== null && value !== undefined && value !== '' ? String(value) : fallback;
 }
 
+// Format total inches for display: "2ft 1in", "6ft", "9in", or "—"
+export function formatInches(totalInches: number | null): string {
+  if (totalInches == null) return "—";
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  if (feet > 0 && inches > 0) return `${feet}ft ${inches}in`;
+  if (feet > 0) return `${feet}ft`;
+  return `${inches}in`;
+}
+
 // ─── BOL Number ───────────────────────────────────────────────────────────────
 // Format: {bleacher#}-{YYYYMMDD}-{10-digit number derived from WorkTracker UUID}
 // e.g.    042-20260315-2751013296
@@ -262,7 +272,7 @@ function buildBOLHtml(params: {
         </div>
         <div class="detail-line">
           <span class="label">Height of Folded Unit:&nbsp;</span>
-          <span class="val">${bleacher?.height_folded_ft != null ? `${bleacher.height_folded_ft} ft` : '—'}</span>
+          <span class="val">${bleacher?.trailer_height_in != null ? `${formatInches(bleacher.trailer_height_in)}` : '—'}</span>
         </div>
       </div>
     </div>
@@ -466,7 +476,7 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             <InfoRow label="Hitch Type" value={bleacher?.hitch_type} />
             <InfoRow label="Manufacturer" value={bleacher?.manufacturer} />
             <InfoRow label="GVWR" value={bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : null} />
-            <InfoRow label="Height (Folded)" value={bleacher?.height_folded_ft != null ? `${bleacher.height_folded_ft} ft` : null} />
+            <InfoRow label="Height (Folded)" value={bleacher?.trailer_height_in != null ? `${formatInches(bleacher.trailer_height_in)}` : '—'} />
             <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
               <Text style={infoRowStyles.label}>Notes</Text>
               <Text style={[infoRowStyles.value, { color: MUTED }]}>Power Only · Flatbed</Text>
