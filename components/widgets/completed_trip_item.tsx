@@ -2,7 +2,7 @@ import BleacherDamageBadge from '@/components/widgets/bleacherDamageBadge';
 import InspectionSummaryWidget from '@/components/widgets/inspectionSummaryWidget';
 import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
-import { useDamageReport } from '@/hooks/db/useDamageReport';
+import { useDamageReports } from '@/hooks/db/useDamageReport';
 import { useInspection } from '@/hooks/db/useInspection';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +31,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
   const { bleacher }                 = useBleacher(workTracker.bleacher_uuid);
   const { inspection: preInspection }  = useInspection(workTracker.pre_inspection_uuid ?? null);
   const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
-  const { damageReport }             = useDamageReport(workTracker.bleacher_uuid);
+  const { damageReports }             = useDamageReports(workTracker.bleacher_uuid);
   const [bolVisible, setBolVisible]  = React.useState(false);
 
   const formatPay = (cents: number | null) =>
@@ -112,9 +112,9 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
                 {workTracker.bleacher_uuid && workTracker.pay_cents && ' - '}
                 {workTracker.pay_cents && formatPay(workTracker.pay_cents)}
               </Text>
-              {damageReport && (
+              {damageReports.length > 0 && (
                 <BleacherDamageBadge
-                  damageReport={damageReport}
+                  damageReport={damageReports[0]}
                   bleacherNumber={bleacher?.bleacher_number}
                 />
               )}
@@ -206,7 +206,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         {/* Pickup Inspection */}
         <InspectionSummaryWidget
           inspection={preInspection}
-          damage={damageReport}
+          damages={damageReports}
           title="Pickup Inspection"
           defaultExpanded={true}
         />
@@ -257,7 +257,7 @@ export default function CompletedTrips({ workTracker, onClose }: CompletedTripPr
         {/* Dropoff Inspection */}
         <InspectionSummaryWidget
           inspection={postInspection}
-          damage={damageReport}
+          damages={damageReports}
           title="Dropoff Inspection"
           defaultExpanded={true}
         />

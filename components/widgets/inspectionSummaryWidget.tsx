@@ -25,7 +25,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface InspectionSummaryWidgetProps {
   inspection: InspectionData | null;
-  damage: DamageReportData | null;
+  damages: DamageReportData[];
   title: string;
   defaultExpanded?: boolean;
 }
@@ -165,10 +165,6 @@ function DamageCard({
 
 // ─── Photo gallery modal ──────────────────────────────────────────────────────
 
-/**
- * `resolveUri` lets the caller decide which attachment queue to use —
- * inspection photos and damage photos live in different queues/buckets.
- */
 function PhotoGalleryModal({
   visible,
   photos,
@@ -268,7 +264,7 @@ type GalleryState = {
   photos: { storage_path: string }[];
   questionText: string;
   initialIndex: number;
-  isDamage: boolean; // determines which URI resolver to use
+  isDamage: boolean;
 };
 
 // ─── Full inspection detail modal ─────────────────────────────────────────────
@@ -276,20 +272,21 @@ type GalleryState = {
 export function InspectionDetailModal({
   visible,
   inspection,
-  damage,
+  damages,
   title,
   onClose,
 }: {
   visible: boolean;
   inspection: InspectionData;
-  damage: DamageReportData | null;
+  damages: DamageReportData[];
   title: string;
   onClose: () => void;
 }) {
   const [galleryState, setGalleryState] = useState<GalleryState | null>(null);
 
   const answers = parseInspectionAnswers(inspection.answers_json);
-  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
+  const damage = damages.find((d) => d.inspection_uuid === inspection.id) ?? null;
+  const hasDamage = !!damage;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return '';
@@ -435,7 +432,7 @@ export function InspectionDetailModal({
 
 export default function InspectionSummaryWidget({
   inspection,
-  damage,
+  damages,
   title,
   defaultExpanded = false,
 }: InspectionSummaryWidgetProps) {
@@ -444,12 +441,15 @@ export default function InspectionSummaryWidget({
 
   if (!inspection) return null;
 
+  // Derive the damage report that belongs to this specific inspection
+  const damage = damages.find((d) => d.inspection_uuid === inspection.id) ?? null;
+
   const answers = parseInspectionAnswers(inspection.answers_json);
   const photoAnswers = answers.filter(
     (a) => a.question_type === 'photo' && (a.photos?.length ?? 0) > 0
   );
   const totalPhotos = photoAnswers.reduce((sum, a) => sum + (a.photos?.length ?? 0), 0);
-  const hasDamage = !!damage && damage.inspection_uuid === inspection.id;
+  const hasDamage = !!damage;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return '';
@@ -587,7 +587,7 @@ export default function InspectionSummaryWidget({
       <InspectionDetailModal
         visible={detailVisible}
         inspection={inspection}
-        damage={damage}
+        damages={damages}
         title={title}
         onClose={() => setDetailVisible(false)}
       />

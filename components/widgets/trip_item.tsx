@@ -2,7 +2,7 @@ import BleacherDamageBadge from '@/components/widgets/bleacherDamageBadge';
 import { InspectionDetailModal } from '@/components/widgets/inspectionSummaryWidget';
 import { useAddress } from '@/hooks/db/useAddress';
 import { useBleacher } from '@/hooks/db/useBleacher';
-import { useDamageReport } from '@/hooks/db/useDamageReport';
+import { useDamageReports } from '@/hooks/db/useDamageReport';
 import { useInspection } from '@/hooks/db/useInspection';
 import { WorkTracker } from '@/hooks/db/useWorkTrackers';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,7 +68,7 @@ export default function TripItem({
   const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
 
   // ── Damage report for the assigned bleacher ─────────────────────────────
-  const { damageReport } = useDamageReport(bleacher_uuid);
+  const { damageReports } = useDamageReports(bleacher_uuid);
 
   if (status === 'draft' || status === 'completed') return null;
 
@@ -200,9 +200,9 @@ export default function TripItem({
           <View style={styles.titleRow}>
             <Text style={styles.mainTitle}>
               {bleacher_uuid && bleacher && `Bleacher #${bleacher.bleacher_number} `}
-              {damageReport && (
+              {damageReports.length > 0 && (
                 <BleacherDamageBadge
-                  damageReport={damageReport}
+                  damageReport={damageReports[0]}
                   bleacherNumber={bleacher?.bleacher_number}
                 />
               )}
@@ -304,7 +304,7 @@ export default function TripItem({
           <InspectionDetailModal
             visible={preInspectionVisible}
             inspection={preInspection}
-            damage={damageReport}
+            damages={damageReports}
             title="Pickup Inspection"
             onClose={() => setPreInspectionVisible(false)}
           />
@@ -386,7 +386,7 @@ export default function TripItem({
           <InspectionDetailModal
             visible={postInspectionVisible}
             inspection={postInspection}
-            damage={damageReport}
+            damages={damageReports}
             title="Dropoff Inspection"
             onClose={() => setPostInspectionVisible(false)}
           />

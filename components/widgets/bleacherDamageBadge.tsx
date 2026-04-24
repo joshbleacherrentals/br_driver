@@ -51,11 +51,15 @@ export default function BleacherDamageBadge({
   );
 
   // Fetch the count of damage photos so we can mention it in the alert
-  const photoRows = usePowerSyncQuery<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM "DamageReportPhotos" WHERE damage_report_uuid = ? AND photo_path IS NOT NULL`,
+  const photoRows = usePowerSyncQuery<{ photo_path: string }>(
+    `SELECT photo_path 
+    FROM "DamageReportPhotos" 
+    WHERE damage_report_uuid = ? 
+    AND photo_path IS NOT NULL`,
     [damageReport.id]
-  );
-  const photoCount = photoRows?.[0]?.cnt ?? 0;
+    );
+
+  const photoCount = photoRows?.length ?? 0;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return "—";
@@ -81,10 +85,6 @@ export default function BleacherDamageBadge({
 
     if (damageReport.note) {
       lines.push("", `Notes:\n${damageReport.note}`);
-    }
-
-    if (photoCount > 0) {
-      lines.push("", `📷 ${photoCount} damage photo${photoCount !== 1 ? "s" : ""} attached`);
     }
 
     lines.push(
