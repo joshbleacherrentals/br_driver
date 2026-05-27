@@ -1,5 +1,6 @@
 import { db, photoAttachmentQueue } from "@/components/providers/SystemProvider";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
+import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -80,12 +81,13 @@ export default function EditProfileDocs({
     });
 
     if (!result.canceled && result.assets[0]) {
-      const ext = getExtFromUri(result.assets[0].uri) ?? "jpg";
+      const asset = result.assets[0];
+      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
       setter({
-        uri: result.assets[0].uri,
-        base64: result.assets[0].base64 ?? undefined,
+        uri: converted.uri,
+        base64: converted.base64,
         isNew: true,
-        ext,
+        ext: converted.ext,
       });
     }
   };
@@ -104,12 +106,13 @@ export default function EditProfileDocs({
     });
 
     if (!result.canceled && result.assets[0]) {
-      const ext = getExtFromUri(result.assets[0].uri) ?? "jpg";
+      const asset = result.assets[0];
+      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
       setter({
-        uri: result.assets[0].uri,
-        base64: result.assets[0].base64 ?? undefined,
+        uri: converted.uri,
+        base64: converted.base64,
         isNew: true,
-        ext,
+        ext: converted.ext,
       });
     }
   };
@@ -122,16 +125,16 @@ export default function EditProfileDocs({
     });
 
     if (!result.canceled && result.assets[0]) {
-      // Read the file as base64 so it can be queued for upload
-      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+      const pickedUri = result.assets[0].uri;
+      const base64 = await FileSystem.readAsStringAsync(pickedUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      const ext = getExtFromUri(result.assets[0].uri) ?? "jpg";
+      const converted = await convertToJpegIfNeeded(pickedUri, base64);
       setter({
-        uri: result.assets[0].uri,
-        base64,
+        uri: converted.uri,
+        base64: converted.base64,
         isNew: true,
-        ext,
+        ext: converted.ext,
       });
     }
   };

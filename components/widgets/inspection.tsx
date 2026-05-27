@@ -1,5 +1,6 @@
 import { InspectionQuestion, useInspectionQuestions } from '@/hooks/db/useInspectionQuestions';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
+import { convertToJpegIfNeeded } from '@/utils/convertToJpeg';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
@@ -322,15 +323,13 @@ export default function InspectionScreen({
       base64: true,
     });
     if (!result.canceled && result.assets?.length) {
-      addPhotosToQuestion(
-        questionId,
-        result.assets.map((asset) => ({
-          uri: asset.uri,
-          base64: asset.base64 ?? undefined,
-          isNew: true,
-          ext: getExtFromUri(asset.uri) ?? 'jpg',
-        }))
+      const converted = await Promise.all(
+        result.assets.map(async (asset) => {
+          const c = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+          return { uri: c.uri, base64: c.base64, isNew: true, ext: c.ext };
+        }),
       );
+      addPhotosToQuestion(questionId, converted);
     }
   };
 
@@ -343,11 +342,12 @@ export default function InspectionScreen({
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
       addPhotosToQuestion(questionId, [{
-        uri: asset.uri,
-        base64: asset.base64 ?? undefined,
+        uri: converted.uri,
+        base64: converted.base64,
         isNew: true,
-        ext: getExtFromUri(asset.uri) ?? 'jpg',
+        ext: converted.ext,
       }]);
     }
   };
@@ -714,13 +714,14 @@ export default function InspectionScreen({
                 const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
                 if (!result.canceled && result.assets?.length) {
                   const asset = result.assets[0];
+                  const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
                   setDamagePhotos((prev) => [
                     ...prev,
                     {
-                      uri: asset.uri,
-                      base64: asset.base64 ?? undefined,
+                      uri: converted.uri,
+                      base64: converted.base64,
                       isNew: true,
-                      ext: getExtFromUri(asset.uri) ?? 'jpg',
+                      ext: converted.ext,
                     },
                   ]);
                 }
@@ -738,15 +739,13 @@ export default function InspectionScreen({
                   base64: true,
                 });
                 if (!result.canceled && result.assets?.length) {
-                  setDamagePhotos((prev) => [
-                    ...prev,
-                    ...result.assets.map((asset) => ({
-                      uri: asset.uri,
-                      base64: asset.base64 ?? undefined,
-                      isNew: true,
-                      ext: getExtFromUri(asset.uri) ?? 'jpg',
-                    })),
-                  ]);
+                  const converted = await Promise.all(
+                    result.assets.map(async (asset) => {
+                      const c = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+                      return { uri: c.uri, base64: c.base64, isNew: true, ext: c.ext };
+                    }),
+                  );
+                  setDamagePhotos((prev) => [...prev, ...converted]);
                 }
               }}
               onRemove={(index) =>
