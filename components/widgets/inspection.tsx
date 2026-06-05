@@ -2,6 +2,7 @@ import { InspectionQuestion, useInspectionQuestions } from '@/hooks/db/useInspec
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 import { convertToJpegIfNeeded } from '@/utils/convertToJpeg';
 import { Ionicons } from '@expo/vector-icons';
+import { randomUUID } from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
@@ -56,14 +57,6 @@ interface InspectionScreenProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 function getExtFromUri(uri: string): string | undefined {
   return uri.match(/\.(\w+)$/)?.[1]?.toLowerCase();
@@ -423,7 +416,7 @@ export default function InspectionScreen({
     await executeTypedMutation(
       db.insertInto('DamageReportPhotos')
         .values({
-          id: generateUUID(),
+          id: randomUUID(),
           damage_report_uuid: damageReportId,
           photo_path: record.id,
         })
@@ -443,7 +436,7 @@ export default function InspectionScreen({
     setIsSubmitting(true);
 
     try {
-      const inspectionId = generateUUID();
+      const inspectionId = randomUUID();
       const now = new Date().toISOString();
 
       // 1️⃣ Build answers JSON — inspection-question photos go to inspection-photos bucket
@@ -509,7 +502,7 @@ export default function InspectionScreen({
 
       // 3️⃣ Insert damage report + photos if damage was found
       if (damageFound) {
-        const damageId = generateUUID();
+        const damageId = randomUUID();
 
         // Insert DamageReports first so photos can reference it by UUID
         await executeTypedMutation(

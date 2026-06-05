@@ -1,4 +1,5 @@
 import { db } from '@/components/providers/SystemProvider';
+import { randomUUID } from 'expo-crypto';
 import ProfileCompletionBanner from '@/components/widgets/onboardingBanner';
 import { useDriver } from '@/hooks/db/useDriver';
 import { useDriverUnavailability } from '@/hooks/db/useDriverUnavailability';
@@ -80,12 +81,6 @@ function formatStatus(status: string | null): string {
   return map[status] ?? status;
 }
 
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -315,7 +310,7 @@ export default function AvailabilityCalendarScreen() {
         const query = db
           .insertInto('DriverUnavailability')
           .values({
-            id: generateUUID(),
+            id: randomUUID(),
             driver_uuid: driverUuid,
             date_unavailable: date,
             updated_at: new Date().toISOString(),

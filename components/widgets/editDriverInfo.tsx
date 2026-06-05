@@ -2,6 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import AddressAutocomplete from "@/components/widgets/addressAutoComplete";
 import { useAddress } from "@/hooks/db/useAddress";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
+import { randomUUID } from 'expo-crypto';
 import React, { useState } from "react";
 import {
   Alert,
@@ -139,7 +140,7 @@ export default function EditDriverInfo({
                 .compile()
             );
             } else {
-            const newAddressId = generateUUID();
+            const newAddressId = randomUUID();
             const now = new Date().toISOString();
 
             await executeTypedMutation(
@@ -237,14 +238,6 @@ export default function EditDriverInfo({
   );
 }
 
-// UUID
-function generateUUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F2F2F7" },

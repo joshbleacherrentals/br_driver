@@ -14,6 +14,7 @@ import { convertToJpegIfNeeded } from '@/utils/convertToJpeg';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+import { randomUUID } from 'expo-crypto';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -32,14 +33,6 @@ interface DocumentPhoto {
   base64?: string;
   isNew?: boolean;
   ext?: string;
-}
-
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 export default function DamageReportScreen() {
@@ -140,7 +133,7 @@ export default function DamageReportScreen() {
 
     setIsSubmitting(true);
     try {
-      const damageId = generateUUID();
+      const damageId = randomUUID();
       const now = new Date().toISOString();
 
       await executeTypedMutation(
@@ -177,7 +170,7 @@ export default function DamageReportScreen() {
             db
               .insertInto('DamageReportPhotos')
               .values({
-                id: generateUUID(),
+                id: randomUUID(),
                 damage_report_uuid: damageId,
                 photo_path: record.id,
               })
