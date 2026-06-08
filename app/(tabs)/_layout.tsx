@@ -4,7 +4,9 @@ import { Platform } from "react-native";
 
 import { HapticTab } from "@/components/HapticTab";
 import TabBarBackground from "@/components/ui/TabBarBackground";
+import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 
@@ -18,10 +20,12 @@ const LIGHT_BLUE = "#1D62A3";
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { driverProfile, isLoading } = useCheckDriver();
+  const { updateReady, restart } = useOTAUpdate();
 
   return (
     <>
       <SignedIn>
+        <UpdateBanner visible={updateReady} onRestart={restart} />
         {isLoading ? (
           <LoadingScreen />
         ) : driverProfile === false ? (
