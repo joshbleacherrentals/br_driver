@@ -8,12 +8,15 @@ export type DamageReportData = {
   id: string;
   inspection_uuid: string | null;
   bleacher_uuid: string | null;
-  is_safe_to_sit: number | null; 
+  is_safe_to_sit: number | null;
   is_safe_to_haul: number | null;
+  seat_damage: string | null;
+  haul_damage: string | null;
   note: string | null;
   created_at: string | null;
   resolved_at: string | null;
   maintenance_event_uuid: string | null;
+  created_by_user_uuid: string | null;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -39,6 +42,8 @@ export function useDamageReport(bleacher_uuid: string | null | undefined): {
         "bleacher_uuid",
         "is_safe_to_sit",
         "is_safe_to_haul",
+        "seat_damage",
+        "haul_damage",
         "note",
         "created_at",
         "resolved_at",
@@ -78,6 +83,8 @@ export function useDamageReports(bleacher_uuid: string | null | undefined): {
         "bleacher_uuid",
         "is_safe_to_sit",
         "is_safe_to_haul",
+        "seat_damage",
+        "haul_damage",
         "note",
         "created_at",
         "resolved_at",
@@ -116,6 +123,8 @@ export function useDamageReportByInspection(inspection_uuid: string | null | und
         "bleacher_uuid",
         "is_safe_to_sit",
         "is_safe_to_haul",
+        "seat_damage",
+        "haul_damage",
         "note",
         "created_at",
         "resolved_at",
@@ -131,6 +140,46 @@ export function useDamageReportByInspection(inspection_uuid: string | null | und
 
   return {
     damageReport: data?.[0] ?? null,
+    isLoading,
+  };
+}
+
+/**
+ * Returns damage reports created by the given user, newest first.
+ * If no userUuid provided, returns empty.
+ */
+export function useMyDamageReports(userUuid: string | null | undefined): {
+  damageReports: DamageReportData[];
+  isLoading: boolean;
+} {
+  const compiled = useMemo(() => {
+    if (!userUuid) return null;
+
+    return db
+      .selectFrom("DamageReports")
+      .select([
+        "id",
+        "inspection_uuid",
+        "bleacher_uuid",
+        "is_safe_to_sit",
+        "is_safe_to_haul",
+        "seat_damage",
+        "haul_damage",
+        "note",
+        "created_at",
+        "resolved_at",
+        "maintenance_event_uuid",
+        "created_by_user_uuid",
+      ])
+      .where("created_by_user_uuid", "=", userUuid)
+      .orderBy("created_at", "desc")
+      .compile();
+  }, [userUuid]);
+
+  const { data, isLoading } = useTypedQuery(compiled, expect<DamageReportData>());
+
+  return {
+    damageReports: data ?? [],
     isLoading,
   };
 }

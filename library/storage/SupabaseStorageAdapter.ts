@@ -43,25 +43,35 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     return data as Blob;
   }
 
+  private normalizePath(uri: string): string {
+    return uri.replace(/(file:\/\/|https?:\/\/)|\/\/+/g, (match, protocol) =>
+      protocol ? protocol : "/"
+    );
+  }
+
   async writeFile(
     fileURI: string,
     base64Data: string,
     options?: { encoding?: EncodingType }
   ): Promise<void> {
+    const normalizedUri = this.normalizePath(fileURI);
+    const parentDir = normalizedUri.substring(0, normalizedUri.lastIndexOf("/"));
+    await this.makeDir(parentDir);
     const encoding =
       options?.encoding === EncodingType.Base64
         ? FileSystem.EncodingType.Base64
         : FileSystem.EncodingType.UTF8;
-    await FileSystem.writeAsStringAsync(fileURI, base64Data, { encoding });
+    await FileSystem.writeAsStringAsync(normalizedUri, base64Data, { encoding });
   }
 
   async readFile(
     fileURI: string,
     options?: { encoding?: EncodingType; mediaType?: string }
   ): Promise<ArrayBuffer> {
-    const { exists } = await FileSystem.getInfoAsync(fileURI);
+    const normalizedUri = this.normalizePath(fileURI);
+    const { exists } = await FileSystem.getInfoAsync(normalizedUri);
     if (!exists) {
-      throw new Error(`File does not exist: ${fileURI}`);
+      throw new Error(`File does not exist: ${normalizedUri}`);
     }
 
     const fsEncoding =
@@ -69,7 +79,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         ? FileSystem.EncodingType.Base64
         : FileSystem.EncodingType.UTF8;
 
-    const fileContent = await FileSystem.readAsStringAsync(fileURI, {
+    const fileContent = await FileSystem.readAsStringAsync(normalizedUri, {
       encoding: fsEncoding,
     });
 
@@ -84,8 +94,9 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     uri: string,
     options?: { filename?: string }
   ): Promise<void> {
-    if (await this.fileExists(uri)) {
-      await FileSystem.deleteAsync(uri);
+    const normalizedUri = this.normalizePath(uri);
+    if (await this.fileExists(normalizedUri)) {
+      await FileSystem.deleteAsync(normalizedUri);
     }
 
     const { filename } = options ?? {};
@@ -102,19 +113,23 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 
   async fileExists(fileURI: string): Promise<boolean> {
-    const { exists } = await FileSystem.getInfoAsync(fileURI);
+    const { exists } = await FileSystem.getInfoAsync(this.normalizePath(fileURI));
     return exists;
   }
 
   async makeDir(uri: string): Promise<void> {
-    const { exists } = await FileSystem.getInfoAsync(uri);
+    const normalized = this.normalizePath(uri);
+    const { exists } = await FileSystem.getInfoAsync(normalized);
     if (!exists) {
-      await FileSystem.makeDirectoryAsync(uri, { intermediates: true });
+      await FileSystem.makeDirectoryAsync(normalized, { intermediates: true });
     }
   }
 
   async copyFile(sourceUri: string, targetUri: string): Promise<void> {
-    await FileSystem.copyAsync({ from: sourceUri, to: targetUri });
+    await FileSystem.copyAsync({
+      from: this.normalizePath(sourceUri),
+      to: this.normalizePath(targetUri),
+    });
   }
 
   getUserStorageDirectory(): string {

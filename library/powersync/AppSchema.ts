@@ -130,10 +130,13 @@ const DamageReportsCols = {
   bleacher_uuid: column.text,
   is_safe_to_sit: column.integer,
   is_safe_to_haul: column.integer,
+  seat_damage: column.text,
+  haul_damage: column.text,
   note: column.text,
   created_at: column.text,
   resolved_at: column.text,
   maintenance_event_uuid: column.text,
+  created_by_user_uuid: column.text,
 } satisfies PowerSyncColsFor<"DamageReports">;
 const DamageReports = new Table(DamageReportsCols, { indexes: { bleacher_uuid: ["bleacher_uuid"] } });
 

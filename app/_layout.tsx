@@ -73,6 +73,14 @@ function RootLayoutContent() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="damage-report"
+          options={{ title: 'Damage Report', headerBackTitle: 'Back' }}
+        />
+        <Stack.Screen
+          name="damage-report-history"
+          options={{ title: 'Damage Report History', headerBackTitle: 'Back' }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

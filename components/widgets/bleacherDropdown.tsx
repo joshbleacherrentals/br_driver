@@ -112,7 +112,7 @@ export default function BleacherDropdown({
               value={query}
               onChangeText={setQuery}
               keyboardType="numeric"
-              autoFocus
+              autoFocus={false}
               clearButtonMode="while-editing"
             />
           </View>

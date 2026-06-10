@@ -1,6 +1,8 @@
 import { InspectionQuestion, useInspectionQuestions } from '@/hooks/db/useInspectionQuestions';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
+import { convertToJpegIfNeeded } from '@/utils/convertToJpeg';
 import { Ionicons } from '@expo/vector-icons';
+import { randomUUID } from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
@@ -55,14 +57,6 @@ interface InspectionScreenProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 function getExtFromUri(uri: string): string | undefined {
   return uri.match(/\.(\w+)$/)?.[1]?.toLowerCase();
@@ -322,15 +316,13 @@ export default function InspectionScreen({
       base64: true,
     });
     if (!result.canceled && result.assets?.length) {
-      addPhotosToQuestion(
-        questionId,
-        result.assets.map((asset) => ({
-          uri: asset.uri,
-          base64: asset.base64 ?? undefined,
-          isNew: true,
-          ext: getExtFromUri(asset.uri) ?? 'jpg',
-        }))
+      const converted = await Promise.all(
+        result.assets.map(async (asset) => {
+          const c = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+          return { uri: c.uri, base64: c.base64, isNew: true, ext: c.ext };
+        }),
       );
+      addPhotosToQuestion(questionId, converted);
     }
   };
 
@@ -343,11 +335,12 @@ export default function InspectionScreen({
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
     if (!result.canceled && result.assets?.length) {
       const asset = result.assets[0];
+      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
       addPhotosToQuestion(questionId, [{
-        uri: asset.uri,
-        base64: asset.base64 ?? undefined,
+        uri: converted.uri,
+        base64: converted.base64,
         isNew: true,
-        ext: getExtFromUri(asset.uri) ?? 'jpg',
+        ext: converted.ext,
       }]);
     }
   };
@@ -423,7 +416,7 @@ export default function InspectionScreen({
     await executeTypedMutation(
       db.insertInto('DamageReportPhotos')
         .values({
-          id: generateUUID(),
+          id: randomUUID(),
           damage_report_uuid: damageReportId,
           photo_path: record.id,
         })
@@ -443,7 +436,7 @@ export default function InspectionScreen({
     setIsSubmitting(true);
 
     try {
-      const inspectionId = generateUUID();
+      const inspectionId = randomUUID();
       const now = new Date().toISOString();
 
       // 1️⃣ Build answers JSON — inspection-question photos go to inspection-photos bucket
@@ -509,7 +502,7 @@ export default function InspectionScreen({
 
       // 3️⃣ Insert damage report + photos if damage was found
       if (damageFound) {
-        const damageId = generateUUID();
+        const damageId = randomUUID();
 
         // Insert DamageReports first so photos can reference it by UUID
         await executeTypedMutation(
@@ -714,13 +707,14 @@ export default function InspectionScreen({
                 const result = await ImagePicker.launchCameraAsync({ quality: 0.8, base64: true });
                 if (!result.canceled && result.assets?.length) {
                   const asset = result.assets[0];
+                  const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
                   setDamagePhotos((prev) => [
                     ...prev,
                     {
-                      uri: asset.uri,
-                      base64: asset.base64 ?? undefined,
+                      uri: converted.uri,
+                      base64: converted.base64,
                       isNew: true,
-                      ext: getExtFromUri(asset.uri) ?? 'jpg',
+                      ext: converted.ext,
                     },
                   ]);
                 }
@@ -738,15 +732,13 @@ export default function InspectionScreen({
                   base64: true,
                 });
                 if (!result.canceled && result.assets?.length) {
-                  setDamagePhotos((prev) => [
-                    ...prev,
-                    ...result.assets.map((asset) => ({
-                      uri: asset.uri,
-                      base64: asset.base64 ?? undefined,
-                      isNew: true,
-                      ext: getExtFromUri(asset.uri) ?? 'jpg',
-                    })),
-                  ]);
+                  const converted = await Promise.all(
+                    result.assets.map(async (asset) => {
+                      const c = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+                      return { uri: c.uri, base64: c.base64, isNew: true, ext: c.ext };
+                    }),
+                  );
+                  setDamagePhotos((prev) => [...prev, ...converted]);
                 }
               }}
               onRemove={(index) =>

@@ -1,16 +1,8 @@
+import { randomUUID } from 'expo-crypto';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert, Modal } from 'react-native';
 import { db } from '@/components/providers/SystemProvider';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
-
-// Simple UUID v4 generator
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
 
 interface EditVehicleInfoProps {
   driverId: string | null;
@@ -79,7 +71,7 @@ export default function EditVehicleInfo({
 
     try {
       if (!vehicleId) {
-        const id = generateUUID();
+        const id = randomUUID();
 
         console.log(vehicleMake)
         console.log(vehicleModel)

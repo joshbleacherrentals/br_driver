@@ -81,6 +81,15 @@ export default function TabLayout() {
                 ),
               }}
             />
+            <Tabs.Screen
+              name="more"
+              options={{
+                title: "More",
+                tabBarIcon: ({ color }) => (
+                  <FontAwesome6 name="bars" size={24} color={color} />
+                ),
+              }}
+            />
           </Tabs>
         )}
       </SignedIn>
