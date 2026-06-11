@@ -685,6 +685,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "DamageReports_created_by_user_uuid_fkey";
+            columns: ["created_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "DamageReports_inspection_uuid_fkey";
             columns: ["inspection_uuid"];
             isOneToOne: false;
@@ -3259,6 +3266,7 @@ export const Constants = {
       bleacher_opening_dir: ["driver", "passenger"],
       bluebook_region: ["CAN", "US", "Both"],
       currency: ["USD", "CAD"],
+      damage_severity: ["none", "minor", "major"],
       event_status: ["quoted", "booked", "lost", "draft"],
       pay_currency_type: ["CAD", "USD"],
       pay_per_unit_type: ["KM", "MI", "HR"],
