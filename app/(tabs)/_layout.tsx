@@ -1,24 +1,60 @@
 import { Redirect, Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, Pressable } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
-import { HapticTab } from "@/components/HapticTab";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import {
+  CalendarDays,
+  CircleUser,
+  Ellipsis,
+  FileText,
+  Truck,
+} from "lucide-react-native";
+
+// Animate on press instead of on focus — avoids remount issues
+function AnimatedHapticTab(props: any) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      {...props}
+      onPressIn={(ev: any) => {
+        scale.value = 0.92;
+        scale.value = withSpring(1, { damping: 50, stiffness: 2000 });
+        props.onPressIn?.(ev);
+      }}
+    >
+      <Animated.View style={[animatedStyle, { alignItems: "center" }]}>
+        {props.children}
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 import LoadingScreen from "@/components/widgets/loadingScreen";
 import NoDriverScreen from "@/components/widgets/no-driver";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
 
-const DARK_BLUE = "#10365A";
-const LIGHT_BLUE = "#1D62A3";
+const BRAND_BLUE = "#1D62A3";
 
 export default function TabLayout() {
   const { driverProfile, isLoading } = useCheckDriver();
   const { updateReady, restart } = useOTAUpdate();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   return (
     <>
@@ -31,18 +67,20 @@ export default function TabLayout() {
         ) : (
           <Tabs
             screenOptions={{
-              tabBarActiveTintColor: LIGHT_BLUE,
-              tabBarInactiveTintColor: "#8E8E93",
+              tabBarActiveTintColor: BRAND_BLUE,
+              tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",
               headerShown: false,
-              tabBarButton: HapticTab,
+              tabBarButton: AnimatedHapticTab,
               tabBarBackground: TabBarBackground,
               tabBarStyle: Platform.select({
                 ios: {
                   position: "absolute",
-                  backgroundColor: "rgba(16, 54, 90, 0.8)", // DARK_BLUE with transparency for blur
+                  backgroundColor: "transparent",
                 },
                 default: {
-                  backgroundColor: DARK_BLUE,
+                  backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                  borderTopColor: isDark ? "#38383A" : "#E5E7EB",
+                  borderTopWidth: 0.5,
                 },
               }),
             }}
@@ -52,7 +90,7 @@ export default function TabLayout() {
               options={{
                 title: "Trips",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="truck-pickup" size={24} color={color} />
+                  <Truck size={22} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -61,7 +99,7 @@ export default function TabLayout() {
               options={{
                 title: "Calendar",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="calendar-days" size={24} color={color} />
+                  <CalendarDays size={22} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -70,7 +108,7 @@ export default function TabLayout() {
               options={{
                 title: "Documents",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="book" size={24} color={color} />
+                  <FileText size={22} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -79,7 +117,7 @@ export default function TabLayout() {
               options={{
                 title: "Profile",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="user-circle" size={24} color={color} />
+                  <CircleUser size={22} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -88,7 +126,7 @@ export default function TabLayout() {
               options={{
                 title: "More",
                 tabBarIcon: ({ color }) => (
-                  <FontAwesome6 name="bars" size={24} color={color} />
+                  <Ellipsis size={22} color={color} strokeWidth={1.75} />
                 ),
               }}
             />

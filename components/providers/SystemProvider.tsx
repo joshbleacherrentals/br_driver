@@ -59,6 +59,14 @@ const logger = createBaseLogger();
 logger.useDefaults();
 logger.setLevel(LogLevel.WARN);
 
+// Suppress noisy WebSocket timeout errors — PowerSync auto-reconnects
+const originalError = logger.error.bind(logger);
+logger.error = (...args: any[]) => {
+  const msg = args.map(String).join(" ");
+  if (msg.includes("No data received on WebSocket")) return;
+  originalError(...args);
+};
+
 function createOpenFactory() {
   DebugLogger.info(
     TAG,

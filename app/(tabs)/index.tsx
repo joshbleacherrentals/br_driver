@@ -7,6 +7,7 @@ import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useAllBleachers, useBatchBleachers } from "@/hooks/db/useBleacher";
 import { useResolvedBleacherAddresses } from "@/hooks/db/useResolveAddress";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -22,9 +23,63 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const DARK_BLUE = "#10365A";
-const LIGHT_BLUE = "#1D62A3";
-const MID_BLUE = "#164d82";
+// ── Brand palette ──────────────────────────────────────────────────────────
+const BRAND_BLUE = "#1D62A3";
+
+const themes = {
+  light: {
+    bg: "#F2F2F7",
+    headerBg: "#FFFFFF",
+    headerText: "#111827",
+    headerBorder: "#E5E7EB",
+    card: "#FFFFFF",
+    cardText: "#111827",
+    cardSecondary: "#6B7280",
+    toggleBg: "#E5E7EB",
+    toggleActive: BRAND_BLUE,
+    toggleText: "#6B7280",
+    toggleTextActive: "#FFFFFF",
+    badgeBg: "#1D4E89",
+    badgeText: "#FFFFFF",
+    weekHeaderBg: BRAND_BLUE,
+    weekHeaderCurrent: "#1B548E",
+    weekHeaderText: "#FFFFFF",
+    weekSubText: "#BFDBFE",
+    weekBodyBg: "#F0F4F8",
+    emptyText: "#8E8E93",
+    accentText: "#0A84FF",
+    separator: "#F2F2F7",
+    pickupLabel: "#8E8E93",
+    currentBadgeBg: "#34C759",
+  },
+  dark: {
+    bg: "#000000",
+    headerBg: "#1C1C1E",
+    headerText: "#FFFFFF",
+    headerBorder: "#38383A",
+    card: "#1C1C1E",
+    cardText: "#FFFFFF",
+    cardSecondary: "#8E8E93",
+    toggleBg: "#2C2C2E",
+    toggleActive: BRAND_BLUE,
+    toggleText: "#8E8E93",
+    toggleTextActive: "#FFFFFF",
+    badgeBg: "#0A84FF",
+    badgeText: "#FFFFFF",
+    weekHeaderBg: "#1C1C1E",
+    weekHeaderCurrent: "#1A3A5C",
+    weekHeaderText: "#FFFFFF",
+    weekSubText: "#93C5FD",
+    weekBodyBg: "#111111",
+    emptyText: "#636366",
+    accentText: "#0A84FF",
+    separator: "#2C2C2E",
+    pickupLabel: "#8E8E93",
+    currentBadgeBg: "#30D158",
+  },
+};
+
+// ── Utility helpers ────────────────────────────────────────────────────────
 
 type InspectionType = "pickup" | "dropoff";
 type ActiveTab = "upcoming" | "history";
@@ -96,7 +151,12 @@ function formatDate(dateISO?: string | null) {
   }
 }
 
+// ── Main screen ────────────────────────────────────────────────────────────
+
 export default function TripsScreen() {
+  const colorScheme = useColorScheme();
+  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+
   const [activeTab, setActiveTab] = useState<ActiveTab>("upcoming");
   const [inspectionData, setInspectionData] = useState<{
     workTrackerId: string;
@@ -115,7 +175,6 @@ export default function TripsScreen() {
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  // ── Resolve addresses for all bleachers at the top level (not inside useMemo) ──
   const resolvedAddresses = useResolvedBleacherAddresses(
     allBleachersFleet,
     today,
@@ -202,6 +261,8 @@ export default function TripsScreen() {
   const allBleachers = useBatchBleachers(
     completedTrips.map((t) => t.bleacher_uuid),
   );
+
+  // ── Handlers (unchanged) ────────────────────────────────────────────────
 
   const handleAccept = async (workTrackerId: string) => {
     if (!isProfileComplete) {
@@ -385,6 +446,8 @@ export default function TripsScreen() {
     }
   };
 
+  // ── Sub-screens ──────────────────────────────────────────────────────────
+
   if (inspectionData) {
     return (
       <InspectionScreen
@@ -408,46 +471,43 @@ export default function TripsScreen() {
     );
   }
 
+  // ── Derived counts ──────────────────────────────────────────────────────
+
+  const upcomingCount = (workTrackers ?? []).filter(
+    (wt) =>
+      wt.status !== "completed" &&
+      wt.status !== "cancelled" &&
+      wt.status !== "draft",
+  ).length;
+
+  // ── Render ───────────────────────────────────────────────────────────────
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: t.bg }]}>
       {/* Header */}
       <View
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 8,
-          backgroundColor: "#FFFFFF",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
+        style={[
+          styles.header,
+          { backgroundColor: t.headerBg, borderBottomColor: t.headerBorder },
+        ]}
       >
-        <Image source={logo} style={{ width: 45, height: 45 }} />
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "700",
-            letterSpacing: 0.3,
-            color: "#111827",
-            position: "absolute",
-            left: 0,
-            right: 0,
-            textAlign: "center",
-          }}
-        >
+        <Image source={logo} style={styles.logo} />
+        <Text style={[styles.headerTitle, { color: t.headerText }]}>
           Trips
         </Text>
-        <View style={{ width: 45, height: 45 }} />
+        <View style={styles.logoSpacer} />
       </View>
 
       <ProfileCompletionBanner />
 
       {/* Toggle */}
-      <View style={styles.toggleContainer}>
+      <View style={[styles.toggleContainer, { backgroundColor: t.toggleBg }]}>
         <TouchableOpacity
           style={[
             styles.toggleBtn,
-            activeTab === "upcoming" && styles.toggleBtnActive,
+            activeTab === "upcoming" && {
+              backgroundColor: t.toggleActive,
+            },
           ]}
           onPress={() => setActiveTab("upcoming")}
           activeOpacity={0.8}
@@ -455,29 +515,20 @@ export default function TripsScreen() {
           <MaterialCommunityIcons
             name="truck"
             size={14}
-            color={activeTab === "upcoming" ? "#fff" : "#93c5fd"}
+            color={activeTab === "upcoming" ? t.toggleTextActive : t.toggleText}
           />
           <Text
             style={[
               styles.toggleText,
-              activeTab === "upcoming" && styles.toggleTextActive,
+              { color: activeTab === "upcoming" ? t.toggleTextActive : t.toggleText },
             ]}
           >
             Upcoming
           </Text>
-          {(workTrackers ?? []).filter(
-            (t) => t.status !== "completed" && t.status !== "cancelled",
-          ).length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {
-                  (workTrackers ?? []).filter(
-                    (t) =>
-                      t.status !== "completed" &&
-                      t.status !== "cancelled" &&
-                      t.status !== "draft",
-                  ).length
-                }
+          {upcomingCount > 0 && (
+            <View style={[styles.badge, { backgroundColor: t.badgeBg }]}>
+              <Text style={[styles.badgeText, { color: t.badgeText }]}>
+                {upcomingCount}
               </Text>
             </View>
           )}
@@ -486,7 +537,9 @@ export default function TripsScreen() {
         <TouchableOpacity
           style={[
             styles.toggleBtn,
-            activeTab === "history" && styles.toggleBtnActive,
+            activeTab === "history" && {
+              backgroundColor: t.toggleActive,
+            },
           ]}
           onPress={() => setActiveTab("history")}
           activeOpacity={0.8}
@@ -494,12 +547,12 @@ export default function TripsScreen() {
           <Ionicons
             name="time-outline"
             size={14}
-            color={activeTab === "history" ? "#fff" : "#93c5fd"}
+            color={activeTab === "history" ? t.toggleTextActive : t.toggleText}
           />
           <Text
             style={[
               styles.toggleText,
-              activeTab === "history" && styles.toggleTextActive,
+              { color: activeTab === "history" ? t.toggleTextActive : t.toggleText },
             ]}
           >
             History
@@ -510,8 +563,8 @@ export default function TripsScreen() {
       {/* ── Upcoming Trips ── */}
       {activeTab === "upcoming" && (
         <FlatList
-          contentContainerStyle={{ paddingBottom: 50, paddingTop: 8 }}
-          data={workTrackers?.filter((t) => t.status !== "completed")}
+          contentContainerStyle={styles.listContent}
+          data={workTrackers?.filter((wt) => wt.status !== "completed")}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <TripItem
@@ -527,8 +580,11 @@ export default function TripsScreen() {
           )}
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
           ListEmptyComponent={() => (
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: "#93c5fd" }}>No upcoming trips.</Text>
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={40} color={t.emptyText} />
+              <Text style={[styles.emptyText, { color: t.emptyText }]}>
+                No upcoming trips
+              </Text>
             </View>
           )}
         />
@@ -537,53 +593,44 @@ export default function TripsScreen() {
       {/* ── Trip History ── */}
       {activeTab === "history" && (
         <FlatList
-          contentContainerStyle={{
-            paddingBottom: 50,
-            paddingTop: 12,
-            paddingHorizontal: 16,
-          }}
+          contentContainerStyle={styles.historyListContent}
           data={weekGroups}
           keyExtractor={(item) => item.key}
           ListEmptyComponent={() => (
-            <View style={{ padding: 16, alignItems: "center", marginTop: 24 }}>
-              <Text
-                style={{ fontSize: 14, color: "#8E8E93", textAlign: "center" }}
-              >
-                Completed trips will appear here once you finish your
-                deliveries.
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={40} color={t.emptyText} />
+              <Text style={[styles.emptyText, { color: t.emptyText }]}>
+                Completed trips will appear here once you finish your deliveries
               </Text>
             </View>
           )}
           renderItem={({ item: group }) => {
             const collapsed = isCollapsed(group.key, group.isCurrent);
             return (
-              <View style={{ marginBottom: 12 }}>
+              <View style={styles.weekGroup}>
                 <TouchableOpacity
                   onPress={() => toggleWeek(group.key, group.isCurrent)}
-                  style={{
-                    backgroundColor: group.isCurrent ? LIGHT_BLUE : "#1a3d5c",
-                    borderRadius: collapsed ? 12 : 12,
-                    borderBottomLeftRadius: collapsed ? 12 : 0,
-                    borderBottomRightRadius: collapsed ? 12 : 0,
-                    paddingVertical: 12,
-                    paddingHorizontal: 14,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
+                  style={[
+                    styles.weekHeader,
+                    {
+                      backgroundColor: group.isCurrent
+                        ? t.weekHeaderCurrent
+                        : t.weekHeaderBg,
+                      borderBottomLeftRadius: collapsed ? 12 : 0,
+                      borderBottomRightRadius: collapsed ? 12 : 0,
+                    },
+                  ]}
                 >
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.weekHeaderContent}>
                     <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: "700",
-                        color: "#FFFFFF",
-                        marginBottom: 2,
-                      }}
+                      style={[
+                        styles.weekHeaderTitle,
+                        { color: t.weekHeaderText },
+                      ]}
                     >
                       {group.label}
                     </Text>
-                    <Text style={{ fontSize: 12, color: "#93c5fd" }}>
+                    <Text style={[styles.weekSubText, { color: t.weekSubText }]}>
                       {group.trips.length}{" "}
                       {group.trips.length === 1 ? "trip" : "trips"}
                       {group.totalPay > 0
@@ -593,42 +640,27 @@ export default function TripsScreen() {
                   </View>
                   {group.isCurrent && (
                     <View
-                      style={{
-                        backgroundColor: "#34C759",
-                        borderRadius: 4,
-                        paddingHorizontal: 7,
-                        paddingVertical: 3,
-                        marginRight: 10,
-                      }}
+                      style={[
+                        styles.currentBadge,
+                        { backgroundColor: t.currentBadgeBg },
+                      ]}
                     >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontWeight: "700",
-                          color: "#fff",
-                          letterSpacing: 0.4,
-                        }}
-                      >
-                        THIS WEEK
-                      </Text>
+                      <Text style={styles.currentBadgeText}>THIS WEEK</Text>
                     </View>
                   )}
                   <Ionicons
                     name={collapsed ? "chevron-down" : "chevron-up"}
                     size={18}
-                    color="#93c5fd"
+                    color={t.weekSubText}
                   />
                 </TouchableOpacity>
 
                 {!collapsed && (
                   <View
-                    style={{
-                      backgroundColor: "#f0f4f8",
-                      borderBottomLeftRadius: 12,
-                      borderBottomRightRadius: 12,
-                      overflow: "hidden",
-                      paddingTop: 2,
-                    }}
+                    style={[
+                      styles.weekBody,
+                      { backgroundColor: t.weekBodyBg },
+                    ]}
                   >
                     {group.trips.map((trip, index) => {
                       const pickupAddress = trip.pickup_address_uuid
@@ -646,36 +678,21 @@ export default function TripsScreen() {
                         <TouchableOpacity
                           key={trip.id}
                           onPress={() => setSelectedTrip(trip)}
-                          style={{
-                            backgroundColor: "#FFFFFF",
-                            marginHorizontal: 10,
-                            marginTop: 8,
-                            marginBottom: isLast ? 10 : 0,
-                            borderRadius: 10,
-                            padding: 14,
-                            shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 1 },
-                            shadowOpacity: 0.08,
-                            shadowRadius: 3,
-                            elevation: 2,
-                          }}
+                          style={[
+                            styles.tripCard,
+                            {
+                              backgroundColor: t.card,
+                              marginBottom: isLast ? 10 : 0,
+                            },
+                          ]}
                         >
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              alignItems: "flex-start",
-                              marginBottom: 10,
-                            }}
-                          >
-                            <View style={{ flex: 1 }}>
+                          <View style={styles.tripCardHeader}>
+                            <View style={styles.tripCardHeaderLeft}>
                               <Text
-                                style={{
-                                  fontSize: 17,
-                                  fontWeight: "700",
-                                  color: "#000",
-                                  marginBottom: 2,
-                                }}
+                                style={[
+                                  styles.tripCardTitle,
+                                  { color: t.cardText },
+                                ]}
                               >
                                 {bleacher
                                   ? `Bleacher #${bleacher.bleacher_number}`
@@ -685,109 +702,94 @@ export default function TripsScreen() {
                                   ? formatPay(trip.pay_cents)
                                   : ""}
                               </Text>
-                              <Text style={{ fontSize: 13, color: "#8E8E93" }}>
+                              <Text
+                                style={[
+                                  styles.tripCardDate,
+                                  { color: t.cardSecondary },
+                                ]}
+                              >
                                 {formatDate(trip.date)}
                               </Text>
                             </View>
                           </View>
-                          <View style={{ marginBottom: 10 }}>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 5,
-                                marginBottom: 2,
-                              }}
-                            >
+
+                          <View style={styles.addressBlock}>
+                            <View style={styles.addressLabel}>
                               <Ionicons
                                 name="location-outline"
                                 size={13}
-                                color="#8E8E93"
+                                color={t.pickupLabel}
                               />
                               <Text
-                                style={{
-                                  fontSize: 11,
-                                  color: "#8E8E93",
-                                  fontWeight: "600",
-                                  textTransform: "uppercase",
-                                  letterSpacing: 0.4,
-                                }}
+                                style={[
+                                  styles.addressLabelText,
+                                  { color: t.pickupLabel },
+                                ]}
                               >
                                 Pickup
                               </Text>
                             </View>
                             <Text
-                              style={{
-                                fontSize: 13,
-                                color: "#111",
-                                marginBottom: 8,
-                                marginLeft: 18,
-                              }}
+                              style={[
+                                styles.addressText,
+                                { color: t.cardText },
+                              ]}
                             >
                               {pickupAddress
                                 ? pickupAddress.street
                                 : "No address"}
                             </Text>
+
                             <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 5,
-                                marginBottom: 2,
-                              }}
+                              style={[
+                                styles.addressLabel,
+                                { marginTop: 8 },
+                              ]}
                             >
                               <Ionicons
                                 name="location-outline"
                                 size={13}
-                                color="#8E8E93"
+                                color={t.pickupLabel}
                               />
                               <Text
-                                style={{
-                                  fontSize: 11,
-                                  color: "#8E8E93",
-                                  fontWeight: "600",
-                                  textTransform: "uppercase",
-                                  letterSpacing: 0.4,
-                                }}
+                                style={[
+                                  styles.addressLabelText,
+                                  { color: t.pickupLabel },
+                                ]}
                               >
                                 Dropoff
                               </Text>
                             </View>
                             <Text
-                              style={{
-                                fontSize: 13,
-                                color: "#111",
-                                marginLeft: 18,
-                              }}
+                              style={[
+                                styles.addressText,
+                                { color: t.cardText },
+                              ]}
                             >
                               {dropoffAddress
                                 ? dropoffAddress.street
                                 : "No address"}
                             </Text>
                           </View>
+
                           <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 4,
-                              borderTopWidth: 1,
-                              borderTopColor: "#F2F2F7",
-                              paddingTop: 10,
-                            }}
+                            style={[
+                              styles.tripCardFooter,
+                              { borderTopColor: t.separator },
+                            ]}
                           >
                             <Text
-                              style={{
-                                fontSize: 13,
-                                color: "#0A84FF",
-                                fontWeight: "600",
-                              }}
+                              style={[
+                                styles.tripCardFooterText,
+                                { color: t.accentText },
+                              ]}
                             >
                               View full details and inspections
                             </Text>
                             <Ionicons
                               name="arrow-forward"
                               size={14}
-                              color="#0A84FF"
+                              color={t.accentText}
                             />
                           </View>
                         </TouchableOpacity>
@@ -804,13 +806,43 @@ export default function TripsScreen() {
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  logo: {
+    width: 45,
+    height: 45,
+  },
+  logoSpacer: {
+    width: 45,
+    height: 45,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+  },
   toggleContainer: {
     flexDirection: "row",
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 4,
-    backgroundColor: MID_BLUE,
     borderRadius: 10,
     padding: 3,
   },
@@ -823,31 +855,137 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
-  toggleBtnActive: {
-    backgroundColor: LIGHT_BLUE,
-  },
   toggleText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#93c5fd",
-  },
-  toggleTextActive: {
-    color: "#FFFFFF",
   },
   badge: {
-    backgroundColor: "#004281",
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
   },
   badgeText: {
     fontSize: 11,
     fontWeight: "700",
+  },
+  listContent: {
+    paddingBottom: 50,
+    paddingTop: 8,
+  },
+  historyListContent: {
+    paddingBottom: 50,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
+  emptyContainer: {
+    padding: 16,
+    alignItems: "center",
+    marginTop: 40,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  weekGroup: {
+    marginBottom: 12,
+  },
+  weekHeader: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  weekHeaderContent: {
+    flex: 1,
+  },
+  weekHeaderTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  weekSubText: {
+    fontSize: 12,
+  },
+  currentBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginRight: 10,
+  },
+  currentBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
     color: "#fff",
+    letterSpacing: 0.4,
+  },
+  weekBody: {
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: "hidden",
+    paddingTop: 2,
+  },
+  tripCard: {
+    marginHorizontal: 10,
+    marginTop: 8,
+    borderRadius: 10,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tripCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
+  },
+  tripCardHeaderLeft: {
+    flex: 1,
+  },
+  tripCardTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  tripCardDate: {
+    fontSize: 13,
+  },
+  addressBlock: {
+    marginBottom: 10,
+  },
+  addressLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 2,
+  },
+  addressLabelText: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  addressText: {
+    fontSize: 13,
+    marginLeft: 18,
+  },
+  tripCardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderTopWidth: 1,
+    paddingTop: 10,
+  },
+  tripCardFooterText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
