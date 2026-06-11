@@ -70,7 +70,6 @@ function createOpenFactory() {
   }
 
   try {
-     
     const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
     DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
     return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
@@ -148,7 +147,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         }
         return { retry: true };
       },
-      cacheLimit: 2,
+      // cacheLimit: 2,
     });
 
     // Inspection photos (answers_json photo questions)
@@ -179,7 +178,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         }
         return { retry: true };
       },
-      cacheLimit: 2,
+      // cacheLimit: 2,
     });
 
     return bc;
