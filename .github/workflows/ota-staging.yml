@@ -8,6 +8,8 @@ jobs:
   ota:
     name: Publish OTA to preview channel
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
     steps:
       - uses: actions/checkout@v5
 
@@ -25,5 +27,8 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      - name: Publish OTA update
-        run: eas update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
+      - name: Publish OTA update (iOS)
+        run: eas update --channel preview --platform ios --message "${{ github.event.head_commit.message }}" --non-interactive
+
+      - name: Publish OTA update (Android)
+        run: eas update --channel preview --platform android --message "${{ github.event.head_commit.message }}" --non-interactive
