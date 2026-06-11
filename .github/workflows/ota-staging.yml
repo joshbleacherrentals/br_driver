@@ -6,7 +6,7 @@ on:
 
 jobs:
   ota:
-    name: Publish OTA to staging channel
+    name: Publish OTA to preview channel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,4 +24,4 @@ jobs:
       - run: npm ci --legacy-peer-deps
 
       - name: Publish OTA update
-        run: eas update --channel staging --message "${{ github.event.head_commit.message }}" --non-interactive
+        run: eas update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
