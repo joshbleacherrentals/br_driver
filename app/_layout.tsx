@@ -1,4 +1,4 @@
-import SystemProvider from "@/components/providers/SystemProvider";
+import SystemProvider, { db } from "@/components/providers/SystemProvider";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider, useUser } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
@@ -10,7 +10,6 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useClerkSupabaseClient } from "../library/supabase/useClerkSupabaseClient";
 
-import { db } from '@/components/providers/SystemProvider';
 import { registerForPushNotificationsAsync, setupNotificationListeners } from "@/services/notificationService";
 import { useEffect } from "react";
 

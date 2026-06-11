@@ -32,7 +32,7 @@ function severityLabel(value: number | null): string {
  */
 function worstSeverity(
   sit: number | null,
-  haul: number | null
+  haul: number | null,
 ): "major" | "minor" | "none" {
   if (sit === 1 || haul === 1) return "major";
   if (sit === 0 || haul === 0) return "minor";
@@ -47,7 +47,7 @@ export default function BleacherDamageBadge({
 }: BleacherDamageBadgeProps) {
   const severity = worstSeverity(
     damageReport.is_safe_to_sit,
-    damageReport.is_safe_to_haul
+    damageReport.is_safe_to_haul,
   );
 
   // Fetch the count of damage photos so we can mention it in the alert
@@ -56,10 +56,8 @@ export default function BleacherDamageBadge({
     FROM "DamageReportPhotos" 
     WHERE damage_report_uuid = ? 
     AND photo_path IS NOT NULL`,
-    [damageReport.id]
-    );
-
-  const photoCount = photoRows?.length ?? 0;
+    [damageReport.id],
+  );
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return "—";
@@ -89,7 +87,7 @@ export default function BleacherDamageBadge({
 
     lines.push(
       "",
-      "[WARNING] This damage report is unresolved. Exercise caution when setting up or hauling this bleacher."
+      "[WARNING] This damage report is unresolved. Exercise caution when setting up or hauling this bleacher.",
     );
 
     Alert.alert(title, lines.join("\n"), [{ text: "Close", style: "cancel" }]);
@@ -102,8 +100,8 @@ export default function BleacherDamageBadge({
         severity === "major"
           ? styles.pillMajor
           : severity === "minor"
-          ? styles.pillMinor
-          : styles.pillNone,
+            ? styles.pillMinor
+            : styles.pillNone,
       ]}
       onPress={handlePress}
       activeOpacity={0.75}
@@ -116,8 +114,8 @@ export default function BleacherDamageBadge({
           severity === "major"
             ? "#FF3B30"
             : severity === "minor"
-            ? "#FF9500"
-            : "#34C759"
+              ? "#FF9500"
+              : "#34C759"
         }
       />
     </TouchableOpacity>

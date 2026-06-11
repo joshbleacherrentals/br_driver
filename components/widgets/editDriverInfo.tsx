@@ -2,7 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import AddressAutocomplete from "@/components/widgets/addressAutoComplete";
 import { useAddress } from "@/hooks/db/useAddress";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
-import { randomUUID } from 'expo-crypto';
+import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
 import {
   Alert,
@@ -29,21 +29,6 @@ export interface AddressData {
   postalCode?: string;
 }
 
-const parseFormattedAddress = (text: string): AddressData => {
-  const parts = text.split(",").map(p => p.trim());
-
-  // Example:
-  // 123 Laird Drive, East York, ON, Canada
-  return {
-    address: parts[0] ?? "",
-    city: parts[1] ?? "",
-    state: parts[2] ?? "",
-    postalCode:
-      text.match(/[A-Z]\d[A-Z]\s?\d[A-Z]\d/i)?.[0] ?? "", // Canadian postal
-  };
-};
-
-
 export default function EditDriverInfo({
   driverId,
   phoneNumber,
@@ -67,9 +52,9 @@ export default function EditDriverInfo({
   };
 
   const formatPhoneNumber = (phone: string | null) => {
-    if (!phone) return 'Not set';
+    if (!phone) return "Not set";
     // Format as (XXX) XXX-XXXX if 10 digits
-    const cleaned = phone.replace(/\D/g, '');
+    const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 10) {
       return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
     }
@@ -88,98 +73,108 @@ export default function EditDriverInfo({
 
     const phoneDigits = phone.replace(/\D/g, "");
     if (phoneDigits.length > 0 && phoneDigits.length !== 10) {
-      Alert.alert("Invalid Phone", "Please enter a valid 10-digit phone number");
+      Alert.alert(
+        "Invalid Phone",
+        "Please enter a valid 10-digit phone number",
+      );
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-        // --- Update phone ---
-        const finalPhone = phone.replace(/\D/g, "");
-        const phoneToSave =
+      // --- Update phone ---
+      const finalPhone = phone.replace(/\D/g, "");
+      const phoneToSave =
         finalPhone.length === 10
-            ? finalPhone
-            : phoneNumber?.replace(/\D/g, "") ?? null; // fallback to old phone if untouched
+          ? finalPhone
+          : (phoneNumber?.replace(/\D/g, "") ?? null); // fallback to old phone if untouched
 
-        await executeTypedMutation(
+      await executeTypedMutation(
         db
-            .updateTable("Drivers")
-            .set({ phone_number: phoneToSave || null })
-            .where("id", "=", driverId)
-            .compile()
-        );
+          .updateTable("Drivers")
+          .set({ phone_number: phoneToSave || null })
+          .where("id", "=", driverId)
+          .compile(),
+      );
 
+      // --- Address ---
+      const finalAddress = addressData ?? {
+        address: address?.street ?? "",
+        city: address?.city ?? "",
+        state: address?.state_province ?? "",
+        postalCode: address?.zip_postal ?? "",
+      };
 
-        // --- Address ---
-        const finalAddress = addressData ?? {
-            address: address?.street ?? "",
-            city: address?.city ?? "",
-            state: address?.state_province ?? "",
-            postalCode: address?.zip_postal ?? "",
-        };
+      const hasAddress =
+        finalAddress.address ||
+        finalAddress.city ||
+        finalAddress.state ||
+        finalAddress.postalCode;
 
-        const hasAddress =
-            finalAddress.address ||
-            finalAddress.city ||
-            finalAddress.state ||
-            finalAddress.postalCode;
+      if (hasAddress) {
+        if (addressId) {
+          await executeTypedMutation(
+            db
+              .updateTable("Addresses")
+              .set({
+                street: finalAddress.address || null,
+                city: finalAddress.city || null,
+                state_province: finalAddress.state || null,
+                zip_postal: finalAddress.postalCode || null,
+              })
+              .where("id", "=", addressId)
+              .compile(),
+          );
+        } else {
+          const newAddressId = randomUUID();
+          const now = new Date().toISOString();
 
-        if (hasAddress) {
-            if (addressId) {
-            await executeTypedMutation(
-                db
-                .updateTable("Addresses")
-                .set({
-                    street: finalAddress.address || null,
-                    city: finalAddress.city || null,
-                    state_province: finalAddress.state || null,
-                    zip_postal: finalAddress.postalCode || null,
-                })
-                .where("id", "=", addressId)
-                .compile()
-            );
-            } else {
-            const newAddressId = randomUUID();
-            const now = new Date().toISOString();
+          await executeTypedMutation(
+            db
+              .insertInto("Addresses")
+              .values({
+                id: newAddressId,
+                created_at: now,
+                street: finalAddress.address || null,
+                city: finalAddress.city || null,
+                state_province: finalAddress.state || null,
+                zip_postal: finalAddress.postalCode || null,
+              })
+              .compile(),
+          );
 
-            await executeTypedMutation(
-                db
-                .insertInto("Addresses")
-                .values({
-                    id: newAddressId,
-                    created_at: now,
-                    street: finalAddress.address || null,
-                    city: finalAddress.city || null,
-                    state_province: finalAddress.state || null,
-                    zip_postal: finalAddress.postalCode || null,
-                })
-                .compile()
-            );
-
-            await executeTypedMutation(
-                db
-                .updateTable("Drivers")
-                .set({ address_uuid: newAddressId })
-                .where("id", "=", driverId)
-                .compile()
-            );
-            }
+          await executeTypedMutation(
+            db
+              .updateTable("Drivers")
+              .set({ address_uuid: newAddressId })
+              .where("id", "=", driverId)
+              .compile(),
+          );
         }
+      }
 
-        Alert.alert("Success", "Driver information updated successfully!", [
-            { text: "OK", onPress: onClose },
-         ]);
+      Alert.alert("Success", "Driver information updated successfully!", [
+        { text: "OK", onPress: onClose },
+      ]);
     } catch (error) {
-        console.error("Error updating driver info:", error);
-        Alert.alert("Error", "Failed to update driver information. Please try again.");
+      console.error("Error updating driver info:", error);
+      Alert.alert(
+        "Error",
+        "Failed to update driver information. Please try again.",
+      );
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose}>
@@ -194,12 +189,12 @@ export default function EditDriverInfo({
           <View style={styles.section}>
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
-                style={styles.input}
-                onChangeText={handlePhoneChange}
-                placeholder={formatPhoneNumber(phoneNumber) ?? "(555) 123-4567"} // old phone as placeholder
-                placeholderTextColor="#8E8E93"
-                keyboardType="phone-pad"
-                maxLength={14}
+              style={styles.input}
+              onChangeText={handlePhoneChange}
+              placeholder={formatPhoneNumber(phoneNumber) ?? "(555) 123-4567"} // old phone as placeholder
+              placeholderTextColor="#8E8E93"
+              keyboardType="phone-pad"
+              maxLength={14}
             />
           </View>
 
@@ -207,24 +202,27 @@ export default function EditDriverInfo({
           <View style={styles.addressSection}>
             <Text style={styles.sectionTitle}>Address</Text>
             <AddressAutocomplete
-                value={addressData?.address ?? ""}
-                placeholder={address?.street ?? null}
-                onChangeText={(text: string) => {
-                  setAddressData((prev) => ({
-                    address: text,
-                    city: prev?.city,
-                    state: prev?.state,
-                    postalCode: prev?.postalCode,
-                  }));
-                }}
-                onAddressSelect={(data) => {
-                  setAddressData(data); // autocomplete gives structured fields
-                }}
+              value={addressData?.address ?? ""}
+              placeholder={address?.street ?? null}
+              onChangeText={(text: string) => {
+                setAddressData((prev) => ({
+                  address: text,
+                  city: prev?.city,
+                  state: prev?.state,
+                  postalCode: prev?.postalCode,
+                }));
+              }}
+              onAddressSelect={(data) => {
+                setAddressData(data); // autocomplete gives structured fields
+              }}
             />
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              isSubmitting && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
@@ -237,7 +235,6 @@ export default function EditDriverInfo({
     </Modal>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F2F2F7" },
@@ -266,7 +263,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#000", marginBottom: 12 },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000",
+    marginBottom: 12,
+  },
   label: { fontSize: 15, fontWeight: "600", color: "#000", marginBottom: 8 },
   input: {
     backgroundColor: "#F8F8F8",

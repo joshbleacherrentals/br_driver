@@ -70,8 +70,6 @@ export default function TripItem({
   // ── Damage report for the assigned bleacher ─────────────────────────────
   const { damageReports } = useDamageReports(bleacher_uuid);
 
-  if (status === 'draft' || status === 'completed') return null;
-
   const pickupStreet = pickupAddressData.address?.street ?? null;
 
   const eligibleBleacherOptions = React.useMemo(() => {
@@ -90,6 +88,8 @@ export default function TripItem({
       return true;
     });
   }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
+
+  if (status === 'draft' || status === 'completed') return null;
 
   const formatAddress = (type: 'pickup' | 'dropoff') => {
     const address = type === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;

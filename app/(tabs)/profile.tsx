@@ -268,7 +268,7 @@ export default function ProfileScreen() {
                 <Ionicons name="card" size={20} color="#0A84FF" />
               </View>
               <View style={styles.documentContent}>
-                <Text style={styles.documentText}>Driver's License</Text>
+                <Text style={styles.documentText}>Driver&apos;s License</Text>
                 {!driver?.license_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}

@@ -70,7 +70,7 @@ function createOpenFactory() {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
     DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
     return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
