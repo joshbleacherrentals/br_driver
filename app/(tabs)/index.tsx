@@ -290,7 +290,9 @@ export default function TripsScreen() {
     );
   };
 
-  const [setPendingBleacherUuids] = React.useState<Record<string, string>>({});
+  const [pendingBleacherUuids, setPendingBleacherUuids] = React.useState<
+    Record<string, string>
+  >({});
 
   const handleBleacherChange = (
     workTrackerId: string,
