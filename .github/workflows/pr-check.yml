@@ -8,6 +8,8 @@ jobs:
   check:
     name: Lint, Typecheck & Build
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
     steps:
       - uses: actions/checkout@v5
 
@@ -24,5 +26,8 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Build check (export)
-        run: npx expo export --platform all
+      - name: Build check (iOS)
+        run: npx expo export --platform ios
+
+      - name: Build check (Android)
+        run: npx expo export --platform android
