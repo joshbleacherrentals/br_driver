@@ -1,3 +1,4 @@
+import UserProfileCard from "@/components/widgets/UserProfileCard";
 import { DARK_BLUE } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -23,11 +24,6 @@ const MENU_ITEMS: MenuItem[] = [
     icon: "document-text-outline",
     route: "/(drawer)/(tabs)/documents",
   },
-  {
-    label: "Profile",
-    icon: "person-outline",
-    route: "/(drawer)/(tabs)/profile",
-  },
   { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
   {
     label: "Damage Report History",
@@ -41,6 +37,7 @@ export default function MoreScreen() {
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.container}>
+      <UserProfileCard />
       <View style={styles.list}>
         {MENU_ITEMS.map((item) => (
           <TouchableOpacity
@@ -65,15 +62,7 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F2F2F7" },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: DARK_BLUE,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  list: { paddingHorizontal: 16 },
+  list: { paddingHorizontal: 16, paddingTop: 16 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,3 +1,4 @@
+import UserProfileCard from "@/components/widgets/UserProfileCard";
 import { DARK_BLUE } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,11 +25,6 @@ const DRAWER_ITEMS: DrawerMenuItem[] = [
     label: "Documents",
     icon: "document-text-outline",
     route: "/(drawer)/(tabs)/documents",
-  },
-  {
-    label: "Profile",
-    icon: "person-outline",
-    route: "/(drawer)/(tabs)/profile",
   },
   { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
   {
@@ -58,11 +54,7 @@ function CustomDrawerContent(props: any) {
         { backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7" },
       ]}
     >
-      <Text
-        style={[styles.drawerTitle, { color: isDark ? "#FFFFFF" : DARK_BLUE }]}
-      >
-        More
-      </Text>
+      <UserProfileCard />
 
       <View style={styles.list}>
         {DRAWER_ITEMS.map((item) => (
@@ -123,16 +115,10 @@ export default function DrawerLayout() {
 const styles = StyleSheet.create({
   drawerContainer: {
     flex: 1,
-    paddingTop: 60,
-  },
-  drawerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
   },
   list: {
     paddingHorizontal: 16,
+    paddingTop: 16,
   },
   menuItem: {
     flexDirection: "row",
