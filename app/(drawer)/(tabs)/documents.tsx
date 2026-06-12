@@ -5,7 +5,6 @@ import { useDriver } from '@/hooks/db/useDriver';
 import { Ionicons } from '@expo/vector-icons';
 import React from "react";
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const DARK_BLUE = "#10365A";
 const MID_BLUE = "#164d82";
@@ -35,7 +34,7 @@ export default function BlueBookScreen() {
   };
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F2F2F7' }}>
+    <View style={{ flex: 1, backgroundColor: '#F2F2F7' }}>
       <ProfileCompletionBanner />
 
       <ScrollView
@@ -90,7 +89,7 @@ export default function BlueBookScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -25,7 +25,7 @@ import {
   View,
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
-import { SafeAreaView } from "react-native-safe-area-context";
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -442,7 +442,7 @@ export default function AvailabilityCalendarScreen() {
   const monthLabel = formatMonthName(currentMonth);
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: DARK_BLUE }}>
+    <View style={{ flex: 1, backgroundColor: DARK_BLUE }}>
       <ProfileCompletionBanner />
 
       <ScrollView
@@ -652,7 +652,7 @@ export default function AvailabilityCalendarScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

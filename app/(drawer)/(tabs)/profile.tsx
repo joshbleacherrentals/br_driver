@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 const DARK_BLUE = "#10365A";
 
@@ -75,7 +74,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView edges={['bottom']} style={styles.container}>
+    <View style={styles.container}>
       <ProfileCompletionBanner />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -291,7 +290,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

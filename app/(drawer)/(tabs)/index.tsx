@@ -19,7 +19,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 // ── Brand palette ──────────────────────────────────────────────────────────
 const BRAND_BLUE = "#1D62A3";
@@ -343,11 +342,7 @@ export default function TripsScreen() {
 
   // ── Derived counts ──────────────────────────────────────────────────────
 
-  const activeStatuses = (wt: WorkTracker) =>
-    wt.status !== "completed" &&
-    wt.status !== "released" &&
-    wt.status !== "cancelled" &&
-    wt.status !== "draft";
+  const activeStatuses = (wt: WorkTracker) => wt.status !== "completed";
 
   const todayCount = (workTrackers ?? []).filter(
     (wt) => activeStatuses(wt) && (wt.date == null || wt.date <= today),
@@ -360,10 +355,7 @@ export default function TripsScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView
-      edges={["bottom"]}
-      style={[styles.safeArea, { backgroundColor: t.bg }]}
-    >
+    <View style={[styles.safeArea, { backgroundColor: t.bg }]}>
       <ProfileCompletionBanner />
 
       <ReleasedTripsBanner
@@ -444,9 +436,16 @@ export default function TripsScreen() {
       {activeTab === "today" && (
         <FlatList
           contentContainerStyle={styles.listContent}
-          data={(workTrackers ?? []).filter(
-            (wt) => activeStatuses(wt) && (wt.date == null || wt.date <= today),
-          )}
+          data={(workTrackers ?? [])
+            .filter(
+              (wt) =>
+                activeStatuses(wt) && (wt.date == null || wt.date <= today),
+            )
+            .sort(
+              (a, b) =>
+                (a.date ?? "").localeCompare(b.date ?? "") ||
+                a.id.localeCompare(b.id),
+            )}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <TripItem
@@ -475,9 +474,15 @@ export default function TripsScreen() {
       {activeTab === "upcoming" && (
         <FlatList
           contentContainerStyle={styles.listContent}
-          data={(workTrackers ?? []).filter(
-            (wt) => activeStatuses(wt) && wt.date != null && wt.date > today,
-          )}
+          data={(workTrackers ?? [])
+            .filter(
+              (wt) => activeStatuses(wt) && wt.date != null && wt.date > today,
+            )
+            .sort(
+              (a, b) =>
+                (a.date ?? "").localeCompare(b.date ?? "") ||
+                a.id.localeCompare(b.id),
+            )}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <TripItem
@@ -502,7 +507,7 @@ export default function TripsScreen() {
           )}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

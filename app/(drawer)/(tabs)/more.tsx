@@ -14,6 +14,21 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   { label: "Trip History", icon: "time-outline", route: "/trip-history" },
+  {
+    label: "My Availability",
+    icon: "calendar-outline",
+    route: "/(drawer)/(tabs)/driverAvailability",
+  },
+  {
+    label: "Documents",
+    icon: "document-text-outline",
+    route: "/(drawer)/(tabs)/documents",
+  },
+  {
+    label: "Profile",
+    icon: "person-outline",
+    route: "/(drawer)/(tabs)/profile",
+  },
   { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
   {
     label: "Damage Report History",

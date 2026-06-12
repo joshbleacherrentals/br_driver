@@ -26,15 +26,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
-import {
-  CalendarDays,
-  CircleUser,
-  ClipboardClock,
-  FileText,
-  Menu,
-  Navigation2,
-} from "lucide-react-native";
-
+import { ClipboardClock, Menu, Navigation2 } from "lucide-react-native";
 // ── Animated tab bar button ─────────────────────────────────────────────────
 function AnimatedHapticTab(props: any) {
   const scale = useSharedValue(1);
@@ -94,7 +86,7 @@ export default function TabLayout() {
   return (
     <>
       <SignedIn>
-        <UpdateBanner visible={true} onRestart={restart} />
+        <UpdateBanner visible={updateReady} onRestart={restart} />
         {isLoading ? (
           <LoadingScreen />
         ) : driverProfile === false ? (
@@ -171,27 +163,21 @@ export default function TabLayout() {
                 name="driverAvailability"
                 options={{
                   title: "My Availability",
-                  tabBarIcon: ({ color }) => (
-                    <CalendarDays size={28} color={color} strokeWidth={1.75} />
-                  ),
+                  tabBarItemStyle: { display: "none" },
                 }}
               />
               <Tabs.Screen
                 name="documents"
                 options={{
                   title: "Documents",
-                  tabBarIcon: ({ color }) => (
-                    <FileText size={28} color={color} strokeWidth={1.75} />
-                  ),
+                  tabBarItemStyle: { display: "none" },
                 }}
               />
               <Tabs.Screen
                 name="profile"
                 options={{
                   title: "Profile",
-                  tabBarIcon: ({ color }) => (
-                    <CircleUser size={28} color={color} strokeWidth={1.75} />
-                  ),
+                  tabBarItemStyle: { display: "none" },
                 }}
               />
               <Tabs.Screen
