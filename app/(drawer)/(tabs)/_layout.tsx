@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
-import React from "react";
-import { Platform, Pressable, TouchableOpacity } from "react-native";
+import React, { useMemo } from "react";
+import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -16,6 +16,7 @@ import { DrawerActions, useNavigation } from "@react-navigation/native";
 import {
   CalendarDays,
   CircleUser,
+  ClipboardClock,
   FileText,
   Menu,
   Navigation2,
@@ -24,6 +25,7 @@ import {
 import LoadingScreen from "@/components/widgets/loadingScreen";
 import NoDriverScreen from "@/components/widgets/no-driver";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
+import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 
 // ── Animated tab bar button ─────────────────────────────────────────────────
 function AnimatedHapticTab(props: any) {
@@ -57,6 +59,12 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const navigation = useNavigation<any>();
+  const { workTrackers } = useWorkTrackers();
+
+  const pendingCount = useMemo(
+    () => (workTrackers ?? []).filter((wt) => wt.status === "released").length,
+    [workTrackers],
+  );
 
   return (
     <>
@@ -112,6 +120,24 @@ export default function TabLayout() {
               }}
             />
             <Tabs.Screen
+              name="pendingTrips"
+              options={{
+                title: "Pending",
+                tabBarIcon: ({ color }) => (
+                  <View>
+                    <ClipboardClock size={28} color={color} strokeWidth={1.75} />
+                    {pendingCount > 0 && (
+                      <View style={badgeStyles.container}>
+                        <Text style={badgeStyles.text}>
+                          {pendingCount > 99 ? "99+" : pendingCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ),
+              }}
+            />
+            <Tabs.Screen
               name="driverAvailability"
               options={{
                 title: "My Availability",
@@ -154,3 +180,23 @@ export default function TabLayout() {
     </>
   );
 }
+
+const badgeStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  text: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+});
