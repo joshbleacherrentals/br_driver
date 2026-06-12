@@ -135,15 +135,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   pillMajor: {
-    backgroundColor: "#FFF1F0",
+    backgroundColor: "transparent",
     borderColor: "#FF3B30",
   },
   pillMinor: {
-    backgroundColor: "#FFF8EC",
+    backgroundColor: "transparent",
     borderColor: "#FF9500",
   },
   pillNone: {
-    backgroundColor: "#E8F9ED",
+    backgroundColor: "transparent",
     borderColor: "#34C759",
   },
 });
