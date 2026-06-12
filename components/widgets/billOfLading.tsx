@@ -1,4 +1,5 @@
 import { db } from "@/components/providers/SystemProvider";
+import BottomSheetModal from "@/components/ui/BottomSheetModal";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
@@ -13,7 +14,6 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -21,7 +21,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 // ─── Brand colours ────────────────────────────────────────────────────────────
 const DARK_BLUE = "#10365A";
@@ -527,135 +526,115 @@ export default function BillOfLading({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.safeArea}>
-        {/* ── Modal Header ── */}
-        <View style={styles.modalHeader}>
-          <View>
-            <Text style={styles.modalHeaderLabel}>BILL OF LADING</Text>
-            <View style={styles.modalHeaderMeta}>
-              {workTracker.project_number && (
-                <Text style={styles.modalHeaderSub}>
-                  Project #{workTracker.project_number}
-                </Text>
-              )}
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={22} color={SURFACE} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Shipper Banner ── */}
-        <View style={styles.shipperBanner}>
-          <Text style={styles.shipperName}>Bleacher Rentals Florida LLC</Text>
+    <BottomSheetModal visible={visible} onClose={onClose}>
+      {/* ── Shipper Banner ── */}
+      <View style={styles.shipperBanner}>
+        <Text style={styles.title}>BILL OF LADING</Text>
+        {workTracker.project_number ? (
           <Text style={styles.shipperDetail}>
-            7901 4th St N 25767 · St. Petersburg, FL 33702
+            Project #{workTracker.project_number}
           </Text>
-          <Text style={styles.shipperDetail}>(800) 436-0416</Text>
-        </View>
+        ) : null}
+        <View style={{ height: 6 }} />
+        <Text style={styles.shipperName}>Bleacher Rentals Florida LLC</Text>
+        <Text style={styles.shipperDetail}>
+          7901 4th St N 25767 · St. Petersburg, FL 33702
+        </Text>
+        <Text style={styles.shipperDetail}>(800) 436-0416</Text>
+      </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Section title="Shipment Details" icon="cube-outline">
-            <InfoRow label="Item" value="Mobile Bleacher Trailer" />
-            <InfoRow label="Unit Number" value={bleacher?.bleacher_number} />
-            <InfoRow label="Size / Seats" value={seats} />
-            <InfoRow label="VIN" value={bleacher?.vin_number} />
-            <InfoRow label="TAG #" value={bleacher?.tag_number} />
-            <InfoRow label="Hitch Type" value={bleacher?.hitch_type} />
-            <InfoRow label="Manufacturer" value={bleacher?.manufacturer} />
-            <InfoRow
-              label="GVWR"
-              value={bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : null}
-            />
-            <InfoRow
-              label="Height (Folded)"
-              value={
-                bleacher?.trailer_height_in != null
-                  ? `${formatInches(bleacher.trailer_height_in)}`
-                  : "—"
-              }
-            />
-            <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
-              <Text style={infoRowStyles.label}>Notes</Text>
-              <Text style={[infoRowStyles.value, { color: MUTED }]}>
-                Power Only · Flatbed
-              </Text>
-            </View>
-          </Section>
-
-          <Section title="Carrier & Payment Terms" icon="document-text-outline">
-            <Text style={styles.legalText}>
-              Carrier liability agreed to a minimum of $100,000.00 cargo or
-              equal to load declared value (whichever is greater).
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Shipment Details" icon="cube-outline">
+          <InfoRow label="Item" value="Mobile Bleacher Trailer" />
+          <InfoRow label="Unit Number" value={bleacher?.bleacher_number} />
+          <InfoRow label="Size / Seats" value={seats} />
+          <InfoRow label="VIN" value={bleacher?.vin_number} />
+          <InfoRow label="TAG #" value={bleacher?.tag_number} />
+          <InfoRow label="Hitch Type" value={bleacher?.hitch_type} />
+          <InfoRow label="Manufacturer" value={bleacher?.manufacturer} />
+          <InfoRow
+            label="GVWR"
+            value={bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : null}
+          />
+          <InfoRow
+            label="Height (Folded)"
+            value={
+              bleacher?.trailer_height_in != null
+                ? `${formatInches(bleacher.trailer_height_in)}`
+                : "—"
+            }
+          />
+          <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
+            <Text style={infoRowStyles.label}>Notes</Text>
+            <Text style={[infoRowStyles.value, { color: MUTED }]}>
+              Power Only · Flatbed
             </Text>
-            <Text style={[styles.legalText, { marginTop: 8 }]}>
-              Payment is due only upon successful delivery and acceptance by the
-              consignee. Any discrepancies or damages must be documented and
-              communicated immediately.
+          </View>
+        </Section>
+
+        <Section title="Carrier & Payment Terms" icon="document-text-outline">
+          <Text style={styles.legalText}>
+            Carrier liability agreed to a minimum of $100,000.00 cargo or equal
+            to load declared value (whichever is greater).
+          </Text>
+          <Text style={[styles.legalText, { marginTop: 8 }]}>
+            Payment is due only upon successful delivery and acceptance by the
+            consignee. Any discrepancies or damages must be documented and
+            communicated immediately.
+          </Text>
+        </Section>
+
+        <Section title="Pickup Information" icon="location-outline">
+          <InfoRow label="Date" value={formatDate(workTracker.date)} />
+          <InfoRow label="Time" value={workTracker.pickup_time} />
+          <InfoRow label="Address" value={pickupFull} accent />
+          <InfoRow label="On-Site POC" value={workTracker.pickup_poc} />
+          <InfoRow
+            label="Tear Down Required"
+            value={boolLabel(workTracker.teardown_required)}
+          />
+          <View
+            style={[
+              infoRowStyles.row,
+              { borderBottomWidth: 0, alignItems: "flex-start" },
+            ]}
+          >
+            <Text style={infoRowStyles.label}>Pickup Instructions</Text>
+            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+              {workTracker.pickup_instructions || "—"}
             </Text>
-          </Section>
+          </View>
+        </Section>
 
-          <Section title="Pickup Information" icon="location-outline">
-            <InfoRow label="Date" value={formatDate(workTracker.date)} />
-            <InfoRow label="Time" value={workTracker.pickup_time} />
-            <InfoRow label="Address" value={pickupFull} accent />
-            <InfoRow label="On-Site POC" value={workTracker.pickup_poc} />
-            <InfoRow
-              label="Tear Down Required"
-              value={boolLabel(workTracker.teardown_required)}
-            />
-            <View
-              style={[
-                infoRowStyles.row,
-                { borderBottomWidth: 0, alignItems: "flex-start" },
-              ]}
-            >
-              <Text style={infoRowStyles.label}>Pickup Instructions</Text>
-              <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
-                {workTracker.pickup_instructions || "—"}
-              </Text>
-            </View>
-          </Section>
+        <Section title="Delivery Information" icon="flag-outline">
+          <InfoRow label="Date" value={formatDate(workTracker.date)} />
+          <InfoRow label="Time" value={workTracker.dropoff_time} />
+          <InfoRow label="Address" value={dropoffFull} accent />
+          <InfoRow
+            label="On-Site POC (Consignee)"
+            value={workTracker.dropoff_poc}
+          />
+          <InfoRow
+            label="Set Up Required"
+            value={boolLabel(workTracker.setup_required)}
+          />
+          <View
+            style={[
+              infoRowStyles.row,
+              { borderBottomWidth: 0, alignItems: "flex-start" },
+            ]}
+          >
+            <Text style={infoRowStyles.label}>Delivery Instructions</Text>
+            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+              {workTracker.dropoff_instructions || "—"}
+            </Text>
+          </View>
+        </Section>
 
-          <Section title="Delivery Information" icon="flag-outline">
-            <InfoRow label="Date" value={formatDate(workTracker.date)} />
-            <InfoRow label="Time" value={workTracker.dropoff_time} />
-            <InfoRow label="Address" value={dropoffFull} accent />
-            <InfoRow
-              label="On-Site POC (Consignee)"
-              value={workTracker.dropoff_poc}
-            />
-            <InfoRow
-              label="Set Up Required"
-              value={boolLabel(workTracker.setup_required)}
-            />
-            <View
-              style={[
-                infoRowStyles.row,
-                { borderBottomWidth: 0, alignItems: "flex-start" },
-              ]}
-            >
-              <Text style={infoRowStyles.label}>Delivery Instructions</Text>
-              <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
-                {workTracker.dropoff_instructions || "—"}
-              </Text>
-            </View>
-          </Section>
-
-          {/* <Section title="Signatures" icon="pencil-outline">
+        {/* <Section title="Signatures" icon="pencil-outline">
             <Text style={styles.sigNote}>Please sign when the unit is dropped off at the destination.</Text>
             <View style={styles.sigRow}>
               <View style={styles.sigBlock}>
@@ -673,28 +652,27 @@ export default function BillOfLading({
             </View>
           </Section> */}
 
-          {/* ── Download PDF Button ── */}
-          <TouchableOpacity
-            style={[styles.downloadBtn, printing && styles.downloadBtnDisabled]}
-            onPress={handleDownloadPDF}
-            disabled={printing}
-          >
-            {printing ? (
-              <ActivityIndicator color={SURFACE} size="small" />
-            ) : (
-              <Ionicons name="download-outline" size={18} color={SURFACE} />
-            )}
-            <Text style={styles.downloadBtnText}>
-              {printing ? "Generating PDF…" : "Download PDF"}
-            </Text>
-          </TouchableOpacity>
+        {/* ── Download PDF Button ── */}
+        <TouchableOpacity
+          style={[styles.downloadBtn, printing && styles.downloadBtnDisabled]}
+          onPress={handleDownloadPDF}
+          disabled={printing}
+        >
+          {printing ? (
+            <ActivityIndicator color={SURFACE} size="small" />
+          ) : (
+            <Ionicons name="download-outline" size={18} color={SURFACE} />
+          )}
+          <Text style={styles.downloadBtnText}>
+            {printing ? "Generating PDF…" : "Download PDF"}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-            <Text style={styles.doneBtnText}>Close</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+        <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+          <Text style={styles.doneBtnText}>Close</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </BottomSheetModal>
   );
 }
 
@@ -730,33 +708,12 @@ const bolBtnStyles = StyleSheet.create({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: BG },
-  modalHeader: {
-    backgroundColor: DARK_BLUE,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  modalHeaderLabel: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: SURFACE,
-    letterSpacing: 1.5,
-  },
-  modalHeaderMeta: { flexDirection: "row", gap: 10, marginTop: 2 },
-  modalHeaderSub: { fontSize: 12, color: "rgba(255,255,255,0.65)" },
-  closeBtn: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 20,
-    padding: 6,
-  },
   shipperBanner: {
     backgroundColor: LIGHT_BLUE,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
+  title: { fontSize: 16, fontWeight: "700", color: SURFACE },
   shipperName: { fontSize: 13, fontWeight: "700", color: SURFACE },
   shipperDetail: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
