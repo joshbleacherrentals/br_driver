@@ -1,5 +1,10 @@
 import { DebugLogger } from "@/library/debug/DebugLogger";
-import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
+import {
+  AppSchema,
+  DAMAGE_PHOTO_ATTACHMENT_TABLE,
+  DRIVER_DOC_ATTACHMENT_TABLE,
+  PowerSyncDB,
+} from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import { DamageReportPhotoAttachmentQueue } from "@/library/powersync/DamagePhotoAttachmentQueue";
 import { InspectionPhotoAttachmentQueue } from "@/library/powersync/InspectionPhotoAttachmentQueue";
@@ -54,20 +59,34 @@ const logger = createBaseLogger();
 logger.useDefaults();
 logger.setLevel(LogLevel.WARN);
 
+// Suppress noisy WebSocket timeout errors — PowerSync auto-reconnects
+const originalError = logger.error.bind(logger);
+logger.error = (...args: any[]) => {
+  const msg = args.map(String).join(" ");
+  if (msg.includes("No data received on WebSocket")) return;
+  originalError(...args);
+};
+
 function createOpenFactory() {
-  DebugLogger.info(TAG, `Execution environment: ${Constants.executionEnvironment}`);
+  DebugLogger.info(
+    TAG,
+    `Execution environment: ${Constants.executionEnvironment}`,
+  );
   if (isExpoGo) {
     DebugLogger.info(TAG, "Using SQLJSOpenFactory (Expo Go)");
     return new SQLJSOpenFactory({ dbFilename: "app.db" });
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
     DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
     return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
   } catch (err) {
-    DebugLogger.warn(TAG, "op-sqlite not available; falling back to SQL.js", err);
+    DebugLogger.warn(
+      TAG,
+      "op-sqlite not available; falling back to SQL.js",
+      err,
+    );
     return new SQLJSOpenFactory({ dbFilename: "app.db" });
   }
 }
@@ -83,12 +102,17 @@ export const powerSyncDb = new PowerSyncDatabase({
 export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
 
 export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
-export let inspectionPhotoAttachmentQueue: InspectionPhotoAttachmentQueue | undefined;
-export let damageReportPhotoAttachmentQueue: DamageReportPhotoAttachmentQueue | undefined;
+export let inspectionPhotoAttachmentQueue:
+  | InspectionPhotoAttachmentQueue
+  | undefined;
+export let damageReportPhotoAttachmentQueue:
+  | DamageReportPhotoAttachmentQueue
+  | undefined;
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const connectedRef = useRef(false);
+  const connectingRef = useRef(false);
   const reconnectingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disposeStatusListenerRef = useRef<(() => void) | null>(null);
@@ -96,10 +120,18 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const connector = useMemo(() => {
     const bc = new BackendConnector({
       getPowerSyncToken: async () => {
-        try { return await getToken({ template: "powersync" }); } catch { return null; }
+        try {
+          return await getToken({ template: "powersync" });
+        } catch {
+          return null;
+        }
       },
       getSupabaseToken: async () => {
-        try { return await getToken(); } catch { return null; }
+        try {
+          return await getToken();
+        } catch {
+          return null;
+        }
       },
     });
 
@@ -111,13 +143,19 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     photoAttachmentQueue = new PhotoAttachmentQueue({
       powersync: powerSyncDb,
       storage: driverDocStorage,
+      attachmentTableName: DRIVER_DOC_ATTACHMENT_TABLE,
+      attachmentDirectoryName: DRIVER_DOC_ATTACHMENT_TABLE,
       performInitialSync: false,
       onDownloadError: async (_attachment, error) => {
-        if (String(error).includes("Object not found") || String(error).includes("400")) {
+        if (
+          String(error).includes("Object not found") ||
+          String(error).includes("400")
+        ) {
           return { retry: false };
         }
         return { retry: true };
       },
+      // cacheLimit: 2,
     });
 
     // Inspection photos (answers_json photo questions)
@@ -137,6 +175,18 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     damageReportPhotoAttachmentQueue = new DamageReportPhotoAttachmentQueue({
       powersync: powerSyncDb,
       storage: damageReportStorage,
+      attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
+      attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
+      onDownloadError: async (_attachment, error) => {
+        if (
+          String(error).includes("Object not found") ||
+          String(error).includes("400")
+        ) {
+          return { retry: false };
+        }
+        return { retry: true };
+      },
+      // cacheLimit: 2,
     });
 
     return bc;
@@ -161,7 +211,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       clearRefreshTimer();
 
       let token: string | null = null;
-      try { token = await getToken({ template: "powersync" }); } catch { return; }
+      try {
+        token = await getToken({ template: "powersync" });
+      } catch {
+        return;
+      }
       if (!token) return;
 
       const expMs = decodeJwtExpMs(token);
@@ -204,6 +258,8 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const connect = async () => {
+      if (connectingRef.current || connectedRef.current) return;
+      connectingRef.current = true;
       try {
         DebugLogger.info(TAG, "Connecting...");
         await powerSyncDb.connect(connector, { params: { app: "mobile" } });
@@ -230,6 +286,8 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           error: err?.message ?? String(err),
           stack: err?.stack?.substring(0, 300),
         });
+      } finally {
+        connectingRef.current = false;
       }
     };
 

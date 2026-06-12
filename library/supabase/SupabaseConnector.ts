@@ -30,14 +30,21 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   // This connector is kept for reference/experimentation.
   // It's currently not used by the app runtime.
   constructor() {
-    this.client = createClient(AppConfig.supabaseUrl, AppConfig.supabaseAnonKey, {
-      accessToken: async () => {
-        const clerk = getClerkInstance();
-        const token = await clerk.session?.getToken();
-        return token ?? null;
+    this.client = createClient(
+      AppConfig.supabaseUrl,
+      AppConfig.supabaseAnonKey,
+      {
+        accessToken: async () => {
+          const clerk = getClerkInstance();
+          const token = await clerk.session?.getToken();
+          return token ?? null;
+        },
       },
+    );
+    this.storage = new SupabaseStorageAdapter({
+      client: this.client,
+      bucket: "",
     });
-    this.storage = new SupabaseStorageAdapter({ client: this.client });
   }
 
   async fetchCredentials() {
@@ -94,7 +101,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         if (result.error) {
           console.error(result.error);
           result.error.message = `Could not ${op.op} data to Supabase error: ${JSON.stringify(
-            result
+            result,
           )}`;
           throw result.error;
         }
@@ -103,7 +110,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       await transaction.complete();
     } catch (ex: any) {
       console.debug(ex);
-      if (typeof ex.code == "string" && FATAL_RESPONSE_CODES.some((regex) => regex.test(ex.code))) {
+      if (
+        typeof ex.code == "string" &&
+        FATAL_RESPONSE_CODES.some((regex) => regex.test(ex.code))
+      ) {
         /**
          * Instead of blocking the queue with these errors,
          * discard the (rest of the) transaction.

@@ -1,0 +1,49 @@
+name: Store Submit
+
+# Manual workflow to submit the latest production build to app stores.
+# Run this after a native build completes and you've verified it on TestFlight.
+#
+# Goes to: App Store Connect (iOS) / Google Play Console (Android)
+# iOS still requires App Review before public release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to submit"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+
+jobs:
+  submit:
+    name: Submit to Store
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Submit iOS
+        if: inputs.platform == 'all' || inputs.platform == 'ios'
+        run: eas submit --profile production --platform ios --latest --non-interactive
+
+      - name: Submit Android
+        if: inputs.platform == 'all' || inputs.platform == 'android'
+        run: eas submit --profile production --platform android --latest --non-interactive

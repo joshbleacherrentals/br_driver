@@ -25,12 +25,12 @@ export async function registerForPushNotificationsAsync(userId: string | undefin
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    
+
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    
+
     if (finalStatus !== 'granted') {
       console.log('Failed to get push token for push notification!');
       return;
@@ -80,7 +80,7 @@ export function setupNotificationListeners() {
 
   const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
     console.log('✅ Notification tapped:', response);
-    const notificationId = response.notification.request.content.data.notificationId;
+    const notificationId = response.notification.request.content.data?.notificationId;
     console.log('Notification ID:', notificationId);
     
     // Navigate to index screen

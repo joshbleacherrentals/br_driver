@@ -8,6 +8,9 @@ export const INSPECTION_TABLE = "WorkTrackerInspections";
 export const WORK_TRACKER_TABLE = "WorkTrackers";
 export const PHOTO_TABLE = "InspectionPhotos";
 
+export const DRIVER_DOC_ATTACHMENT_TABLE = "driver_doc_attachments";
+export const DAMAGE_PHOTO_ATTACHMENT_TABLE = "damage_photo_attachments";
+
 // users
 const UsersCols = {
   first_name: column.text,
@@ -19,24 +22,31 @@ const UsersCols = {
   role: column.integer,
   avatar_image_url: column.text,
   is_admin: column.integer,
+  is_viewer: column.integer,
   created_at: column.text,
   expo_push_token: column.text,
 } satisfies PowerSyncColsFor<"Users">;
-const Users = new Table(UsersCols, { indexes: { status_uuid: ["status_uuid"] } });
+const Users = new Table(UsersCols, {
+  indexes: { status_uuid: ["status_uuid"] },
+});
 
 const DriverAvailabilityCols = {
   driver_uuid: column.text,
   date_unavailable: column.text,
   updated_at: column.text,
 } satisfies PowerSyncColsFor<"DriverUnavailability">;
-const DriverAvailability = new Table(DriverAvailabilityCols, { indexes: { driver_uuid: ["driver_uuid"] } });
+const DriverAvailability = new Table(DriverAvailabilityCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
+});
 
 const AccountManagerCols = {
   created_at: column.text,
   is_active: column.integer,
   user_uuid: column.text,
 } satisfies PowerSyncColsFor<"AccountManagers">;
-const AccountManagers = new Table(AccountManagerCols, { indexes: { id: ["id"] } });
+const AccountManagers = new Table(AccountManagerCols, {
+  indexes: { id: ["id"] },
+});
 
 // drivers
 const DriversCols = {
@@ -56,14 +66,18 @@ const DriversCols = {
   vehicle_uuid: column.text,
   vendor_uuid: column.text,
 } satisfies PowerSyncColsFor<"Drivers">;
-const Drivers = new Table(DriversCols, { indexes: { user_uuid: ["user_uuid"] } });
+const Drivers = new Table(DriversCols, {
+  indexes: { user_uuid: ["user_uuid"] },
+});
 
 const DriverUnavailabilityCols = {
   driver_uuid: column.text,
   date_unavailable: column.text,
   updated_at: column.text,
 } satisfies PowerSyncColsFor<"DriverUnavailability">;
-const DriverUnavailability = new Table(DriverUnavailabilityCols, { indexes: { driver_uuid: ["driver_uuid"] } });
+const DriverUnavailability = new Table(DriverUnavailabilityCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
+});
 
 // addresses
 const AddressCols = {
@@ -101,6 +115,7 @@ const BleacherCols = {
   trailer_length_in: column.integer,
   trailer_height_in: column.integer,
   nvis_pdf_path: column.text,
+  zone_uuid: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 
@@ -112,7 +127,9 @@ const InspectionQuestionsCols = {
   is_active: column.integer,
   sort_order: column.integer,
 } satisfies PowerSyncColsFor<"InspectionQuestions">;
-const InspectionQuestions = new Table(InspectionQuestionsCols, { indexes: { id: ["id"] } });
+const InspectionQuestions = new Table(InspectionQuestionsCols, {
+  indexes: { id: ["id"] },
+});
 
 // inspection
 const WorkTrackerInspectionsCols = {
@@ -122,7 +139,9 @@ const WorkTrackerInspectionsCols = {
   issue_description: column.text,
   answers_json: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackerInspections">;
-const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, { indexes: { id: ["id"] } });
+const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, {
+  indexes: { id: ["id"] },
+});
 
 // damage reports
 const DamageReportsCols = {
@@ -130,12 +149,17 @@ const DamageReportsCols = {
   bleacher_uuid: column.text,
   is_safe_to_sit: column.integer,
   is_safe_to_haul: column.integer,
+  seat_damage: column.text,
+  haul_damage: column.text,
   note: column.text,
   created_at: column.text,
   resolved_at: column.text,
   maintenance_event_uuid: column.text,
+  created_by_user_uuid: column.text,
 } satisfies PowerSyncColsFor<"DamageReports">;
-const DamageReports = new Table(DamageReportsCols, { indexes: { bleacher_uuid: ["bleacher_uuid"] } });
+const DamageReports = new Table(DamageReportsCols, {
+  indexes: { bleacher_uuid: ["bleacher_uuid"] },
+});
 
 // damage report photos
 const DamageReportPhotosCols = {
@@ -154,7 +178,9 @@ const InspectionsPhotosCols = {
   storage_path: column.text,
   caption: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
-const InspectionPhotos = new Table(InspectionsPhotosCols, { indexes: { id: ["id"] } });
+const InspectionPhotos = new Table(InspectionsPhotosCols, {
+  indexes: { id: ["id"] },
+});
 
 // worktracker
 const WorkTrackersCols = {
@@ -190,6 +216,7 @@ const WorkTrackersCols = {
   work_tracker_type_uuid: column.text,
   distance_meters: column.integer,
   drive_minutes: column.integer,
+  created_by_user_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
@@ -234,8 +261,11 @@ export const AppSchema = new Schema({
   WorkTrackers,
   Vehicles,
   BlueBook,
-  attachments: new AttachmentTable({
-    name: "attachments",
+  [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
+    name: DRIVER_DOC_ATTACHMENT_TABLE,
+  }),
+  [DAMAGE_PHOTO_ATTACHMENT_TABLE]: new AttachmentTable({
+    name: DAMAGE_PHOTO_ATTACHMENT_TABLE,
   }),
 });
 
@@ -248,5 +278,3 @@ export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];
-
-export const ATTACHMENT_TABLE = "attachments";
