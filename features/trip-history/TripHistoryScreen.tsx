@@ -245,6 +245,7 @@ export default function TripHistoryScreen() {
       <Stack.Screen
         options={{
           title: "Trip History",
+          headerShown: true,
           headerStyle: { backgroundColor: t.headerBg },
           headerTintColor: t.headerText,
         }}
