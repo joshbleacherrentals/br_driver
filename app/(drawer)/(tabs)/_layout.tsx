@@ -98,6 +98,17 @@ export default function TabLayout() {
                 tabBarActiveTintColor: BRAND_BLUE,
                 tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",
                 headerShown: true,
+                headerStyle: {
+                  height: 120,
+                  backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                  borderBottomColor: isDark ? "#38383A" : "#E5E7EB",
+                  borderBottomWidth: 0.5,
+                },
+                headerTitleStyle: {
+                  fontSize: 17,
+                  fontWeight: "600",
+                  color: isDark ? "#FFFFFF" : "#111827",
+                },
                 headerRight: () => (
                   <TouchableOpacity
                     onPress={() =>
@@ -107,7 +118,7 @@ export default function TabLayout() {
                     activeOpacity={0.7}
                   >
                     <Menu
-                      size={24}
+                      size={28}
                       color={isDark ? "#FFFFFF" : "#111827"}
                       strokeWidth={1.75}
                     />
