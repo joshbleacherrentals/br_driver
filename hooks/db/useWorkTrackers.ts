@@ -3,7 +3,6 @@ import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useUser } from "@clerk/clerk-expo";
 import { useMemo } from "react";
 
-
 export type WorkTracker = {
   id: string;
   created_at: string | null;
@@ -42,7 +41,7 @@ export type UserData = {
 
 export type DriverData = {
   id: string;
-}
+};
 
 export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
   const { user } = useUser();
@@ -79,15 +78,35 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
     return db
       .selectFrom("WorkTrackers")
       .select([
-        "id", "created_at", "updated_at", "date",
-        "pickup_time", "pickup_poc", "dropoff_time", "dropoff_poc",
-        "pay_cents", "notes", "internal_notes",
-        "pickup_address_uuid", "dropoff_address_uuid",
-        "bleacher_uuid", "driver_uuid", "user_uuid",
-        "status", "released_at", "accepted_at", "started_at", "completed_at",
-        "teardown_required", "pickup_instructions", "setup_required", "dropoff_instructions",
-        "project_number", "bol_number",
-        "pre_inspection_uuid", "post_inspection_uuid",
+        "id",
+        "created_at",
+        "updated_at",
+        "date",
+        "pickup_time",
+        "pickup_poc",
+        "dropoff_time",
+        "dropoff_poc",
+        "pay_cents",
+        "notes",
+        "internal_notes",
+        "pickup_address_uuid",
+        "dropoff_address_uuid",
+        "bleacher_uuid",
+        "driver_uuid",
+        "user_uuid",
+        "status",
+        "released_at",
+        "accepted_at",
+        "started_at",
+        "completed_at",
+        "teardown_required",
+        "pickup_instructions",
+        "setup_required",
+        "dropoff_instructions",
+        "project_number",
+        "bol_number",
+        "pre_inspection_uuid",
+        "post_inspection_uuid",
       ])
       .where("driver_uuid", "=", driverId)
       .orderBy("date", "asc")
@@ -125,12 +144,12 @@ export function useDropoffsByBleachers(
   const compiled = useMemo(() => {
     if (bleacherIds.length === 0) return null;
     return db
-      .selectFrom('WorkTrackers')
-      .select(['bleacher_uuid', 'dropoff_address_uuid', 'date'])
-      .where('bleacher_uuid', 'in', bleacherIds)
-      .where('date', '<=', targetDate)
-      .where('dropoff_address_uuid', 'is not', null)
-      .orderBy('date', 'desc')
+      .selectFrom("WorkTrackers")
+      .select(["bleacher_uuid", "dropoff_address_uuid", "date"])
+      .where("bleacher_uuid", "in", bleacherIds)
+      .where("date", "<=", targetDate)
+      .where("dropoff_address_uuid", "is not", null)
+      .orderBy("date", "desc")
       .compile();
   }, [bleacherIds, targetDate]);
 

@@ -2,6 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import CompletedTrips from "@/components/widgets/completed_trip_item";
 import InspectionScreen from "@/components/widgets/inspection";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import ReleasedTripsBanner from "@/components/widgets/releasedTripsBanner";
 import TripItem from "@/components/widgets/trip_item";
 import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useAllBleachers, useBatchBleachers } from "@/hooks/db/useBleacher";
@@ -480,8 +481,17 @@ export default function TripsScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safeArea, { backgroundColor: t.bg }]}>
+    <SafeAreaView
+      edges={["bottom"]}
+      style={[styles.safeArea, { backgroundColor: t.bg }]}
+    >
       <ProfileCompletionBanner />
+
+      <ReleasedTripsBanner
+        hasReleasedTrips={(workTrackers ?? []).some(
+          (wt) => wt.status === "released",
+        )}
+      />
 
       {/* Toggle */}
       <View style={[styles.toggleContainer, { backgroundColor: t.toggleBg }]}>
@@ -548,12 +558,13 @@ export default function TripsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-
       {/* ── Upcoming Trips ── */}
       {activeTab === "upcoming" && (
         <FlatList
           contentContainerStyle={styles.listContent}
-          data={workTrackers?.filter((wt) => wt.status !== "completed")}
+          data={workTrackers?.filter(
+            (wt) => wt.status !== "completed" && wt.status !== "released",
+          )}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <TripItem
@@ -578,7 +589,6 @@ export default function TripsScreen() {
           )}
         />
       )}
-
       {/* ── Trip History ── */}
       {activeTab === "history" && (
         <FlatList
