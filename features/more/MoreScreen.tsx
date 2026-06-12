@@ -1,10 +1,9 @@
+import { DARK_BLUE } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const DARK_BLUE = "#10365A";
 
 interface MenuItem {
   label: string;

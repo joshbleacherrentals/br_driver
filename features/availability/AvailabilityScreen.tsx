@@ -1,13 +1,14 @@
 import { db } from "@/components/providers/SystemProvider";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import { DARK_BLUE } from "@/constants/Colors";
 import { useDriver } from "@/hooks/db/useDriver";
 import { useDriverUnavailability } from "@/hooks/db/useDriverUnavailability";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { randomUUID } from "expo-crypto";
 import { Menu } from "lucide-react-native";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
 import React, {
   useCallback,
   useEffect,
@@ -26,12 +27,9 @@ import {
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DARK_BLUE = "#10365A";
 const MID_BLUE = "#164d82";
-// const LIGHT_BLUE = '#1D62A3';
 
 const SAVED_RED = "#EF4444";
 const PENDING_COLOR = "#F97316";
@@ -400,7 +398,14 @@ export default function AvailabilityCalendarScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 16 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            marginRight: 16,
+          }}
+        >
           {hasPendingChanges && (
             <TouchableOpacity
               style={styles.headerDiscardBtn}
@@ -436,7 +441,14 @@ export default function AvailabilityCalendarScreen() {
         </View>
       ),
     });
-  }, [navigation, openDrawer, hasPendingChanges, isSaving, handleSave, handleDiscard]);
+  }, [
+    navigation,
+    openDrawer,
+    hasPendingChanges,
+    isSaving,
+    handleSave,
+    handleDiscard,
+  ]);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   const monthLabel = formatMonthName(currentMonth);

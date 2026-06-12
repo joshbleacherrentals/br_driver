@@ -1,5 +1,6 @@
 import { db } from "@/components/providers/SystemProvider";
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
+import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
@@ -21,10 +22,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-// ─── Brand colours ────────────────────────────────────────────────────────────
-const DARK_BLUE = "#10365A";
-const LIGHT_BLUE = "#1D62A3";
 const ACCENT = "#0A84FF";
 const SURFACE = "#FFFFFF";
 const BG = "#F2F2F7";
@@ -709,7 +706,7 @@ const bolBtnStyles = StyleSheet.create({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   shipperBanner: {
-    backgroundColor: LIGHT_BLUE,
+    backgroundColor: BRAND_BLUE,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
@@ -734,7 +731,7 @@ const styles = StyleSheet.create({
   },
   sigDateLabel: { fontSize: 12, color: MUTED, marginTop: 8 },
   downloadBtn: {
-    backgroundColor: LIGHT_BLUE,
+    backgroundColor: BRAND_BLUE,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",

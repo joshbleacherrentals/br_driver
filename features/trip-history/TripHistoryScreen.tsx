@@ -1,4 +1,4 @@
-import CompletedTrips from "./components/CompletedTripItem";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CompletedTrips from "./components/CompletedTripItem";
 
 // ── Themes ────────────────────────────────────────────────────────────────────
 const themes = {
@@ -22,7 +23,7 @@ const themes = {
     card: "#FFFFFF",
     cardText: "#111827",
     cardSecondary: "#6B7280",
-    weekHeaderBg: "#1D62A3",
+    weekHeaderBg: BRAND_BLUE,
     weekHeaderCurrent: "#1B548E",
     weekHeaderText: "#FFFFFF",
     weekSubText: "#BFDBFE",

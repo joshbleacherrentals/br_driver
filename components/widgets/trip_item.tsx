@@ -1,5 +1,6 @@
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
+import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
@@ -226,7 +227,7 @@ export default function TripItem({
       case "released":
         return { text: "PENDING ACCEPTANCE", color: "#34C759" };
       case "accepted":
-        return { text: "ACCEPTED", color: "#34C759" };
+        return { text: "ACCEPTED", color: GREEN_ACCENT };
       case "dest_pickup":
         return { text: "EN ROUTE", color: "#FF9500" };
       case "pickup_inspection":
@@ -662,7 +663,7 @@ const styles = StyleSheet.create({
   flagTextActive: { color: "#FF9500", fontWeight: "600" },
   instructionsBox: {
     borderLeftWidth: 3,
-    borderLeftColor: "#1D62A3",
+    borderLeftColor: BRAND_BLUE,
     borderRadius: 6,
     padding: 10,
     marginTop: 8,
@@ -670,7 +671,7 @@ const styles = StyleSheet.create({
   instructionsLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#1D62A3",
+    color: BRAND_BLUE,
     marginBottom: 3,
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -679,7 +680,7 @@ const styles = StyleSheet.create({
   buttonRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   primaryButton: {
     flex: 2,
-    backgroundColor: "#0A84FF",
+    backgroundColor: BRAND_BLUE,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",

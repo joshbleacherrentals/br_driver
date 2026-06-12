@@ -19,6 +19,7 @@ import TabBarBackground from "@/components/ui/TabBarBackground";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import LoadingScreen from "@/components/widgets/loadingScreen";
 import NoDriverScreen from "@/components/widgets/no-driver";
+import { BRAND_BLUE } from "@/constants/Colors";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
@@ -27,7 +28,6 @@ import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { ClipboardClock, Menu, Navigation2 } from "lucide-react-native";
-// ── Animated tab bar button ─────────────────────────────────────────────────
 function AnimatedHapticTab(props: any) {
   const scale = useSharedValue(1);
 
@@ -50,8 +50,6 @@ function AnimatedHapticTab(props: any) {
     </Pressable>
   );
 }
-
-const BRAND_BLUE = "#1D62A3";
 
 export default function TabLayout() {
   const { driverProfile, isLoading } = useCheckDriver();
@@ -95,7 +93,7 @@ export default function TabLayout() {
           <>
             <Tabs
               screenOptions={{
-                animation: "shift",
+                animation: "none",
                 tabBarShowLabel: false,
                 tabBarActiveTintColor: BRAND_BLUE,
                 tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",

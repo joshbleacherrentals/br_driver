@@ -1,8 +1,8 @@
 import { db } from "@/components/providers/SystemProvider";
 import InspectionScreen from "@/components/widgets/inspection";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import ReleasedTripsBanner from "./components/ReleasedTripsBanner";
 import TripItem from "@/components/widgets/trip_item";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useAllBleachers } from "@/hooks/db/useBleacher";
 import { useResolvedBleacherAddresses } from "@/hooks/db/useResolveAddress";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
@@ -19,10 +19,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ReleasedTripsBanner from "./components/ReleasedTripsBanner";
 
 // ── Brand palette ──────────────────────────────────────────────────────────
-const BRAND_BLUE = "#1D62A3";
-
 const themes = {
   light: {
     bg: "#F2F2F7",

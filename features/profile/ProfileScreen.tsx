@@ -1,17 +1,27 @@
-import EditDriverInfo from "./components/EditDriverInfo";
-import EditProfileDocs from "./components/EditProfileDocs";
-import EditVehicleInfo from "./components/EditVehicleInfo";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import { useAccountManager, UserContactData } from "@/hooks/db/useAccountManager";
+import { DARK_BLUE } from "@/constants/Colors";
+import {
+  useAccountManager,
+  UserContactData,
+} from "@/hooks/db/useAccountManager";
 import { AddressData, useAddress } from "@/hooks/db/useAddress";
 import { useDriver, useVehicle } from "@/hooks/db/useDriver";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
-const DARK_BLUE = "#10365A";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import EditDriverInfo from "./components/EditDriverInfo";
+import EditProfileDocs from "./components/EditProfileDocs";
+import EditVehicleInfo from "./components/EditVehicleInfo";
 
 export default function ProfileScreen() {
   const { user } = useUser();
@@ -26,7 +36,9 @@ export default function ProfileScreen() {
   const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
 
   const { address } = useAddress(driver?.address_uuid ?? null);
-  const { accountManager } = useAccountManager(driver?.account_manager_uuid ?? null);
+  const { accountManager } = useAccountManager(
+    driver?.account_manager_uuid ?? null,
+  );
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
 
@@ -68,8 +80,8 @@ export default function ProfileScreen() {
     return phone;
   };
 
-  const formatAM = (accountManager : UserContactData | null) => {
-    if (!accountManager) return 'Not set';
+  const formatAM = (accountManager: UserContactData | null) => {
+    if (!accountManager) return "Not set";
     return `${accountManager?.first_name} ${accountManager?.last_name}`;
   };
 
@@ -84,7 +96,9 @@ export default function ProfileScreen() {
           <Text style={styles.name}>
             {user?.firstName} {user?.lastName}
           </Text>
-          <Text style={styles.email}>{user?.emailAddresses[0]?.emailAddress}</Text>
+          <Text style={styles.email}>
+            {user?.emailAddresses[0]?.emailAddress}
+          </Text>
         </View>
 
         {/* Edit Documents Modal */}
@@ -133,7 +147,10 @@ export default function ProfileScreen() {
                     <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                   </View>
                 )}
-                <TouchableOpacity style={styles.editButton} onPress={() => setShowEditDriver(true)}>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => setShowEditDriver(true)}
+                >
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               </View>
@@ -141,12 +158,16 @@ export default function ProfileScreen() {
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Phone Number</Text>
-              <Text style={styles.infoValue}>{formatPhoneNumber(driver.phone_number)}</Text>
+              <Text style={styles.infoValue}>
+                {formatPhoneNumber(driver.phone_number)}
+              </Text>
             </View>
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>{address?.street?.split(",")[0]?.trim() ?? ""}</Text>
+              <Text style={styles.infoValue}>
+                {address?.street?.split(",")[0]?.trim() ?? ""}
+              </Text>
             </View>
 
             <View style={styles.infoRow}>
@@ -174,17 +195,21 @@ export default function ProfileScreen() {
         )}
 
         {/* Vehicle Info Section */}
-        { driver && driver.phone_number && driver.address_uuid && (
+        {driver && driver.phone_number && driver.address_uuid && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Vehicle Information</Text>
               <View style={styles.sectionRight}>
-                {vehicle?.id && vehicle?.make && vehicle?.model && vehicle?.year && vehicle?.vin_number && (
-                  <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </View>
-                )}
-                <TouchableOpacity 
+                {vehicle?.id &&
+                  vehicle?.make &&
+                  vehicle?.model &&
+                  vehicle?.year &&
+                  vehicle?.vin_number && (
+                    <View style={styles.documentBadge}>
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                <TouchableOpacity
                   style={styles.editButton}
                   onPress={() => setShowEditVehicle(true)}
                 >
@@ -192,45 +217,52 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Make & Model</Text>
               <Text style={styles.infoValue}>
-                {vehicle?.make && vehicle?.model ? `${vehicle.make} ${vehicle.model}` : 'Not set'}
+                {vehicle?.make && vehicle?.model
+                  ? `${vehicle.make} ${vehicle.model}`
+                  : "Not set"}
               </Text>
             </View>
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Year</Text>
-              <Text style={styles.infoValue}>{vehicle?.year ?? 'Not set'}</Text>
+              <Text style={styles.infoValue}>{vehicle?.year ?? "Not set"}</Text>
             </View>
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>VIN</Text>
-              <Text style={styles.infoValue}>{vehicle?.vin_number ?? 'Not set'}</Text>
+              <Text style={styles.infoValue}>
+                {vehicle?.vin_number ?? "Not set"}
+              </Text>
             </View>
           </View>
         )}
 
         {/* Documents Section */}
-        { vehicle && country && (
+        {vehicle && country && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Documents</Text>
               <View style={styles.sectionRight}>
-                {driver?.insurance_photo_path && driver?.license_photo_path && (( isUSA && driver?.medical_card_photo_path) || (!isUSA)) && (
-                  <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </View>
-                )}
-                <TouchableOpacity 
+                {driver?.insurance_photo_path &&
+                  driver?.license_photo_path &&
+                  ((isUSA && driver?.medical_card_photo_path) || !isUSA) && (
+                    <View style={styles.documentBadge}>
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                <TouchableOpacity
                   style={styles.editButton}
-                  onPress={() => setShowEditDocs(true)}>
+                  onPress={() => setShowEditDocs(true)}
+                >
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             <View style={styles.documentRow}>
               <View style={styles.documentIconContainer}>
                 <Ionicons name="card" size={20} color="#0A84FF" />
@@ -253,7 +285,9 @@ export default function ProfileScreen() {
                 <Ionicons name="shield-checkmark" size={20} color="#0A84FF" />
               </View>
               <View style={styles.documentContent}>
-                <Text style={styles.documentText}>Certificate of Insurance</Text>
+                <Text style={styles.documentText}>
+                  Certificate of Insurance
+                </Text>
                 {!driver?.insurance_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}
@@ -264,7 +298,7 @@ export default function ProfileScreen() {
                 </View>
               )}
             </View>
-            { isUSA && (
+            {isUSA && (
               <View style={styles.documentRow}>
                 <View style={styles.documentIconContainer}>
                   <Ionicons name="medical" size={20} color="#0A84FF" />

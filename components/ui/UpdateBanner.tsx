@@ -1,3 +1,4 @@
+import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#10365A",
+    backgroundColor: DARK_BLUE,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -95,7 +96,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   updateButton: {
-    backgroundColor: "#1D62A3",
+    backgroundColor: BRAND_BLUE,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 14,

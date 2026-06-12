@@ -1,3 +1,4 @@
+import { DARK_BLUE } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -5,8 +6,6 @@ import { Drawer } from "expo-router/drawer";
 import React, { useCallback } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-
-const DARK_BLUE = "#10365A";
 
 interface DrawerMenuItem {
   label: string;
