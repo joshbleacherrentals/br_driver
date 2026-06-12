@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
@@ -129,7 +130,7 @@ export default function TripHistoryScreen() {
   const colorScheme = useColorScheme();
   const t = themes[colorScheme === "dark" ? "dark" : "light"];
 
-  const workTrackers = useWorkTrackers().workTrackers;
+  const { workTrackers, isLoading } = useWorkTrackers();
   const [selectedTrip, setSelectedTrip] = useState<WorkTracker | null>(null);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>(
     {},
@@ -205,6 +206,36 @@ export default function TripHistoryScreen() {
           workTracker={selectedTrip}
           onClose={() => setSelectedTrip(null)}
         />
+      </>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <>
+        <Stack.Screen
+          options={{
+            title: "Trip History",
+            headerStyle: { backgroundColor: t.headerBg },
+            headerTintColor: t.headerText,
+          }}
+        />
+        <SafeAreaView
+          edges={["bottom"]}
+          style={[
+            styles.safeArea,
+            {
+              backgroundColor: t.bg,
+              justifyContent: "center",
+              alignItems: "center",
+            },
+          ]}
+        >
+          <ActivityIndicator size="large" color={BRAND_BLUE} />
+          <Text style={[styles.loadingText, { color: t.emptyText }]}>
+            Loading trips...
+          </Text>
+        </SafeAreaView>
       </>
     );
   }
@@ -434,6 +465,7 @@ export default function TripHistoryScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  loadingText: { marginTop: 12, fontSize: 14 },
   listContent: {
     paddingBottom: 50,
     paddingTop: 12,

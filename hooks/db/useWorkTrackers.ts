@@ -43,7 +43,10 @@ export type DriverData = {
   id: string;
 };
 
-export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
+export function useWorkTrackers(): {
+  workTrackers: WorkTracker[] | null;
+  isLoading: boolean;
+} {
   const { user } = useUser();
   const clerkUserId = user?.id ?? null;
 
@@ -117,13 +120,14 @@ export function useWorkTrackers(): { workTrackers: WorkTracker[] | null } {
 
   if (!clerkUserId) {
     console.log("[WorkTrackers] No clerk user ID provided");
-    return { workTrackers: null };
+    return { workTrackers: null, isLoading: true };
   }
 
-  if (!compiled || !userData.data?.[0]?.id) return { workTrackers: [] };
-  if (!compiledWT) return { workTrackers: [] };
+  if (!compiled || !userData.data?.[0]?.id)
+    return { workTrackers: [], isLoading: true };
+  if (!compiledWT) return { workTrackers: [], isLoading: true };
 
-  return { workTrackers: WTData.data };
+  return { workTrackers: WTData.data, isLoading: false };
 }
 
 // ---------------------------------------------------------------------------
