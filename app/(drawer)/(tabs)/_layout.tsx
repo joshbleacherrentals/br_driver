@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform, Pressable, TouchableOpacity } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -12,15 +12,20 @@ import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import {
   CalendarDays,
   CircleUser,
-  Ellipsis,
   FileText,
-  Truck,
+  Menu,
+  Navigation2,
 } from "lucide-react-native";
 
-// Animate on press instead of on focus — avoids remount issues
+import LoadingScreen from "@/components/widgets/loadingScreen";
+import NoDriverScreen from "@/components/widgets/no-driver";
+import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
+
+// ── Animated tab bar button ─────────────────────────────────────────────────
 function AnimatedHapticTab(props: any) {
   const scale = useSharedValue(1);
 
@@ -44,10 +49,6 @@ function AnimatedHapticTab(props: any) {
   );
 }
 
-import LoadingScreen from "@/components/widgets/loadingScreen";
-import NoDriverScreen from "@/components/widgets/no-driver";
-import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
-
 const BRAND_BLUE = "#1D62A3";
 
 export default function TabLayout() {
@@ -55,6 +56,7 @@ export default function TabLayout() {
   const { updateReady, restart } = useOTAUpdate();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  const navigation = useNavigation<any>();
 
   return (
     <>
@@ -67,20 +69,35 @@ export default function TabLayout() {
         ) : (
           <Tabs
             screenOptions={{
+              animation: "fade",
+              tabBarShowLabel: false,
               tabBarActiveTintColor: BRAND_BLUE,
               tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",
-              headerShown: false,
+              headerShown: true,
+              headerRight: () => (
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.dispatch(DrawerActions.openDrawer())
+                  }
+                  style={{ marginRight: 16 }}
+                  activeOpacity={0.7}
+                >
+                  <Menu
+                    size={24}
+                    color={isDark ? "#FFFFFF" : "#111827"}
+                    strokeWidth={1.75}
+                  />
+                </TouchableOpacity>
+              ),
               tabBarButton: AnimatedHapticTab,
               tabBarBackground: TabBarBackground,
+              tabBarItemStyle: { marginTop: 10 },
               tabBarStyle: Platform.select({
-                ios: {
-                  position: "absolute",
-                  backgroundColor: "transparent",
-                },
                 default: {
                   backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
                   borderTopColor: isDark ? "#38383A" : "#E5E7EB",
                   borderTopWidth: 0.5,
+                  height: 92,
                 },
               }),
             }}
@@ -90,16 +107,16 @@ export default function TabLayout() {
               options={{
                 title: "Trips",
                 tabBarIcon: ({ color }) => (
-                  <Truck size={22} color={color} strokeWidth={1.75} />
+                  <Navigation2 size={28} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
             <Tabs.Screen
               name="driverAvailability"
               options={{
-                title: "Calendar",
+                title: "My Availability",
                 tabBarIcon: ({ color }) => (
-                  <CalendarDays size={22} color={color} strokeWidth={1.75} />
+                  <CalendarDays size={28} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -108,7 +125,7 @@ export default function TabLayout() {
               options={{
                 title: "Documents",
                 tabBarIcon: ({ color }) => (
-                  <FileText size={22} color={color} strokeWidth={1.75} />
+                  <FileText size={28} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
@@ -117,17 +134,15 @@ export default function TabLayout() {
               options={{
                 title: "Profile",
                 tabBarIcon: ({ color }) => (
-                  <CircleUser size={22} color={color} strokeWidth={1.75} />
+                  <CircleUser size={28} color={color} strokeWidth={1.75} />
                 ),
               }}
             />
             <Tabs.Screen
               name="more"
               options={{
-                title: "More",
-                tabBarIcon: ({ color }) => (
-                  <Ellipsis size={22} color={color} strokeWidth={1.75} />
-                ),
+                tabBarItemStyle: { display: "none" },
+                headerShown: false,
               }}
             />
           </Tabs>

@@ -6,16 +6,18 @@ import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
+import { Menu } from "lucide-react-native";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import {
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -100,7 +102,8 @@ function formatStatus(status: string | null): string {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AvailabilityCalendarScreen() {
-  const logo = require("../../assets/images/adaptive-icon.png");
+  const navigation = useNavigation<any>();
+  const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
 
   const [currentMonth, setCurrentMonth] = useState(TODAY.substring(0, 7));
   const [isSaving, setIsSaving] = useState(false);
@@ -393,16 +396,11 @@ export default function AvailabilityCalendarScreen() {
     driver,
   ]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
-  const monthLabel = formatMonthName(currentMonth);
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image source={logo} style={styles.logo} />
-        <Text style={styles.headerTitle}>My Availability</Text>
-        <View style={styles.headerActions}>
+  // ─── Header right: save/discard buttons + hamburger menu ───────────────────
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 16 }}>
           {hasPendingChanges && (
             <TouchableOpacity
               style={styles.headerDiscardBtn}
@@ -432,9 +430,19 @@ export default function AvailabilityCalendarScreen() {
               {isSaving ? "Saving…" : hasPendingChanges ? "Save" : "Saved ✓"}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={openDrawer} activeOpacity={0.7}>
+            <Menu size={24} color="#111827" strokeWidth={1.75} />
+          </TouchableOpacity>
         </View>
-      </View>
+      ),
+    });
+  }, [navigation, openDrawer, hasPendingChanges, isSaving, handleSave, handleDiscard]);
 
+  // ─── Render ───────────────────────────────────────────────────────────────────
+  const monthLabel = formatMonthName(currentMonth);
+
+  return (
+    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: DARK_BLUE }}>
       <ProfileCompletionBanner />
 
       <ScrollView

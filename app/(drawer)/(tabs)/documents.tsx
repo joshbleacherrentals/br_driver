@@ -3,7 +3,6 @@ import { useAddress } from '@/hooks/db/useAddress';
 import { useBlueBook } from '@/hooks/db/useBlueBook';
 import { useDriver } from '@/hooks/db/useDriver';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from "expo-image";
 import React from "react";
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,7 +11,6 @@ const DARK_BLUE = "#10365A";
 const MID_BLUE = "#164d82";
 
 export default function BlueBookScreen() {
-  const logo = require('../../assets/images/adaptive-icon.png');
   const { blueBookEntries } = useBlueBook();
   const { driver } = useDriver();
   const { address } = useAddress(driver?.address_uuid ?? null);
@@ -37,14 +35,7 @@ export default function BlueBookScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: DARK_BLUE }}>
-      {/* Header */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Image source={logo} style={styles.logo} />
-        <Text style={styles.headerTitle}>Documents</Text>
-        <View style={styles.logoPlaceholder} />
-      </View>
-
+    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#F2F2F7' }}>
       <ProfileCompletionBanner />
 
       <ScrollView

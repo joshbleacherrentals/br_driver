@@ -74,39 +74,8 @@ export default function ProfileScreen() {
     return `${accountManager?.first_name} ${accountManager?.last_name}`;
   };
 
-  const logo = require('../../assets/images/adaptive-icon.png');
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 8,
-          backgroundColor: "#FFFFFF",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Image source={logo} style={{ width: 45, height: 45 }} />
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "700",
-            letterSpacing: 0.3,
-            color: "#111827",
-            position: "absolute",
-            left: 0,
-            right: 0,
-            textAlign: "center",
-          }}
-        >
-          Profile
-        </Text>
-        <View style={{ width: 45, height: 45 }} />
-      </View>
-
+    <SafeAreaView edges={['bottom']} style={styles.container}>
       <ProfileCompletionBanner />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

@@ -15,7 +15,6 @@ import React, { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -197,8 +196,6 @@ export default function TripsScreen() {
         ),
     [allBleachersFleet, resolvedAddresses],
   );
-
-  const logo = require("../../assets/images/adaptive-icon.png");
 
   const completedTrips = useMemo(
     () => (workTrackers ?? []).filter((t) => t.status === "completed"),
@@ -483,21 +480,7 @@ export default function TripsScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: t.bg }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: t.headerBg, borderBottomColor: t.headerBorder },
-        ]}
-      >
-        <Image source={logo} style={styles.logo} />
-        <Text style={[styles.headerTitle, { color: t.headerText }]}>
-          Trips
-        </Text>
-        <View style={styles.logoSpacer} />
-      </View>
-
+    <SafeAreaView edges={['bottom']} style={[styles.safeArea, { backgroundColor: t.bg }]}>
       <ProfileCompletionBanner />
 
       {/* Toggle */}
@@ -520,7 +503,10 @@ export default function TripsScreen() {
           <Text
             style={[
               styles.toggleText,
-              { color: activeTab === "upcoming" ? t.toggleTextActive : t.toggleText },
+              {
+                color:
+                  activeTab === "upcoming" ? t.toggleTextActive : t.toggleText,
+              },
             ]}
           >
             Upcoming
@@ -552,7 +538,10 @@ export default function TripsScreen() {
           <Text
             style={[
               styles.toggleText,
-              { color: activeTab === "history" ? t.toggleTextActive : t.toggleText },
+              {
+                color:
+                  activeTab === "history" ? t.toggleTextActive : t.toggleText,
+              },
             ]}
           >
             History
@@ -630,7 +619,9 @@ export default function TripsScreen() {
                     >
                       {group.label}
                     </Text>
-                    <Text style={[styles.weekSubText, { color: t.weekSubText }]}>
+                    <Text
+                      style={[styles.weekSubText, { color: t.weekSubText }]}
+                    >
                       {group.trips.length}{" "}
                       {group.trips.length === 1 ? "trip" : "trips"}
                       {group.totalPay > 0
@@ -657,10 +648,7 @@ export default function TripsScreen() {
 
                 {!collapsed && (
                   <View
-                    style={[
-                      styles.weekBody,
-                      { backgroundColor: t.weekBodyBg },
-                    ]}
+                    style={[styles.weekBody, { backgroundColor: t.weekBodyBg }]}
                   >
                     {group.trips.map((trip, index) => {
                       const pickupAddress = trip.pickup_address_uuid
@@ -741,10 +729,7 @@ export default function TripsScreen() {
                             </Text>
 
                             <View
-                              style={[
-                                styles.addressLabel,
-                                { marginTop: 8 },
-                              ]}
+                              style={[styles.addressLabel, { marginTop: 8 }]}
                             >
                               <Ionicons
                                 name="location-outline"

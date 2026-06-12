@@ -21,8 +21,7 @@ export default function MoreScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>More</Text>
+    <SafeAreaView edges={['bottom']} style={styles.container}>
       <View style={styles.list}>
         {MENU_ITEMS.map((item) => (
           <TouchableOpacity
