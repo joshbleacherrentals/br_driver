@@ -1,4 +1,4 @@
-import { DARK_BLUE } from "@/constants/Colors";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: DARK_BLUE,
+    backgroundColor: BRAND_BLUE,
     paddingHorizontal: 20,
     paddingBottom: 24,
     gap: 14,

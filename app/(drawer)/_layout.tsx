@@ -1,5 +1,5 @@
-import UserProfileCard from "@/components/widgets/UserProfileCard";
 import { DARK_BLUE } from "@/constants/Colors";
+import UserProfileCard from "@/features/more/components/UserProfileCard";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
