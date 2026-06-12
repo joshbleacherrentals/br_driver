@@ -12,6 +12,12 @@ export const BRAND_BLUE = "#1D62A3";
 export const ACCENT_BLUE = "#0A84FF";
 export const GREEN_ACCENT = "#3A8B61";
 
+// ── Screen backgrounds ─────────────────────────────────────────────────────
+/** Default screen background — light mode */
+export const SCREEN_BG_LIGHT = "#F2F2F7";
+/** Default screen background — dark mode */
+export const SCREEN_BG_DARK = "#000000";
+
 const tintColorLight = "#0a7ea4";
 const tintColorDark = "#fff";
 

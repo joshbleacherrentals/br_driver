@@ -1,4 +1,9 @@
-import { db, photoAttachmentQueue } from "@/components/providers/SystemProvider";
+import {
+  db,
+  photoAttachmentQueue,
+} from "@/components/providers/SystemProvider";
+import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,8 +65,17 @@ export default function EditProfileDocs({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  console.log(licensePath)
-  console.log(insurancePath)
+  const isDark = useColorScheme() === "dark";
+  const theme = {
+    bg: isDark ? "#000000" : "#F2F2F7",
+    card: isDark ? "#1C1C1E" : "#FFFFFF",
+    border: isDark ? "rgba(255,255,255,0.1)" : "#E5E7EB",
+    text: isDark ? "#FFFFFF" : "#000000",
+    inputBg: isDark ? "#2C2C2E" : "#F8F8F8",
+  };
+
+  console.log(licensePath);
+  console.log(insurancePath);
 
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
@@ -69,7 +83,10 @@ export default function EditProfileDocs({
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (status !== "granted") {
-      Alert.alert("Permission needed", "We need camera roll permissions to select photos");
+      Alert.alert(
+        "Permission needed",
+        "We need camera roll permissions to select photos",
+      );
       return;
     }
 
@@ -82,7 +99,10 @@ export default function EditProfileDocs({
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+      const converted = await convertToJpegIfNeeded(
+        asset.uri,
+        asset.base64 ?? undefined,
+      );
       setter({
         uri: converted.uri,
         base64: converted.base64,
@@ -92,11 +112,16 @@ export default function EditProfileDocs({
     }
   };
 
-  const takePhoto = async (setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>) => {
+  const takePhoto = async (
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+  ) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
 
     if (status !== "granted") {
-      Alert.alert("Permission needed", "We need camera permissions to take photos");
+      Alert.alert(
+        "Permission needed",
+        "We need camera permissions to take photos",
+      );
       return;
     }
 
@@ -107,7 +132,10 @@ export default function EditProfileDocs({
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const converted = await convertToJpegIfNeeded(asset.uri, asset.base64 ?? undefined);
+      const converted = await convertToJpegIfNeeded(
+        asset.uri,
+        asset.base64 ?? undefined,
+      );
       setter({
         uri: converted.uri,
         base64: converted.base64,
@@ -117,7 +145,9 @@ export default function EditProfileDocs({
     }
   };
 
-  const pickFile = async (setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>) => {
+  const pickFile = async (
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+  ) => {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
@@ -147,7 +177,8 @@ export default function EditProfileDocs({
     photo: DocumentPhoto,
     docType: string,
   ): Promise<string | null> => {
-    if (!photo.isNew || !photo.base64 || !driverId) return photo.attachmentId ?? null;
+    if (!photo.isNew || !photo.base64 || !driverId)
+      return photo.attachmentId ?? null;
     if (!photoAttachmentQueue) {
       console.warn("PhotoAttachmentQueue not initialized");
       return null;
@@ -188,7 +219,9 @@ export default function EditProfileDocs({
 
       await executeTypedMutation(updateQuery);
 
-      Alert.alert("Success", "Documents updated successfully!", [{ text: "OK", onPress: onClose }]);
+      Alert.alert("Success", "Documents updated successfully!", [
+        { text: "OK", onPress: onClose },
+      ]);
     } catch (error) {
       console.error("Error updating documents:", error);
       Alert.alert("Error", "Failed to update documents. Please try again.");
@@ -203,12 +236,14 @@ export default function EditProfileDocs({
     photo: DocumentPhoto,
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
   ) => (
-    <View style={styles.documentSection}>
+    <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
       <View style={styles.documentHeader}>
         <View style={styles.documentIconContainer}>
           <Ionicons name={iconName as any} size={24} color="#0A84FF" />
         </View>
-        <Text style={styles.documentTitle}>{title}</Text>
+        <Text style={[styles.documentTitle, { color: theme.text }]}>
+          {title}
+        </Text>
       </View>
 
       {photo.uri ? (
@@ -222,21 +257,35 @@ export default function EditProfileDocs({
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.emptyPhotoContainer}>
+        <View
+          style={[
+            styles.emptyPhotoContainer,
+            { backgroundColor: theme.inputBg, borderColor: theme.border },
+          ]}
+        >
           <Text style={styles.emptyPhotoText}>No photo uploaded</Text>
         </View>
       )}
 
       <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.photoButton} onPress={() => takePhoto(setter)}>
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={() => takePhoto(setter)}
+        >
           <Ionicons name="camera" size={16} color="#FFFFFF" />
           <Text style={styles.photoButtonText}>Take Photo</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.photoButton} onPress={() => pickImageFromLibrary(setter)}>
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={() => pickImageFromLibrary(setter)}
+        >
           <Ionicons name="images" size={16} color="#FFFFFF" />
           <Text style={styles.photoButtonText}>Choose Photo</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.photoButton} onPress={() => pickFile(setter)}>
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={() => pickFile(setter)}
+        >
           <Ionicons name="document-attach" size={16} color="#FFFFFF" />
           <Text style={styles.photoButtonText}>Choose File</Text>
         </TouchableOpacity>
@@ -251,34 +300,50 @@ export default function EditProfileDocs({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: theme.card, borderBottomColor: theme.border },
+          ]}
+        >
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.cancelButton}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Documents</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            Edit Documents
+          </Text>
           <View style={{ width: 60 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {renderDocumentSection("Driver's License", "card", licensePhoto, setLicensePhoto)}
+          {renderDocumentSection(
+            "Driver's License",
+            "card",
+            licensePhoto,
+            setLicensePhoto,
+          )}
 
           {renderDocumentSection(
             "Certificate of Insurance",
             "shield-checkmark",
             insurancePhoto,
-            setInsurancePhoto
-          )}
-          
-          {showMedCard && renderDocumentSection(
-            "Medical Card",
-            "medical",
-            medicalCardPhoto,
-            setMedicalCardPhoto
+            setInsurancePhoto,
           )}
 
+          {showMedCard &&
+            renderDocumentSection(
+              "Medical Card",
+              "medical",
+              medicalCardPhoto,
+              setMedicalCardPhoto,
+            )}
+
           <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              isSubmitting && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
@@ -328,7 +393,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     fontSize: 16,
-    color: "#0A84FF",
+    color: BRAND_BLUE,
     fontWeight: "600",
   },
   headerTitle: {
@@ -418,7 +483,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   submitButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: GREEN_ACCENT,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",

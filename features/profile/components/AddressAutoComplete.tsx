@@ -1,3 +1,4 @@
+import { useColorScheme } from "@/hooks/useColorScheme";
 import React, { useRef, useState } from "react";
 import {
   LayoutRectangle,
@@ -43,6 +44,17 @@ export default function AddressAutocomplete({
   const [inputLayout, setInputLayout] = useState<LayoutRectangle | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isDark = useColorScheme() === "dark";
+  const theme = {
+    inputBg: isDark ? "#2C2C2E" : "#FFFFFF",
+    inputBorder: isDark ? "rgba(255,255,255,0.15)" : "#ccc",
+    text: isDark ? "#FFFFFF" : "#000000",
+    placeholder: isDark ? "#8E8E93" : "#555",
+    dropdownBg: isDark ? "#1C1C1E" : "#FFFFFF",
+    dropdownBorder: isDark ? "rgba(255,255,255,0.1)" : "#ddd",
+    itemBorder: isDark ? "rgba(255,255,255,0.07)" : "#eee",
+  };
+
   const fetchSuggestions = async (text: string) => {
     if (!text.trim()) {
       setResults([]);
@@ -52,8 +64,8 @@ export default function AddressAutocomplete({
     try {
       const res = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-          text
-        )}&key=${GOOGLE_PLACES_API_KEY}&types=address`
+          text,
+        )}&key=${GOOGLE_PLACES_API_KEY}&types=address`,
       );
       const json = await res.json();
       setResults(json.predictions ?? []);
@@ -78,7 +90,7 @@ export default function AddressAutocomplete({
 
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&key=${GOOGLE_PLACES_API_KEY}`
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&key=${GOOGLE_PLACES_API_KEY}`,
       );
       const json = await res.json();
       const result = json.result;
@@ -106,9 +118,16 @@ export default function AddressAutocomplete({
       <TextInput
         value={value}
         onChangeText={handleChange}
-        placeholder={placeholder? placeholder : "Enter address..."}
-        placeholderTextColor="#555"
-        style={styles.input}
+        placeholder={placeholder ? placeholder : "Enter address..."}
+        placeholderTextColor={theme.placeholder}
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.inputBg,
+            borderColor: theme.inputBorder,
+            color: theme.text,
+          },
+        ]}
         onLayout={(e) => setInputLayout(e.nativeEvent.layout)}
       />
 
@@ -119,10 +138,12 @@ export default function AddressAutocomplete({
             {
               top: inputLayout.height + 4,
               width: inputLayout.width,
+              backgroundColor: theme.dropdownBg,
+              borderColor: theme.dropdownBorder,
             },
           ]}
         >
-          <ScrollView 
+          <ScrollView
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled={true}
             style={styles.scrollView}
@@ -130,10 +151,12 @@ export default function AddressAutocomplete({
             {results.map((item) => (
               <TouchableOpacity
                 key={item.place_id}
-                style={styles.item}
+                style={[styles.item, { borderBottomColor: theme.itemBorder }]}
                 onPress={() => handleSelect(item)}
               >
-                <Text style={styles.itemText}>{item.description}</Text>
+                <Text style={[styles.itemText, { color: theme.text }]}>
+                  {item.description}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -147,17 +170,13 @@ const styles = StyleSheet.create({
   container: { width: "100%", position: "relative" },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
     borderRadius: 6,
     padding: 12,
-    backgroundColor: "white",
   },
   dropdown: {
     position: "absolute",
     left: 0,
-    backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "#ddd",
     borderRadius: 6,
     maxHeight: 220,
     zIndex: 1000,

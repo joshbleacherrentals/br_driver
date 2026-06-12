@@ -1,6 +1,7 @@
 import { db } from "@/components/providers/SystemProvider";
-import AddressAutocomplete from "./AddressAutoComplete";
+import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
@@ -14,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AddressAutocomplete from "./AddressAutoComplete";
 
 interface EditDriverInfoProps {
   driverId: string | null;
@@ -40,6 +42,15 @@ export default function EditDriverInfo({
   const [phone, setPhone] = useState<string>(phoneNumber ?? "");
   const [addressData, setAddressData] = useState<AddressData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isDark = useColorScheme() === "dark";
+  const theme = {
+    bg: isDark ? "#000000" : "#F2F2F7",
+    card: isDark ? "#1C1C1E" : "#FFFFFF",
+    border: isDark ? "rgba(255,255,255,0.1)" : "#E5E7EB",
+    text: isDark ? "#FFFFFF" : "#000000",
+    inputBg: isDark ? "#2C2C2E" : "#F8F8F8",
+  };
 
   const formatPhoneInput = (text: string): string => {
     const cleaned = text.replace(/\D/g, "").slice(0, 10);
@@ -175,21 +186,37 @@ export default function EditDriverInfo({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: theme.card, borderBottomColor: theme.border },
+          ]}
+        >
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.cancelButton}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Driver Info</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            Edit Driver Info
+          </Text>
           <View style={{ width: 60 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Phone */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Phone Number</Text>
+          <View style={[styles.section, { backgroundColor: theme.card }]}>
+            <Text style={[styles.label, { color: theme.text }]}>
+              Phone Number
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.inputBg,
+                  color: theme.text,
+                  borderColor: theme.border,
+                },
+              ]}
               onChangeText={handlePhoneChange}
               placeholder={formatPhoneNumber(phoneNumber) ?? "(555) 123-4567"} // old phone as placeholder
               placeholderTextColor="#8E8E93"
@@ -199,8 +226,12 @@ export default function EditDriverInfo({
           </View>
 
           {/* Address */}
-          <View style={styles.addressSection}>
-            <Text style={styles.sectionTitle}>Address</Text>
+          <View
+            style={[styles.addressSection, { backgroundColor: theme.card }]}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Address
+            </Text>
             <AddressAutocomplete
               value={addressData?.address ?? ""}
               placeholder={address?.street ?? null}
@@ -248,7 +279,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
-  cancelButton: { fontSize: 16, color: "#0A84FF", fontWeight: "600" },
+  cancelButton: { fontSize: 16, color: BRAND_BLUE, fontWeight: "600" },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#000" },
   scrollContent: { padding: 16 },
   section: {
@@ -280,7 +311,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   submitButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: GREEN_ACCENT,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",

@@ -1,5 +1,6 @@
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
+import Card from "@/components/ui/Card";
 import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
@@ -23,8 +24,6 @@ import BleacherDropdown, { BleacherOption } from "./bleacherDropdown";
 
 const themes = {
   light: {
-    card: "#FFFFFF",
-    cardBorder: "transparent",
     titleText: "#000000",
     dateText: "#8E8E93",
     divider: "#E5E7EB",
@@ -39,8 +38,6 @@ const themes = {
     instructionsText: "#1C1C1E",
   },
   dark: {
-    card: "#2C2C2E",
-    cardBorder: "#3A3A3C",
     titleText: "#FFFFFF",
     dateText: "#8E8E93",
     divider: "#38383A",
@@ -281,12 +278,7 @@ export default function TripItem({
   };
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: t.card, borderColor: t.cardBorder },
-      ]}
-    >
+    <Card style={styles.card}>
       {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
@@ -590,23 +582,15 @@ export default function TripItem({
         workTracker={workTracker}
         onClose={() => setBolVisible(false)}
       />
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: "flex-end", flexShrink: 0 },
   card: {
-    borderRadius: 12,
-    padding: 16,
     marginVertical: 6,
     marginHorizontal: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   topHeaderRow: {
     flexDirection: "row",
