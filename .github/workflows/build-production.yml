@@ -1,9 +1,9 @@
 name: Production Deploy
 
 # Runs on every push to main (i.e. merged PRs).
-# Uses Expo fingerprint to decide:
-#   - Native runtime unchanged → OTA update to production channel
-#   - Native runtime changed   → EAS Build (iOS + Android), no auto-submit
+# Uses git diff to detect native vs JS-only changes:
+#   - JS/assets only → OTA update to production channel
+#   - Native files changed → EAS Build (iOS + Android)
 #
 # Store submission is intentionally manual. After a native build completes:
 #   eas submit --profile production --platform ios
@@ -23,8 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
+    outputs:
+      native_changed: ${{ steps.detect.outputs.native_changed }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v5
         with:
@@ -47,9 +51,27 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-  deploy:
-    name: Fingerprint Deploy
+      - name: Detect native changes
+        id: detect
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+          echo ""
+
+          # These paths indicate native runtime changes that require a new build
+          if echo "$CHANGED" | grep -qE '^(package\.json|package-lock\.json|app\.json|app\.config\.|eas\.json|plugins/|patches/)'; then
+            echo "Native-impacting files changed → will trigger EAS Build"
+            echo "native_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "JS/assets only → OTA update"
+            echo "native_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  ota-update:
+    name: OTA Update (production)
     needs: check
+    if: needs.check.outputs.native_changed == 'false'
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
@@ -70,18 +92,43 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      # This action automatically:
-      # 1. Computes the native fingerprint for iOS and Android
-      # 2. Checks if a production EAS Build already exists with that fingerprint
-      # 3. If no matching build exists → triggers eas build (native change detected)
-      # 4. Publishes an EAS Update to the production channel
-      #
-      # When the fingerprint hasn't changed since the last build,
-      # only step 4 runs — giving you Vercel-style instant OTA deploys.
-      - name: Continuous Deploy (fingerprint)
-        uses: expo/expo-github-action/continuous-deploy-fingerprint@main
+      - name: Publish OTA update
+        run: |
+          eas update --channel production --platform all \
+            --message "${{ github.event.head_commit.message }}" \
+            --non-interactive
+
+  native-build:
+    name: Native Build (production)
+    needs: check
+    if: needs.check.outputs.native_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
         with:
-          profile: production
-          branch: production
-          environment: production
-          platform: all
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Build iOS
+        run: eas build --profile production --platform ios --non-interactive
+
+      - name: Build Android
+        run: eas build --profile production --platform android --non-interactive
+
+      # Also publish OTA so the new build gets the latest JS bundle
+      - name: Publish OTA update
+        run: |
+          eas update --channel production --platform all \
+            --message "${{ github.event.head_commit.message }}" \
+            --non-interactive

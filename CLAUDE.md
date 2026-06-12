@@ -211,7 +211,7 @@ If a component in a feature folder starts being used by a second feature, move i
 
 ## CI/CD Pipeline
 
-Uses `@expo/fingerprint` runtime version policy to automatically detect JS-only vs native changes.
+Uses path-based git diff detection to automatically route JS-only vs native changes.
 
 | Trigger                              | What happens                                                       |
 | ------------------------------------ | ------------------------------------------------------------------ |
@@ -221,10 +221,10 @@ Uses `@expo/fingerprint` runtime version policy to automatically detect JS-only 
 | Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)            |
 | Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`) |
 
-**How fingerprint deploy works (push to main):**
+**How production deploy works (push to main):**
 
 1. Runs typecheck + lint
-2. `continuous-deploy-fingerprint` action computes native fingerprint
-3. If fingerprint matches an existing production build → **OTA update only** (Vercel-style instant deploy)
-4. If fingerprint changed (new native dep, SDK upgrade, config plugin change) → **triggers EAS Build** for iOS + Android
+2. `git diff` checks if native-impacting files changed (`package.json`, `app.json`, `eas.json`, `plugins/`, `patches/`)
+3. JS/assets only → **OTA update** to production channel (Vercel-style instant deploy)
+4. Native files changed → **EAS Build** (iOS + Android) + OTA update
 5. Store submission is always manual — run the `Store Submit` workflow after verifying the build
