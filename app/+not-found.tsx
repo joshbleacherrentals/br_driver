@@ -33,7 +33,7 @@ export default function NotFoundScreen() {
           />
           <Text style={styles.title}>Welcome, {firstName}!</Text>
           <Text style={styles.subtitle}>
-            You're signed in and ready to go. Check out your upcoming trips to get started.
+            You&apos;re signed in and ready to go. Check out your upcoming trips to get started.
           </Text>
         </View>
 

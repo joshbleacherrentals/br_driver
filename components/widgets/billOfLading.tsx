@@ -1,35 +1,32 @@
-import { db } from '@/components/providers/SystemProvider';
-import { useAddress } from '@/hooks/db/useAddress';
-import { useBleacher } from '@/hooks/db/useBleacher';
-import { WorkTracker } from '@/hooks/db/useWorkTrackers';
-import { executeTypedMutationVoid } from '@/library/powersync/typedMutation';
-import { Ionicons } from '@expo/vector-icons';
-import { Asset } from 'expo-asset';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Print from 'expo-print';
+import { db } from "@/components/providers/SystemProvider";
+import BottomSheetModal from "@/components/ui/BottomSheetModal";
+import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
+import { useAddress } from "@/hooks/db/useAddress";
+import { useBleacher } from "@/hooks/db/useBleacher";
+import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { Ionicons } from "@expo/vector-icons";
+import { Asset } from "expo-asset";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import React from 'react';
+import React from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-// ─── Brand colours ────────────────────────────────────────────────────────────
-const DARK_BLUE = '#10365A';
-const LIGHT_BLUE = '#1D62A3';
-const ACCENT = '#0A84FF';
-const SURFACE = '#FFFFFF';
-const BG = '#F2F2F7';
-const MUTED = '#8E8E93';
-const DIVIDER = '#E5E7EB';
+  View,
+} from "react-native";
+const ACCENT = "#0A84FF";
+const SURFACE = "#FFFFFF";
+const BG = "#F2F2F7";
+const MUTED = "#8E8E93";
+const DIVIDER = "#E5E7EB";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface BillOfLadingProps {
@@ -40,11 +37,14 @@ interface BillOfLadingProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(dateISO?: string | null): string {
-  if (!dateISO) return '—';
+  if (!dateISO) return "—";
   try {
-    const d = new Date(dateISO + 'T00:00:00');
+    const d = new Date(dateISO + "T00:00:00");
     return d.toLocaleDateString(undefined, {
-      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   } catch {
     return dateISO;
@@ -52,12 +52,14 @@ function formatDate(dateISO?: string | null): string {
 }
 
 function boolLabel(val: number | null | undefined): string {
-  if (val === null || val === undefined) return '—';
-  return val ? 'Yes' : 'No';
+  if (val === null || val === undefined) return "—";
+  return val ? "Yes" : "No";
 }
 
-function v(value: string | number | null | undefined, fallback = '—'): string {
-  return value !== null && value !== undefined && value !== '' ? String(value) : fallback;
+function v(value: string | number | null | undefined, fallback = "—"): string {
+  return value !== null && value !== undefined && value !== ""
+    ? String(value)
+    : fallback;
 }
 
 // Format total inches for display: "2ft 1in", "6ft", "9in", or "—"
@@ -76,32 +78,38 @@ export function formatInches(totalInches: number | null): string {
 function generateBolNumber(
   workTrackerId: string,
   bleacherNumber: string | number | null | undefined,
-  date: string | null | undefined
+  date: string | null | undefined,
 ): string {
-  const bleacher = bleacherNumber ? String(bleacherNumber).padStart(3, '0') : 'XXX';
-  const dateStr = date ? date.replace(/-/g, '') : 'NODATE';
-  const hex = workTrackerId.replace(/-/g, '').substring(0, 8);
-  const num = parseInt(hex, 16).toString().padStart(10, '0');
+  const bleacher = bleacherNumber
+    ? String(bleacherNumber).padStart(3, "0")
+    : "XXX";
+  const dateStr = date ? date.replace(/-/g, "") : "NODATE";
+  const hex = workTrackerId.replace(/-/g, "").substring(0, 8);
+  const num = parseInt(hex, 16).toString().padStart(10, "0");
   return `${bleacher}-${dateStr}-${num}`;
 }
 
-
-async function saveBolNumber(workTrackerId: string, bolNumber: string): Promise<void> {
+async function saveBolNumber(
+  workTrackerId: string,
+  bolNumber: string,
+): Promise<void> {
   const now = new Date().toISOString();
   const query = db
-    .updateTable('WorkTrackers')
+    .updateTable("WorkTrackers")
     .set({ bol_number: bolNumber, updated_at: now })
-    .where('id', '=', workTrackerId)
+    .where("id", "=", workTrackerId)
     .compile();
   await executeTypedMutationVoid(query);
 }
 
 // ─── Load logo as base64 for HTML embedding ───────────────────────────────────
 async function getLogoBase64(): Promise<string> {
-  const asset = Asset.fromModule(require('../../assets/images/NEW-Bleacher-Rentals-logo.png'));
+  const asset = Asset.fromModule(
+    require("../../assets/images/NEW-Bleacher-Rentals-logo.png"),
+  );
   await asset.downloadAsync();
   const base64 = await FileSystem.readAsStringAsync(asset.localUri!, {
-    encoding: 'base64',
+    encoding: "base64",
   });
   return `data:image/png;base64,${base64}`;
 }
@@ -109,28 +117,35 @@ async function getLogoBase64(): Promise<string> {
 // ─── HTML Template for PDF ────────────────────────────────────────────────────
 function buildBOLHtml(params: {
   workTracker: WorkTracker;
-  bleacher: ReturnType<typeof useBleacher>['bleacher'];
-  pickupAddress: ReturnType<typeof useAddress>['address'];
-  dropoffAddress: ReturnType<typeof useAddress>['address'];
+  bleacher: ReturnType<typeof useBleacher>["bleacher"];
+  pickupAddress: ReturnType<typeof useAddress>["address"];
+  dropoffAddress: ReturnType<typeof useAddress>["address"];
   logoBase64: string;
   bolNumber: string;
 }): string {
-  const { workTracker, bleacher, pickupAddress, dropoffAddress, logoBase64, bolNumber } = params;
+  const {
+    workTracker,
+    bleacher,
+    pickupAddress,
+    dropoffAddress,
+    logoBase64,
+    bolNumber,
+  } = params;
 
   const pickupFull = pickupAddress
     ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province} ${pickupAddress.zip_postal}`
-    : '—';
+    : "—";
 
   const dropoffFull = dropoffAddress
     ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province} ${dropoffAddress.zip_postal}`
-    : '—';
+    : "—";
 
   const seats =
     bleacher?.bleacher_rows && bleacher?.bleacher_seats
       ? `${bleacher.bleacher_rows} rows / ${bleacher.bleacher_seats} seats`
       : bleacher?.bleacher_seats
-      ? `${bleacher.bleacher_seats} seats`
-      : '—';
+        ? `${bleacher.bleacher_seats} seats`
+        : "—";
 
   return `
 <!DOCTYPE html>
@@ -213,7 +228,7 @@ function buildBOLHtml(params: {
   </div>
 
   <div class="two-col">
-    <div class="col"><span class="bold">Project #&nbsp;</span>${v(workTracker.project_number, '')}</div>
+    <div class="col"><span class="bold">Project #&nbsp;</span>${v(workTracker.project_number, "")}</div>
     <div class="col-border"><span class="bold">BOL #&nbsp;</span>${bolNumber}</div>
   </div>
 
@@ -250,7 +265,7 @@ function buildBOLHtml(params: {
         </div>
         <div class="detail-line">
           <span class="label">GVWR:&nbsp;</span>
-          <span class="val">${bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : '—'}</span>
+          <span class="val">${bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : "—"}</span>
         </div>
         <div class="detail-line">
           <span class="label">Notes:&nbsp;</span>
@@ -272,7 +287,7 @@ function buildBOLHtml(params: {
         </div>
         <div class="detail-line">
           <span class="label">Height of Folded Unit:&nbsp;</span>
-          <span class="val">${bleacher?.trailer_height_in != null ? `${formatInches(bleacher.trailer_height_in)}` : '—'}</span>
+          <span class="val">${bleacher?.trailer_height_in != null ? `${formatInches(bleacher.trailer_height_in)}` : "—"}</span>
         </div>
       </div>
     </div>
@@ -337,29 +352,68 @@ function buildBOLHtml(params: {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-function InfoRow({ label, value, accent }: { label: string; value?: string | number | null; accent?: boolean }) {
+function InfoRow({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value?: string | number | null;
+  accent?: boolean;
+}) {
   return (
     <View style={infoRowStyles.row}>
       <Text style={infoRowStyles.label}>{label}</Text>
       <Text style={[infoRowStyles.value, accent && infoRowStyles.accentValue]}>
-        {value !== null && value !== undefined && value !== '' ? String(value) : '—'}
+        {value !== null && value !== undefined && value !== ""
+          ? String(value)
+          : "—"}
       </Text>
     </View>
   );
 }
 
 const infoRowStyles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: DIVIDER, gap: 12 },
-  label: { fontSize: 13, fontWeight: '500', color: MUTED, flex: 1 },
-  value: { fontSize: 13, fontWeight: '600', color: '#1C1C1E', flex: 1.4, textAlign: 'right' },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: DIVIDER,
+    gap: 12,
+  },
+  label: { fontSize: 13, fontWeight: "500", color: MUTED, flex: 1 },
+  value: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    flex: 1.4,
+    textAlign: "right",
+  },
   accentValue: { color: ACCENT },
 });
 
-function Section({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={sectionStyles.card}>
       <View style={sectionStyles.titleRow}>
-        {icon && <Ionicons name={icon as any} size={16} color={DARK_BLUE} style={{ marginRight: 6 }} />}
+        {icon && (
+          <Ionicons
+            name={icon as any}
+            size={16}
+            color={DARK_BLUE}
+            style={{ marginRight: 6 }}
+          />
+        )}
         <Text style={sectionStyles.title}>{title}</Text>
       </View>
       {children}
@@ -368,15 +422,41 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
 }
 
 const sectionStyles = StyleSheet.create({
-  card: { backgroundColor: SURFACE, borderRadius: 12, padding: 16, marginBottom: 12 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: DARK_BLUE },
-  title: { fontSize: 13, fontWeight: '700', color: DARK_BLUE, letterSpacing: 0.8, textTransform: 'uppercase' },
+  card: {
+    backgroundColor: SURFACE,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: DARK_BLUE,
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: DARK_BLUE,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
 });
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function BillOfLading({ visible, workTracker, onClose }: BillOfLadingProps) {
-  const { address: pickupAddress } = useAddress(workTracker.pickup_address_uuid);
-  const { address: dropoffAddress } = useAddress(workTracker.dropoff_address_uuid);
+export default function BillOfLading({
+  visible,
+  workTracker,
+  onClose,
+}: BillOfLadingProps) {
+  const { address: pickupAddress } = useAddress(
+    workTracker.pickup_address_uuid,
+  );
+  const { address: dropoffAddress } = useAddress(
+    workTracker.dropoff_address_uuid,
+  );
   const { bleacher } = useBleacher(workTracker.bleacher_uuid);
   const [printing, setPrinting] = React.useState(false);
 
@@ -392,131 +472,166 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
     bleacher?.bleacher_rows && bleacher?.bleacher_seats
       ? `${bleacher.bleacher_rows} rows / ${bleacher.bleacher_seats} seats`
       : bleacher?.bleacher_seats
-      ? `${bleacher.bleacher_seats} seats`
-      : null;
+        ? `${bleacher.bleacher_seats} seats`
+        : null;
 
   const handleDownloadPDF = async () => {
-  try {
-    setPrinting(true);
+    try {
+      setPrinting(true);
 
-    const bolNumber = generateBolNumber(
-      workTracker.id,
-      bleacher?.bleacher_number,
-      workTracker.date
-    );
-    await saveBolNumber(workTracker.id, bolNumber);
+      const bolNumber = generateBolNumber(
+        workTracker.id,
+        bleacher?.bleacher_number,
+        workTracker.date,
+      );
+      await saveBolNumber(workTracker.id, bolNumber);
 
-    const logoBase64 = await getLogoBase64();
-    const html = buildBOLHtml({
-      workTracker,
-      bleacher,
-      pickupAddress,
-      dropoffAddress,
-      logoBase64,
-      bolNumber,
-    });
+      const logoBase64 = await getLogoBase64();
+      const html = buildBOLHtml({
+        workTracker,
+        bleacher,
+        pickupAddress,
+        dropoffAddress,
+        logoBase64,
+        bolNumber,
+      });
 
-    if (Platform.OS === 'android') {
-      await Print.printAsync({ html });
-    } else {
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `${bolNumber}.pdf`,
-          UTI: 'com.adobe.pdf',
-        });
+      if (Platform.OS === "android") {
+        await Print.printAsync({ html });
       } else {
-        Alert.alert('Sharing not available', 'Unable to share files on this device.');
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(uri, {
+            mimeType: "application/pdf",
+            dialogTitle: `${bolNumber}.pdf`,
+            UTI: "com.adobe.pdf",
+          });
+        } else {
+          Alert.alert(
+            "Sharing not available",
+            "Unable to share files on this device.",
+          );
+        }
       }
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      Alert.alert("Error", "Failed to generate PDF. Please try again.");
+    } finally {
+      setPrinting(false);
     }
-  } catch (err) {
-    console.error('PDF generation error:', err);
-    Alert.alert('Error', 'Failed to generate PDF. Please try again.');
-  } finally {
-    setPrinting(false);
-  }
-};
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeArea}>
+    <BottomSheetModal visible={visible} onClose={onClose}>
+      {/* ── Shipper Banner ── */}
+      <View style={styles.shipperBanner}>
+        <Text style={styles.title}>BILL OF LADING</Text>
+        {workTracker.project_number ? (
+          <Text style={styles.shipperDetail}>
+            Project #{workTracker.project_number}
+          </Text>
+        ) : null}
+        <View style={{ height: 6 }} />
+        <Text style={styles.shipperName}>Bleacher Rentals Florida LLC</Text>
+        <Text style={styles.shipperDetail}>
+          7901 4th St N 25767 · St. Petersburg, FL 33702
+        </Text>
+        <Text style={styles.shipperDetail}>(800) 436-0416</Text>
+      </View>
 
-        {/* ── Modal Header ── */}
-        <View style={styles.modalHeader}>
-          <View>
-            <Text style={styles.modalHeaderLabel}>BILL OF LADING</Text>
-            <View style={styles.modalHeaderMeta}>
-              {workTracker.project_number && (
-                <Text style={styles.modalHeaderSub}>Project #{workTracker.project_number}</Text>
-              )}
-            </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Shipment Details" icon="cube-outline">
+          <InfoRow label="Item" value="Mobile Bleacher Trailer" />
+          <InfoRow label="Unit Number" value={bleacher?.bleacher_number} />
+          <InfoRow label="Size / Seats" value={seats} />
+          <InfoRow label="VIN" value={bleacher?.vin_number} />
+          <InfoRow label="TAG #" value={bleacher?.tag_number} />
+          <InfoRow label="Hitch Type" value={bleacher?.hitch_type} />
+          <InfoRow label="Manufacturer" value={bleacher?.manufacturer} />
+          <InfoRow
+            label="GVWR"
+            value={bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : null}
+          />
+          <InfoRow
+            label="Height (Folded)"
+            value={
+              bleacher?.trailer_height_in != null
+                ? `${formatInches(bleacher.trailer_height_in)}`
+                : "—"
+            }
+          />
+          <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
+            <Text style={infoRowStyles.label}>Notes</Text>
+            <Text style={[infoRowStyles.value, { color: MUTED }]}>
+              Power Only · Flatbed
+            </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons name="close" size={22} color={SURFACE} />
-          </TouchableOpacity>
-        </View>
+        </Section>
 
-        {/* ── Shipper Banner ── */}
-        <View style={styles.shipperBanner}>
-          <Text style={styles.shipperName}>Bleacher Rentals Florida LLC</Text>
-          <Text style={styles.shipperDetail}>7901 4th St N 25767 · St. Petersburg, FL 33702</Text>
-          <Text style={styles.shipperDetail}>(800) 436-0416</Text>
-        </View>
+        <Section title="Carrier & Payment Terms" icon="document-text-outline">
+          <Text style={styles.legalText}>
+            Carrier liability agreed to a minimum of $100,000.00 cargo or equal
+            to load declared value (whichever is greater).
+          </Text>
+          <Text style={[styles.legalText, { marginTop: 8 }]}>
+            Payment is due only upon successful delivery and acceptance by the
+            consignee. Any discrepancies or damages must be documented and
+            communicated immediately.
+          </Text>
+        </Section>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-          <Section title="Shipment Details" icon="cube-outline">
-            <InfoRow label="Item" value="Mobile Bleacher Trailer" />
-            <InfoRow label="Unit Number" value={bleacher?.bleacher_number} />
-            <InfoRow label="Size / Seats" value={seats} />
-            <InfoRow label="VIN" value={bleacher?.vin_number} />
-            <InfoRow label="TAG #" value={bleacher?.tag_number} />
-            <InfoRow label="Hitch Type" value={bleacher?.hitch_type} />
-            <InfoRow label="Manufacturer" value={bleacher?.manufacturer} />
-            <InfoRow label="GVWR" value={bleacher?.gvwr != null ? `${bleacher.gvwr} lbs` : null} />
-            <InfoRow label="Height (Folded)" value={bleacher?.trailer_height_in != null ? `${formatInches(bleacher.trailer_height_in)}` : '—'} />
-            <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
-              <Text style={infoRowStyles.label}>Notes</Text>
-              <Text style={[infoRowStyles.value, { color: MUTED }]}>Power Only · Flatbed</Text>
-            </View>
-          </Section>
-
-          <Section title="Carrier & Payment Terms" icon="document-text-outline">
-            <Text style={styles.legalText}>
-              Carrier liability agreed to a minimum of $100,000.00 cargo or equal to load declared value (whichever is greater).
+        <Section title="Pickup Information" icon="location-outline">
+          <InfoRow label="Date" value={formatDate(workTracker.date)} />
+          <InfoRow label="Time" value={workTracker.pickup_time} />
+          <InfoRow label="Address" value={pickupFull} accent />
+          <InfoRow label="On-Site POC" value={workTracker.pickup_poc} />
+          <InfoRow
+            label="Tear Down Required"
+            value={boolLabel(workTracker.teardown_required)}
+          />
+          <View
+            style={[
+              infoRowStyles.row,
+              { borderBottomWidth: 0, alignItems: "flex-start" },
+            ]}
+          >
+            <Text style={infoRowStyles.label}>Pickup Instructions</Text>
+            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+              {workTracker.pickup_instructions || "—"}
             </Text>
-            <Text style={[styles.legalText, { marginTop: 8 }]}>
-              Payment is due only upon successful delivery and acceptance by the consignee. Any discrepancies or damages must be documented and communicated immediately.
+          </View>
+        </Section>
+
+        <Section title="Delivery Information" icon="flag-outline">
+          <InfoRow label="Date" value={formatDate(workTracker.date)} />
+          <InfoRow label="Time" value={workTracker.dropoff_time} />
+          <InfoRow label="Address" value={dropoffFull} accent />
+          <InfoRow
+            label="On-Site POC (Consignee)"
+            value={workTracker.dropoff_poc}
+          />
+          <InfoRow
+            label="Set Up Required"
+            value={boolLabel(workTracker.setup_required)}
+          />
+          <View
+            style={[
+              infoRowStyles.row,
+              { borderBottomWidth: 0, alignItems: "flex-start" },
+            ]}
+          >
+            <Text style={infoRowStyles.label}>Delivery Instructions</Text>
+            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+              {workTracker.dropoff_instructions || "—"}
             </Text>
-          </Section>
+          </View>
+        </Section>
 
-          <Section title="Pickup Information" icon="location-outline">
-            <InfoRow label="Date" value={formatDate(workTracker.date)} />
-            <InfoRow label="Time" value={workTracker.pickup_time} />
-            <InfoRow label="Address" value={pickupFull} accent />
-            <InfoRow label="On-Site POC" value={workTracker.pickup_poc} />
-            <InfoRow label="Tear Down Required" value={boolLabel(workTracker.teardown_required)} />
-            <View style={[infoRowStyles.row, { borderBottomWidth: 0, alignItems: 'flex-start' }]}>
-              <Text style={infoRowStyles.label}>Pickup Instructions</Text>
-              <Text style={[infoRowStyles.value, { color: '#1C1C1E' }]}>{workTracker.pickup_instructions || '—'}</Text>
-            </View>
-          </Section>
-
-          <Section title="Delivery Information" icon="flag-outline">
-            <InfoRow label="Date" value={formatDate(workTracker.date)} />
-            <InfoRow label="Time" value={workTracker.dropoff_time} />
-            <InfoRow label="Address" value={dropoffFull} accent />
-            <InfoRow label="On-Site POC (Consignee)" value={workTracker.dropoff_poc} />
-            <InfoRow label="Set Up Required" value={boolLabel(workTracker.setup_required)} />
-            <View style={[infoRowStyles.row, { borderBottomWidth: 0, alignItems: 'flex-start' }]}>
-              <Text style={infoRowStyles.label}>Delivery Instructions</Text>
-              <Text style={[infoRowStyles.value, { color: '#1C1C1E' }]}>{workTracker.dropoff_instructions || '—'}</Text>
-            </View>
-          </Section>
-
-          {/* <Section title="Signatures" icon="pencil-outline">
+        {/* <Section title="Signatures" icon="pencil-outline">
             <Text style={styles.sigNote}>Please sign when the unit is dropped off at the destination.</Text>
             <View style={styles.sigRow}>
               <View style={styles.sigBlock}>
@@ -534,46 +649,49 @@ export default function BillOfLading({ visible, workTracker, onClose }: BillOfLa
             </View>
           </Section> */}
 
-          {/* ── Download PDF Button ── */}
-          <TouchableOpacity
-            style={[styles.downloadBtn, printing && styles.downloadBtnDisabled]}
-            onPress={handleDownloadPDF}
-            disabled={printing}
-          >
-            {printing ? (
-              <ActivityIndicator color={SURFACE} size="small" />
-            ) : (
-              <Ionicons name="download-outline" size={18} color={SURFACE} />
-            )}
-            <Text style={styles.downloadBtnText}>
-              {printing ? 'Generating PDF…' : 'Download PDF'}
-            </Text>
-          </TouchableOpacity>
+        {/* ── Download PDF Button ── */}
+        <TouchableOpacity
+          style={[styles.downloadBtn, printing && styles.downloadBtnDisabled]}
+          onPress={handleDownloadPDF}
+          disabled={printing}
+        >
+          {printing ? (
+            <ActivityIndicator color={SURFACE} size="small" />
+          ) : (
+            <Ionicons name="download-outline" size={18} color={SURFACE} />
+          )}
+          <Text style={styles.downloadBtnText}>
+            {printing ? "Generating PDF…" : "Download PDF"}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-            <Text style={styles.doneBtnText}>Close</Text>
-          </TouchableOpacity>
-
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+        <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+          <Text style={styles.doneBtnText}>Close</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </BottomSheetModal>
   );
 }
 
 // ─── Trigger Button ───────────────────────────────────────────────────────────
 export function BOLButton({ onPress }: { onPress: () => void }) {
+  const colorScheme = useColorScheme();
+  const color = colorScheme === "dark" ? "#FFFFFF" : DARK_BLUE;
   return (
-    <TouchableOpacity style={bolBtnStyles.btn} onPress={onPress}>
-      <Ionicons name="document-text-outline" size={15} color={DARK_BLUE} />
-      <Text style={bolBtnStyles.text}>Bill of Lading</Text>
+    <TouchableOpacity
+      style={[bolBtnStyles.btn, { borderColor: color }]}
+      onPress={onPress}
+    >
+      <Ionicons name="document-text-outline" size={15} color={color} />
+      <Text style={[bolBtnStyles.text, { color }]}>Bill of Lading</Text>
     </TouchableOpacity>
   );
 }
 
 const bolBtnStyles = StyleSheet.create({
   btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     borderWidth: 1.5,
     borderColor: DARK_BLUE,
@@ -582,41 +700,65 @@ const bolBtnStyles = StyleSheet.create({
     paddingHorizontal: 14,
     marginTop: 12,
   },
-  text: { fontSize: 13, fontWeight: '600', color: DARK_BLUE },
+  text: { fontSize: 13, fontWeight: "600", color: DARK_BLUE },
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: BG },
-  modalHeader: { backgroundColor: DARK_BLUE, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
-  modalHeaderLabel: { fontSize: 18, fontWeight: '800', color: SURFACE, letterSpacing: 1.5 },
-  modalHeaderMeta: { flexDirection: 'row', gap: 10, marginTop: 2 },
-  modalHeaderSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
-  closeBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 6 },
-  shipperBanner: { backgroundColor: LIGHT_BLUE, paddingHorizontal: 20, paddingVertical: 10 },
-  shipperName: { fontSize: 13, fontWeight: '700', color: SURFACE },
-  shipperDetail: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  shipperBanner: {
+    backgroundColor: BRAND_BLUE,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  title: { fontSize: 16, fontWeight: "700", color: SURFACE },
+  shipperName: { fontSize: 13, fontWeight: "700", color: SURFACE },
+  shipperDetail: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   legalText: { fontSize: 12, color: MUTED, lineHeight: 18 },
-  sigNote: { fontSize: 12, color: MUTED, fontStyle: 'italic', marginBottom: 16 },
-  sigRow: { flexDirection: 'row', gap: 16 },
+  sigNote: {
+    fontSize: 12,
+    color: MUTED,
+    fontStyle: "italic",
+    marginBottom: 16,
+  },
+  sigRow: { flexDirection: "row", gap: 16 },
   sigBlock: { flex: 1, gap: 8 },
-  sigLabel: { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
-  sigLine: { borderBottomWidth: 1.5, borderBottomColor: '#1C1C1E', marginTop: 24 },
+  sigLabel: { fontSize: 13, fontWeight: "600", color: "#1C1C1E" },
+  sigLine: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#1C1C1E",
+    marginTop: 24,
+  },
   sigDateLabel: { fontSize: 12, color: MUTED, marginTop: 8 },
   downloadBtn: {
-    backgroundColor: LIGHT_BLUE,
+    backgroundColor: BRAND_BLUE,
     paddingVertical: 14,
     borderRadius: 10,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 8,
     marginTop: 8,
     marginBottom: 8,
   },
   downloadBtnDisabled: { opacity: 0.6 },
-  downloadBtnText: { fontSize: 15, fontWeight: '700', color: SURFACE, letterSpacing: 0.3 },
-  doneBtn: { backgroundColor: DARK_BLUE, paddingVertical: 16, borderRadius: 10, alignItems: 'center', marginTop: 0 },
-  doneBtnText: { fontSize: 16, fontWeight: '700', color: SURFACE, letterSpacing: 0.5 },
+  downloadBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SURFACE,
+    letterSpacing: 0.3,
+  },
+  doneBtn: {
+    backgroundColor: DARK_BLUE,
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 0,
+  },
+  doneBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: SURFACE,
+    letterSpacing: 0.5,
+  },
 });

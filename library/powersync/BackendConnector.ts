@@ -1,3 +1,4 @@
+import { DebugLogger } from "@/library/debug/DebugLogger";
 import {
   AbstractPowerSyncDatabase,
   CrudEntry,
@@ -5,7 +6,6 @@ import {
   UpdateType,
 } from "@powersync/react-native";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { DebugLogger } from "@/library/debug/DebugLogger";
 
 const TAG = "Upload";
 const TAG_CREDS = "PowerSync";
@@ -61,13 +61,13 @@ export class BackendConnector implements PowerSyncBackendConnector {
           // Always get a fresh Supabase token for each request
           const token = await this.getSupabaseToken();
 
-          DebugLogger.debug(TAG, "Supabase fetch", {
-            url: typeof url === "string" ? url : url.toString(),
-            method: options.method ?? "GET",
-            hasToken: !!token,
-            tokenLength: token?.length,
-            tokenPrefix: token?.substring(0, 30) + "...",
-          });
+          // DebugLogger.debug(TAG, "Supabase fetch", {
+          //   url: typeof url === "string" ? url : url.toString(),
+          //   method: options.method ?? "GET",
+          //   hasToken: !!token,
+          //   tokenLength: token?.length,
+          //   tokenPrefix: token?.substring(0, 30) + "...",
+          // });
 
           const headers = new Headers(options.headers);
           if (token) {
@@ -80,12 +80,12 @@ export class BackendConnector implements PowerSyncBackendConnector {
               headers,
             });
 
-            DebugLogger.debug(TAG, "Supabase fetch response", {
-              url: typeof url === "string" ? url : url.toString(),
-              status: response.status,
-              statusText: response.statusText,
-              ok: response.ok,
-            });
+            // DebugLogger.debug(TAG, "Supabase fetch response", {
+            //   url: typeof url === "string" ? url : url.toString(),
+            //   status: response.status,
+            //   statusText: response.statusText,
+            //   ok: response.ok,
+            // });
 
             return response;
           } catch (fetchError: any) {
@@ -172,7 +172,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
                 {
                   onConflict: "id",
                   count: "exact",
-                }
+                },
               )
               .select();
             break;
@@ -222,19 +222,27 @@ export class BackendConnector implements PowerSyncBackendConnector {
 
         // Check if any rows were actually updated (RLS silent failure)
         if (op.op === UpdateType.PATCH && result?.data?.length === 0) {
-          DebugLogger.warn(TAG, "RLS may have blocked update - 0 rows returned", {
-            table: op.table,
-            id: op.id,
-          });
+          DebugLogger.warn(
+            TAG,
+            "RLS may have blocked update - 0 rows returned",
+            {
+              table: op.table,
+              id: op.id,
+            },
+          );
         }
 
         completedOps++;
       }
 
       await transaction.complete();
-      DebugLogger.info(TAG, `uploadData SUCCESS - ${completedOps}/${opCount} ops completed`, {
-        transactionId: transaction.transactionId,
-      });
+      DebugLogger.info(
+        TAG,
+        `uploadData SUCCESS - ${completedOps}/${opCount} ops completed`,
+        {
+          transactionId: transaction.transactionId,
+        },
+      );
     } catch (ex: any) {
       DebugLogger.error(TAG, "uploadData FAILED", {
         completedOps,
@@ -254,12 +262,16 @@ export class BackendConnector implements PowerSyncBackendConnector {
         FATAL_RESPONSE_CODES.some((re) => re.test(ex.code));
 
       if (isFatal) {
-        DebugLogger.warn(TAG, `Discarding FATAL transaction (code: ${ex.code})`, {
-          code: ex.code,
-          lastOp: lastOp
-            ? { table: lastOp.table, op: lastOp.op, id: lastOp.id }
-            : null,
-        });
+        DebugLogger.warn(
+          TAG,
+          `Discarding FATAL transaction (code: ${ex.code})`,
+          {
+            code: ex.code,
+            lastOp: lastOp
+              ? { table: lastOp.table, op: lastOp.op, id: lastOp.id }
+              : null,
+          },
+        );
         await transaction.complete();
       } else {
         DebugLogger.info(TAG, "Error is retryable, will retry later");

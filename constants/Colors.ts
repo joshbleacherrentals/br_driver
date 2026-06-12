@@ -3,6 +3,21 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
+// ── Brand palette ──────────────────────────────────────────────────────────
+/** Deep navy — headers, primary buttons, dark backgrounds */
+export const DARK_BLUE = "#10365A";
+/** Brand blue — active states, banners, section borders */
+export const BRAND_BLUE = "#1D62A3";
+/** iOS system blue — links, action buttons */
+export const ACCENT_BLUE = "#0A84FF";
+export const GREEN_ACCENT = "#3A8B61";
+
+// ── Screen backgrounds ─────────────────────────────────────────────────────
+/** Default screen background — light mode */
+export const SCREEN_BG_LIGHT = "#F2F2F7";
+/** Default screen background — dark mode */
+export const SCREEN_BG_DARK = "#000000";
+
 const tintColorLight = "#0a7ea4";
 const tintColorDark = "#fff";
 

@@ -1,15 +1,57 @@
-import BleacherDamageBadge from '@/components/widgets/bleacherDamageBadge';
-import { InspectionDetailModal } from '@/components/widgets/inspectionSummaryWidget';
-import { useAddress } from '@/hooks/db/useAddress';
-import { useBleacher } from '@/hooks/db/useBleacher';
-import { useDamageReports } from '@/hooks/db/useDamageReport';
-import { useInspection } from '@/hooks/db/useInspection';
-import { WorkTracker } from '@/hooks/db/useWorkTrackers';
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Card from "@/components/ui/Card";
+import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
+import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
+import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
+import { useAddress } from "@/hooks/db/useAddress";
+import { useBleacher } from "@/hooks/db/useBleacher";
+import { useDamageReports } from "@/hooks/db/useDamageReport";
+import { useInspection } from "@/hooks/db/useInspection";
+import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  Alert,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import BillOfLading, { BOLButton } from "./billOfLading";
-import BleacherDropdown, { BleacherOption } from './bleacherDropdown';
+import BleacherDropdown, { BleacherOption } from "./bleacherDropdown";
+
+const themes = {
+  light: {
+    titleText: "#000000",
+    dateText: "#8E8E93",
+    divider: "#E5E7EB",
+    notesBg: "#F8F8F8",
+    notesLabel: "#888888",
+    notesText: "#333333",
+    locationLabel: "#000000",
+    locationIcon: "#000000",
+    timeText: "#000000",
+    detailText: "#8E8E93",
+    instructionsBg: "#F0F4FF",
+    instructionsText: "#1C1C1E",
+  },
+  dark: {
+    titleText: "#FFFFFF",
+    dateText: "#8E8E93",
+    divider: "#38383A",
+    notesBg: "#2C2C2E",
+    notesLabel: "#636366",
+    notesText: "#EBEBF5",
+    locationLabel: "#FFFFFF",
+    locationIcon: "#FFFFFF",
+    timeText: "#FFFFFF",
+    detailText: "#8E8E93",
+    instructionsBg: "#1A2A40",
+    instructionsText: "#E5E5EA",
+  },
+};
 
 interface TripItemProps {
   workTracker: WorkTracker;
@@ -21,7 +63,7 @@ interface TripItemProps {
   onStartInspection?: (
     workTrackerId: string,
     bleacherUuid: string | null,
-    inspectionType: 'pickup' | 'dropoff',
+    inspectionType: "pickup" | "dropoff",
   ) => void;
   onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
@@ -36,6 +78,8 @@ export default function TripItem({
   onStartInspection,
   onBleacherChange,
 }: TripItemProps) {
+  const colorScheme = useColorScheme();
+  const t = themes[colorScheme === "dark" ? "dark" : "light"];
   const {
     status,
     pickup_address_uuid,
@@ -55,28 +99,30 @@ export default function TripItem({
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
-  const [selectedBleacherUuid, setSelectedBleacherUuid] = React.useState<string>(
-    bleacher_uuid ?? ''
-  );
+  const [selectedBleacherUuid, setSelectedBleacherUuid] =
+    React.useState<string>(bleacher_uuid ?? "");
   const [preInspectionVisible, setPreInspectionVisible] = React.useState(false);
-  const [postInspectionVisible, setPostInspectionVisible] = React.useState(false);
+  const [postInspectionVisible, setPostInspectionVisible] =
+    React.useState(false);
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
   const { bleacher } = useBleacher(bleacher_uuid);
-  const { inspection: preInspection } = useInspection(workTracker.pre_inspection_uuid ?? null);
-  const { inspection: postInspection } = useInspection(workTracker.post_inspection_uuid ?? null);
+  const { inspection: preInspection } = useInspection(
+    workTracker.pre_inspection_uuid ?? null,
+  );
+  const { inspection: postInspection } = useInspection(
+    workTracker.post_inspection_uuid ?? null,
+  );
 
   // ── Damage report for the assigned bleacher ─────────────────────────────
   const { damageReports } = useDamageReports(bleacher_uuid);
-
-  if (status === 'draft' || status === 'completed') return null;
 
   const pickupStreet = pickupAddressData.address?.street ?? null;
 
   const eligibleBleacherOptions = React.useMemo(() => {
     const currentRows = bleacher?.bleacher_rows ?? null;
-    const currentUuid = bleacher_uuid ?? '';
+    const currentUuid = bleacher_uuid ?? "";
 
     return bleacherOptions.filter((opt) => {
       if (opt.uuid === currentUuid) return true;
@@ -84,39 +130,49 @@ export default function TripItem({
         currentRows !== null &&
         opt.bleacher_rows != null &&
         opt.bleacher_rows !== currentRows
-      ) return false;
+      )
+        return false;
       if (!opt.resolved_address || !pickupStreet) return false;
-      if (opt.resolved_address.trim().toLowerCase() !== pickupStreet.trim().toLowerCase()) return false;
+      if (
+        opt.resolved_address.trim().toLowerCase() !==
+        pickupStreet.trim().toLowerCase()
+      )
+        return false;
       return true;
     });
   }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
 
-  const formatAddress = (type: 'pickup' | 'dropoff') => {
-    const address = type === 'pickup' ? pickupAddressData.address : dropoffAddressData.address;
-    if (!address) return 'Address not set';
+  if (status === "draft" || status === "completed") return null;
+
+  const formatAddress = (type: "pickup" | "dropoff") => {
+    const address =
+      type === "pickup"
+        ? pickupAddressData.address
+        : dropoffAddressData.address;
+    if (!address) return "Address not set";
     return `${address.street}`;
   };
 
   const formatPay = (cents: number | null) =>
-    cents === null ? '' : `$${(cents / 100).toFixed(2)}`;
+    cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 
-  const formatTime = (time: string | null) => time ?? '';
+  const formatTime = (time: string | null) => time ?? "";
 
   const formatDate = (dateISO?: string | null) => {
-    if (!dateISO) return 'Date not set';
+    if (!dateISO) return "Date not set";
     try {
-      const d = new Date(dateISO + 'T00:00:00');
+      const d = new Date(dateISO + "T00:00:00");
       const day = d.getDate();
       const ord = (n: number) => {
-        const s = ['th', 'st', 'nd', 'rd'];
+        const s = ["th", "st", "nd", "rd"];
         const v = n % 100;
         return (s as any)[(v - 20) % 10] || (s as any)[v] || s[0];
       };
-      const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
-      const month_short = d.toLocaleDateString(undefined, { month: 'short' });
+      const weekday = d.toLocaleDateString(undefined, { weekday: "short" });
+      const month_short = d.toLocaleDateString(undefined, { month: "short" });
       return `${weekday}, ${month_short} ${day}${ord(day)}`;
     } catch {
-      return 'Invalid date';
+      return "Invalid date";
     }
   };
 
@@ -124,12 +180,30 @@ export default function TripItem({
     if (!address) return;
     const q = encodeURIComponent(address);
     const allOptions = [
-      { label: 'Apple Maps', url: `maps://?q=${q}`, fallbackUrl: `http://maps.apple.com/?q=${q}`, iosOnly: true },
-      { label: 'Google Maps', url: Platform.OS === 'ios' ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`, fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`, iosOnly: false },
-      { label: 'Waze', url: `waze://?q=${q}&navigate=false`, fallbackUrl: `https://waze.com/ul?q=${q}`, iosOnly: false },
+      {
+        label: "Apple Maps",
+        url: `maps://?q=${q}`,
+        fallbackUrl: `http://maps.apple.com/?q=${q}`,
+        iosOnly: true,
+      },
+      {
+        label: "Google Maps",
+        url:
+          Platform.OS === "ios" ? `comgooglemaps://?q=${q}` : `geo:0,0?q=${q}`,
+        fallbackUrl: `https://www.google.com/maps/search/?api=1&query=${q}`,
+        iosOnly: false,
+      },
+      {
+        label: "Waze",
+        url: `waze://?q=${q}&navigate=false`,
+        fallbackUrl: `https://waze.com/ul?q=${q}`,
+        iosOnly: false,
+      },
     ];
-    const visibleOptions = allOptions.filter((o) => !o.iosOnly || Platform.OS === 'ios');
-    Alert.alert('Open in Maps', 'Choose an app:', [
+    const visibleOptions = allOptions.filter(
+      (o) => !o.iosOnly || Platform.OS === "ios",
+    );
+    Alert.alert("Open in Maps", "Choose an app:", [
       ...visibleOptions.map((option) => ({
         text: option.label,
         onPress: async () => {
@@ -137,48 +211,57 @@ export default function TripItem({
             const supported = await Linking.canOpenURL(option.url);
             await Linking.openURL(supported ? option.url : option.fallbackUrl);
           } catch {
-            Alert.alert('Error', 'Could not open maps');
+            Alert.alert("Error", "Could not open maps");
           }
         },
       })),
-      { text: 'Cancel', style: 'cancel' },
+      { text: "Cancel", style: "cancel" },
     ]);
   };
 
   const getStatusBadge = () => {
     switch (status) {
-      case 'released':          return { text: 'PENDING ACCEPTANCE', color: '#34C759' };
-      case 'accepted':          return { text: 'ACCEPTED',           color: '#34C759' };
-      case 'dest_pickup':       return { text: 'EN ROUTE',           color: '#FF9500' };
-      case 'pickup_inspection': return { text: 'EN ROUTE',           color: '#FF9500' };
-      case 'dest_dropoff':      return { text: 'EN ROUTE',           color: '#FF9500' };
-      case 'dropoff_inspection':return { text: 'EN ROUTE',           color: '#FF9500' };
-      case 'completed':         return { text: 'COMPLETED',          color: '#8E8E93' };
-      case 'cancelled':         return { text: 'CANCELLED',          color: '#FF3B30' };
-      default: return null;
+      case "released":
+        return { text: "PENDING ACCEPTANCE", color: "#34C759" };
+      case "accepted":
+        return { text: "ACCEPTED", color: GREEN_ACCENT };
+      case "dest_pickup":
+        return { text: "EN ROUTE", color: "#FF9500" };
+      case "pickup_inspection":
+        return { text: "EN ROUTE", color: "#FF9500" };
+      case "dest_dropoff":
+        return { text: "EN ROUTE", color: "#FF9500" };
+      case "dropoff_inspection":
+        return { text: "EN ROUTE", color: "#FF9500" };
+      case "completed":
+        return { text: "COMPLETED", color: "#8E8E93" };
+      case "cancelled":
+        return { text: "CANCELLED", color: "#FF3B30" };
+      default:
+        return null;
     }
   };
 
   const badge = getStatusBadge();
   const showTeardown = teardown_required === 1;
-  const showSetup    = setup_required    === 1;
+  const showSetup = setup_required === 1;
 
   const handleBleacherChange = (uuid: string) => {
-    const original = bleacher_uuid ?? '';
+    const original = bleacher_uuid ?? "";
     if (uuid !== original) {
       Alert.alert(
-        'Change Bleacher?',
-        'This will update the bleacher assigned to this trip when you start the inspection. Are you sure?',
+        "Change Bleacher?",
+        "This will update the bleacher assigned to this trip when you start the inspection. Are you sure?",
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: "Cancel", style: "cancel" },
           {
-            text: 'Confirm',
+            text: "Confirm",
             onPress: () => {
               setSelectedBleacherUuid(uuid);
               onBleacherChange?.(workTracker.id, uuid);
             },
           },
-        ]
+        ],
       );
     } else {
       setSelectedBleacherUuid(uuid);
@@ -186,20 +269,25 @@ export default function TripItem({
     }
   };
 
-  const handleStartInspection = (id: string, bleacherUuid: string | null, type: 'pickup' | 'dropoff') => {
+  const handleStartInspection = (
+    id: string,
+    bleacherUuid: string | null,
+    type: "pickup" | "dropoff",
+  ) => {
     onStartInspection?.(id, bleacherUuid, type);
   };
 
   return (
-    <View style={styles.card}>
-
+    <Card style={styles.card}>
       {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
           {/* Title row: bleacher number + damage badge inline */}
           <View style={styles.titleRow}>
-            <Text style={styles.mainTitle}>
-              {bleacher_uuid && bleacher && `Bleacher #${bleacher.bleacher_number} `}
+            <Text style={[styles.mainTitle, { color: t.titleText }]}>
+              {bleacher_uuid &&
+                bleacher &&
+                `Bleacher #${bleacher.bleacher_number} `}
               {damageReports.length > 0 && (
                 <BleacherDamageBadge
                   damageReport={damageReports[0]}
@@ -209,11 +297,15 @@ export default function TripItem({
               {pay_cents !== null && formatPay(pay_cents)}
             </Text>
           </View>
-          <Text style={styles.dateText}>{formatDate(date)}</Text>
+          <Text style={[styles.dateText, { color: t.dateText }]}>
+            {formatDate(date)}
+          </Text>
         </View>
         {badge && (
           <View style={styles.badgeAndBol}>
-            <View style={[styles.statusBadge, { backgroundColor: badge.color }]}>
+            <View
+              style={[styles.statusBadge, { backgroundColor: badge.color }]}
+            >
               <Text style={styles.statusText}>{badge.text}</Text>
             </View>
             <BOLButton onPress={() => setBolVisible(true)} />
@@ -223,59 +315,93 @@ export default function TripItem({
 
       {/* Notes */}
       {!!notes && (
-        <View style={styles.notesBox}>
-          <Text style={styles.notesLabel}>Notes</Text>
-          <Text style={styles.notesText}>{notes}</Text>
+        <View style={[styles.notesBox, { backgroundColor: t.notesBg }]}>
+          <Text style={[styles.notesLabel, { color: t.notesLabel }]}>
+            Notes
+          </Text>
+          <Text style={[styles.notesText, { color: t.notesText }]}>
+            {notes}
+          </Text>
         </View>
       )}
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: t.divider }]} />
 
       {/* ── PICKUP ── */}
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
-            <Ionicons name="location" size={16} color="#000" />
-            <Text style={styles.locationLabel}>PICKUP</Text>
+            <Ionicons name="location" size={16} color={t.locationIcon} />
+            <Text style={[styles.locationLabel, { color: t.locationLabel }]}>
+              PICKUP
+            </Text>
           </View>
-          {pickup_time && <Text style={styles.timeText}>{formatTime(pickup_time)}</Text>}
+          {pickup_time && (
+            <Text style={[styles.timeText, { color: t.timeText }]}>
+              {formatTime(pickup_time)}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           onPress={() => {
             const addr = pickupAddressData.address;
-            openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
+            openInMaps(
+              addr
+                ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}`
+                : undefined,
+            );
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.addressText}>{formatAddress('pickup')}</Text>
+          <Text style={styles.addressText}>{formatAddress("pickup")}</Text>
         </TouchableOpacity>
 
-        {!!pickup_poc && <Text style={styles.detailText}>POC: {pickup_poc}</Text>}
+        {!!pickup_poc && (
+          <Text style={[styles.detailText, { color: t.detailText }]}>
+            POC: {pickup_poc}
+          </Text>
+        )}
         {showTeardown && (
           <View style={styles.flagRow}>
             <Ionicons name="construct-outline" size={14} color="#FF9500" />
-            <Text style={[styles.flagText, styles.flagTextActive]}>Tear Down Required</Text>
+            <Text style={[styles.flagText, styles.flagTextActive]}>
+              Tear Down Required
+            </Text>
           </View>
         )}
         {!!pickup_instructions && (
-          <View style={styles.instructionsBox}>
+          <View
+            style={[
+              styles.instructionsBox,
+              { backgroundColor: t.instructionsBg },
+            ]}
+          >
             <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
-            <Text style={styles.instructionsText}>{pickup_instructions}</Text>
+            <Text
+              style={[styles.instructionsText, { color: t.instructionsText }]}
+            >
+              {pickup_instructions}
+            </Text>
           </View>
         )}
       </View>
 
       {/* I've Arrived (pickup) */}
-      {status === 'dest_pickup' && (
+      {status === "dest_pickup" && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() =>
+              onArrived?.(workTracker.id, new Date().toISOString())
+            }
+          >
             <Text style={styles.primaryButtonText}>Arrived at Pickup</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {/* Start Pickup Inspection */}
-      {status === 'pickup_inspection' && (
+      {status === "pickup_inspection" && (
         <View style={styles.inspectionBlock}>
           <View style={styles.bleacherSelectorBox}>
             <Text style={styles.bleacherSelectorLabel}>Confirm Bleacher</Text>
@@ -287,7 +413,13 @@ export default function TripItem({
           </View>
           <TouchableOpacity
             style={styles.inspectionButton}
-            onPress={() => handleStartInspection(workTracker.id, workTracker.bleacher_uuid, 'pickup')}
+            onPress={() =>
+              handleStartInspection(
+                workTracker.id,
+                workTracker.bleacher_uuid,
+                "pickup",
+              )
+            }
           >
             <Text style={styles.inspectionButtonText}>Start Inspection</Text>
           </TouchableOpacity>
@@ -296,9 +428,14 @@ export default function TripItem({
 
       {preInspection && (
         <>
-          <TouchableOpacity style={styles.viewInspectionButton} onPress={() => setPreInspectionVisible(true)}>
+          <TouchableOpacity
+            style={styles.viewInspectionButton}
+            onPress={() => setPreInspectionVisible(true)}
+          >
             <Ionicons name="clipboard-outline" size={14} color="#34C759" />
-            <Text style={styles.viewInspectionText}>View Pickup Inspection</Text>
+            <Text style={styles.viewInspectionText}>
+              View Pickup Inspection
+            </Text>
             <Ionicons name="chevron-forward" size={14} color="#34C759" />
           </TouchableOpacity>
           <InspectionDetailModal
@@ -311,66 +448,108 @@ export default function TripItem({
         </>
       )}
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: t.divider }]} />
 
       {/* ── DROP-OFF ── */}
       <View style={styles.stopSection}>
         <View style={styles.stopHeader}>
           <View style={styles.stopHeaderLeft}>
-            <Ionicons name="location" size={16} color="#000" />
-            <Text style={styles.locationLabel}>DROP-OFF</Text>
+            <Ionicons name="location" size={16} color={t.locationIcon} />
+            <Text style={[styles.locationLabel, { color: t.locationLabel }]}>
+              DROP-OFF
+            </Text>
           </View>
-          {dropoff_time && <Text style={styles.timeText}>{formatTime(dropoff_time)}</Text>}
+          {dropoff_time && (
+            <Text style={[styles.timeText, { color: t.timeText }]}>
+              {formatTime(dropoff_time)}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           onPress={() => {
             const addr = dropoffAddressData.address;
-            openInMaps(addr ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}` : undefined);
+            openInMaps(
+              addr
+                ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}`
+                : undefined,
+            );
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.addressText}>{formatAddress('dropoff')}</Text>
+          <Text style={styles.addressText}>{formatAddress("dropoff")}</Text>
         </TouchableOpacity>
 
-        {!!dropoff_poc && <Text style={styles.detailText}>POC: {dropoff_poc}</Text>}
+        {!!dropoff_poc && (
+          <Text style={[styles.detailText, { color: t.detailText }]}>
+            POC: {dropoff_poc}
+          </Text>
+        )}
         {showSetup && (
           <View style={styles.flagRow}>
             <Ionicons name="construct-outline" size={14} color="#FF9500" />
-            <Text style={[styles.flagText, styles.flagTextActive]}>Set Up Required</Text>
+            <Text style={[styles.flagText, styles.flagTextActive]}>
+              Set Up Required
+            </Text>
           </View>
         )}
         {!!dropoff_instructions && (
-          <View style={styles.instructionsBox}>
+          <View
+            style={[
+              styles.instructionsBox,
+              { backgroundColor: t.instructionsBg },
+            ]}
+          >
             <Text style={styles.instructionsLabel}>Drop-off Instructions</Text>
-            <Text style={styles.instructionsText}>{dropoff_instructions}</Text>
+            <Text
+              style={[styles.instructionsText, { color: t.instructionsText }]}
+            >
+              {dropoff_instructions}
+            </Text>
           </View>
         )}
       </View>
 
       {/* Action buttons */}
-      {status === 'released' && (
-        <TouchableOpacity style={styles.acceptButton} onPress={() => onAccept?.(workTracker.id)}>
+      {status === "released" && (
+        <TouchableOpacity
+          style={styles.acceptButton}
+          onPress={() => onAccept?.(workTracker.id)}
+        >
           <Text style={styles.acceptButtonText}>Accept Trip</Text>
         </TouchableOpacity>
       )}
-      {status === 'accepted' && (
+      {status === "accepted" && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => onStartTrip?.(workTracker.id)}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => onStartTrip?.(workTracker.id)}
+          >
             <Text style={styles.primaryButtonText}>Start Trip</Text>
           </TouchableOpacity>
         </View>
       )}
-      {status === 'dest_dropoff' && (
+      {status === "dest_dropoff" && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => onArrived?.(workTracker.id, new Date().toISOString())}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() =>
+              onArrived?.(workTracker.id, new Date().toISOString())
+            }
+          >
             <Text style={styles.primaryButtonText}>Arrived at Dropoff</Text>
           </TouchableOpacity>
         </View>
       )}
-      {status === 'dropoff_inspection' && (
+      {status === "dropoff_inspection" && (
         <TouchableOpacity
           style={styles.inspectionButton}
-          onPress={() => handleStartInspection(workTracker.id, workTracker.bleacher_uuid, 'dropoff')}
+          onPress={() =>
+            handleStartInspection(
+              workTracker.id,
+              workTracker.bleacher_uuid,
+              "dropoff",
+            )
+          }
         >
           <Text style={styles.inspectionButtonText}>Start Inspection</Text>
         </TouchableOpacity>
@@ -378,9 +557,14 @@ export default function TripItem({
 
       {postInspection && (
         <>
-          <TouchableOpacity style={styles.viewInspectionButton} onPress={() => setPostInspectionVisible(true)}>
+          <TouchableOpacity
+            style={styles.viewInspectionButton}
+            onPress={() => setPostInspectionVisible(true)}
+          >
             <Ionicons name="clipboard-outline" size={14} color="#34C759" />
-            <Text style={styles.viewInspectionText}>View Dropoff Inspection</Text>
+            <Text style={styles.viewInspectionText}>
+              View Dropoff Inspection
+            </Text>
             <Ionicons name="chevron-forward" size={14} color="#34C759" />
           </TouchableOpacity>
           <InspectionDetailModal
@@ -398,49 +582,129 @@ export default function TripItem({
         workTracker={workTracker}
         onClose={() => setBolVisible(false)}
       />
-
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  badgeAndBol: { alignItems: 'flex-end', flexShrink: 0 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginVertical: 6, marginHorizontal: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  topHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  badgeAndBol: { alignItems: "flex-end", flexShrink: 0 },
+  card: {
+    marginVertical: 6,
+    marginHorizontal: 16,
+  },
+  topHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
   topHeader: { flex: 1 },
   // ── new: title row holds bleacher text + damage badge side-by-side ──
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 },
-  mainTitle: { fontSize: 24, fontWeight: '700', color: '#000' },
-  dateText: { fontSize: 15, color: '#8E8E93', fontWeight: '500' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginLeft: 12 },
-  statusText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.5 },
-  notesBox: { backgroundColor: '#F8F8F8', borderRadius: 8, padding: 12, marginBottom: 12 },
-  notesLabel: { fontSize: 12, color: '#888', marginBottom: 4, fontWeight: '500' },
-  notesText: { fontSize: 14, color: '#333' },
-  divider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 12 },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 4,
+  },
+  mainTitle: { fontSize: 24, fontWeight: "700" },
+  dateText: { fontSize: 15, fontWeight: "500" },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 12,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  notesBox: { borderRadius: 8, padding: 12, marginBottom: 12 },
+  notesLabel: { fontSize: 12, marginBottom: 4, fontWeight: "500" },
+  notesText: { fontSize: 14 },
+  divider: { height: 1, marginVertical: 12 },
   stopSection: { marginBottom: 8 },
-  stopHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  stopHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  locationLabel: { fontSize: 13, fontWeight: '700', color: '#000', letterSpacing: 0.5 },
-  timeText: { fontSize: 15, fontWeight: '600', color: '#000' },
-  addressText: { fontSize: 15, fontWeight: '600', color: '#0A84FF', marginBottom: 4 },
-  detailText: { fontSize: 13, color: '#8E8E93', marginTop: 2 },
-  flagRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-  flagText: { fontSize: 13, color: '#8E8E93' },
-  flagTextActive: { color: '#FF9500', fontWeight: '600' },
-  instructionsBox: { backgroundColor: '#F0F4FF', borderLeftWidth: 3, borderLeftColor: '#1D62A3', borderRadius: 6, padding: 10, marginTop: 8 },
-  instructionsLabel: { fontSize: 11, fontWeight: '700', color: '#1D62A3', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
-  instructionsText: { fontSize: 13, color: '#1C1C1E', lineHeight: 18 },
-  buttonRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  primaryButton: { flex: 2, backgroundColor: '#0A84FF', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
-  primaryButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  acceptButton: { backgroundColor: '#34C759', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-  acceptButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  stopHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  stopHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  locationLabel: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+  timeText: { fontSize: 15, fontWeight: "600" },
+  addressText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: BRAND_BLUE,
+    marginBottom: 4,
+  },
+  detailText: { fontSize: 13, marginTop: 2 },
+  flagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
+  flagText: { fontSize: 13, color: "#8E8E93" },
+  flagTextActive: { color: "#FF9500", fontWeight: "600" },
+  instructionsBox: {
+    borderLeftWidth: 3,
+    borderLeftColor: BRAND_BLUE,
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 8,
+  },
+  instructionsLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: BRAND_BLUE,
+    marginBottom: 3,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  instructionsText: { fontSize: 13, lineHeight: 18 },
+  buttonRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  primaryButton: {
+    flex: 2,
+    backgroundColor: BRAND_BLUE,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  primaryButtonText: { fontSize: 15, fontWeight: "600", color: "#FFFFFF" },
+  acceptButton: {
+    backgroundColor: "#34C759",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  acceptButtonText: { fontSize: 15, fontWeight: "600", color: "#FFFFFF" },
   inspectionBlock: { marginTop: 12, gap: 10 },
   bleacherSelectorBox: { gap: 6 },
-  bleacherSelectorLabel: { fontSize: 12, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4 },
-  inspectionButton: { backgroundColor: '#FF9500', paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
-  inspectionButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  viewInspectionButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: '#34C759', alignSelf: 'flex-start', marginTop: 10 },
-  viewInspectionText: { fontSize: 13, fontWeight: '600', color: '#34C759' },
+  bleacherSelectorLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8E8E93",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  inspectionButton: {
+    backgroundColor: "#FF9500",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  inspectionButtonText: { fontSize: 15, fontWeight: "600", color: "#FFFFFF" },
+  viewInspectionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#34C759",
+    alignSelf: "flex-start",
+    marginTop: 10,
+  },
+  viewInspectionText: { fontSize: 13, fontWeight: "600", color: "#34C759" },
 });

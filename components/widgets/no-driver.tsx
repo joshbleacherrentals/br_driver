@@ -31,7 +31,7 @@ export default function NoDriverScreen() {
           />
           <Text style={styles.title}>Welcome, {firstName}!</Text>
           <Text style={styles.subtitle}>
-            Looks like you don't have a driver profile set up yet.
+            Looks like you don&apos;t have a driver profile set up yet.
             Please contact your account manager to get started.
           </Text>
         </View>

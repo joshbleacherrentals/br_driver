@@ -8,20 +8,27 @@ jobs:
   ota:
     name: Publish OTA to preview channel
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - uses: expo/expo-github-action@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - run: npm ci --legacy-peer-deps
 
-      - name: Publish OTA update
-        run: eas update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
+      - name: Publish OTA update (iOS)
+        run: eas update --channel preview --platform ios --message "${{ github.event.head_commit.message }}" --non-interactive
+
+      - name: Publish OTA update (Android)
+        run: eas update --channel preview --platform android --message "${{ github.event.head_commit.message }}" --non-interactive

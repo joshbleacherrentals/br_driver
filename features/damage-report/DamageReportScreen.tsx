@@ -2,7 +2,7 @@ import BleacherDropdown, { BleacherOption } from '@/components/widgets/bleacherD
 import DamageSeveritySelector, {
   DamageSeverityValue,
   severityValueToEnum,
-} from '@/components/widgets/damageSeveritySelector';
+} from './components/DamageSeveritySelector';
 import {
   damageReportPhotoAttachmentQueue,
   db,
