@@ -1,6 +1,13 @@
 import { Redirect, Tabs } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -72,7 +79,12 @@ export default function TabLayout() {
 
   // Auto-show bottom sheet once per session when pending trips exist
   useEffect(() => {
-    if (pendingCount > 0 && !shownRef.current && !isLoading && driverProfile !== false) {
+    if (
+      pendingCount > 0 &&
+      !shownRef.current &&
+      !isLoading &&
+      driverProfile !== false
+    ) {
       shownRef.current = true;
       const timer = setTimeout(() => setSheetVisible(true), 600);
       return () => clearTimeout(timer);
@@ -82,7 +94,7 @@ export default function TabLayout() {
   return (
     <>
       <SignedIn>
-        <UpdateBanner visible={updateReady} onRestart={restart} />
+        <UpdateBanner visible={true} onRestart={restart} />
         {isLoading ? (
           <LoadingScreen />
         ) : driverProfile === false ? (
@@ -91,7 +103,7 @@ export default function TabLayout() {
           <>
             <Tabs
               screenOptions={{
-                animation: "fade",
+                animation: "shift",
                 tabBarShowLabel: false,
                 tabBarActiveTintColor: BRAND_BLUE,
                 tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",
@@ -139,7 +151,11 @@ export default function TabLayout() {
                   title: "Pending",
                   tabBarIcon: ({ color }) => (
                     <View>
-                      <ClipboardClock size={28} color={color} strokeWidth={1.75} />
+                      <ClipboardClock
+                        size={28}
+                        color={color}
+                        strokeWidth={1.75}
+                      />
                       {pendingCount > 0 && (
                         <View style={badgeStyles.container}>
                           <Text style={badgeStyles.text}>
@@ -191,7 +207,6 @@ export default function TabLayout() {
             <BottomSheetModal
               visible={sheetVisible}
               onClose={() => setSheetVisible(false)}
-              title="PENDING TRIPS"
             >
               <PendingTripsList />
             </BottomSheetModal>

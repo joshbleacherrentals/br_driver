@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const DARK_BLUE = '#10365A';
+const DARK_BLUE = "#10365A";
 
 interface MenuItem {
   label: string;
@@ -13,15 +13,20 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { label: 'Damage Report', icon: 'warning-outline', route: '/damage-report' },
-  { label: 'Damage Report History', icon: 'time-outline', route: '/damage-report-history' },
+  { label: "Trip History", icon: "time-outline", route: "/trip-history" },
+  { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
+  {
+    label: "Damage Report History",
+    icon: "document-text-outline",
+    route: "/damage-report-history",
+  },
 ];
 
 export default function MoreScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView edges={['bottom']} style={styles.container}>
+    <SafeAreaView edges={["bottom"]} style={styles.container}>
       <View style={styles.list}>
         {MENU_ITEMS.map((item) => (
           <TouchableOpacity
@@ -45,10 +50,10 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
+  container: { flex: 1, backgroundColor: "#F2F2F7" },
   title: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: "800",
     color: DARK_BLUE,
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -56,27 +61,27 @@ const styles = StyleSheet.create({
   },
   list: { paddingHorizontal: 16 },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
-  menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  menuItemLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
   iconWrap: {
     width: 40,
     height: 40,
     borderRadius: 10,
     backgroundColor: DARK_BLUE,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  menuItemLabel: { fontSize: 16, fontWeight: '600', color: '#1C1C1E' },
+  menuItemLabel: { fontSize: 16, fontWeight: "600", color: "#1C1C1E" },
 });

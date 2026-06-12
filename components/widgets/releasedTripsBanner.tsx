@@ -41,7 +41,7 @@ export default function ReleasedTripsBanner({
   return (
     <Animated.View style={animatedStyle}>
       <TouchableOpacity
-        onPress={() => router.push("/(drawer)/(tabs)/pendingTrips")}
+        onPress={() => router.navigate("/(drawer)/(tabs)/pendingTrips")}
         activeOpacity={0.85}
         style={styles.banner}
       >

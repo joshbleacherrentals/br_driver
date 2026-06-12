@@ -15,10 +15,11 @@ interface DrawerMenuItem {
 }
 
 const DRAWER_ITEMS: DrawerMenuItem[] = [
+  { label: "Trip History", icon: "time-outline", route: "/trip-history" },
   { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
   {
     label: "Damage Report History",
-    icon: "time-outline",
+    icon: "document-text-outline",
     route: "/damage-report-history",
   },
 ];
@@ -44,10 +45,7 @@ function CustomDrawerContent(props: any) {
       ]}
     >
       <Text
-        style={[
-          styles.drawerTitle,
-          { color: isDark ? "#FFFFFF" : DARK_BLUE },
-        ]}
+        style={[styles.drawerTitle, { color: isDark ? "#FFFFFF" : DARK_BLUE }]}
       >
         More
       </Text>

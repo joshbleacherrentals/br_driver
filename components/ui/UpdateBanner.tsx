@@ -1,10 +1,12 @@
-import React, { useState } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface UpdateBannerProps {
@@ -20,21 +22,45 @@ interface UpdateBannerProps {
 export function UpdateBanner({ visible, onRestart }: UpdateBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const insets = useSafeAreaInsets();
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (!visible || dismissed) return;
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-6, { duration: 400 }),
+        withTiming(0, { duration: 400 }),
+      ),
+      -1,
+    );
+    return () => {
+      translateY.value = 0;
+    };
+  }, [visible, dismissed]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   if (!visible || dismissed) return null;
 
   return (
-    <View style={[styles.container, { top: insets.top }]}>
+    <Animated.View
+      style={[styles.container, { top: insets.top }, animatedStyle]}
+    >
       <Text style={styles.text}>New version available</Text>
       <View style={styles.actions}>
         <Pressable onPress={onRestart} style={styles.updateButton}>
           <Text style={styles.updateText}>Update</Text>
         </Pressable>
-        <Pressable onPress={() => setDismissed(true)} style={styles.dismissButton}>
+        <Pressable
+          onPress={() => setDismissed(true)}
+          style={styles.dismissButton}
+        >
           <Text style={styles.dismissText}>Later</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -48,7 +74,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#10365A",
-    borderRadius: 12,
+    borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
     shadowColor: "#000",
