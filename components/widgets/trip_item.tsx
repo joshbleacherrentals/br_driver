@@ -1,6 +1,6 @@
+import Card from "@/components/ui/Card";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
-import Card from "@/components/ui/Card";
 import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
