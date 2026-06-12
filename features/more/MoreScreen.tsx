@@ -13,7 +13,11 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { label: "Trip History", icon: "time-outline", route: "/trip-history" },
+  {
+    label: "Trip History",
+    icon: "time-outline",
+    route: "/(drawer)/(tabs)/trip-history",
+  },
   {
     label: "My Availability",
     icon: "calendar-outline",
@@ -24,11 +28,11 @@ const MENU_ITEMS: MenuItem[] = [
     icon: "document-text-outline",
     route: "/(drawer)/(tabs)/documents",
   },
-  { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
+  { label: "Damage Report", icon: "warning-outline", route: "/(drawer)/(tabs)/damage-report" },
   {
     label: "Damage Report History",
     icon: "document-text-outline",
-    route: "/damage-report-history",
+    route: "/(drawer)/(tabs)/damage-report-history",
   },
 ];
 

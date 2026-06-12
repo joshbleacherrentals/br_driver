@@ -15,7 +15,11 @@ interface DrawerMenuItem {
 }
 
 const DRAWER_ITEMS: DrawerMenuItem[] = [
-  { label: "Trip History", icon: "time-outline", route: "/trip-history" },
+  {
+    label: "Trip History",
+    icon: "time-outline",
+    route: "/(drawer)/(tabs)/trip-history",
+  },
   {
     label: "My Availability",
     icon: "calendar-outline",
@@ -26,11 +30,11 @@ const DRAWER_ITEMS: DrawerMenuItem[] = [
     icon: "document-text-outline",
     route: "/(drawer)/(tabs)/documents",
   },
-  { label: "Damage Report", icon: "warning-outline", route: "/damage-report" },
+  { label: "Damage Report", icon: "warning-outline", route: "/(drawer)/(tabs)/damage-report" },
   {
     label: "Damage Report History",
     icon: "document-text-outline",
-    route: "/damage-report-history",
+    route: "/(drawer)/(tabs)/damage-report-history",
   },
 ];
 

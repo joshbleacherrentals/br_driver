@@ -179,6 +179,27 @@ export default function TabLayout() {
                 }}
               />
               <Tabs.Screen
+                name="trip-history"
+                options={{
+                  title: "Trip History",
+                  tabBarItemStyle: { display: "none" },
+                }}
+              />
+              <Tabs.Screen
+                name="damage-report"
+                options={{
+                  title: "Damage Report",
+                  tabBarItemStyle: { display: "none" },
+                }}
+              />
+              <Tabs.Screen
+                name="damage-report-history"
+                options={{
+                  title: "Damage Report History",
+                  tabBarItemStyle: { display: "none" },
+                }}
+              />
+              <Tabs.Screen
                 name="more"
                 options={{
                   tabBarItemStyle: { display: "none" },

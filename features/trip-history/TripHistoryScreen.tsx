@@ -14,7 +14,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import CompletedTrips from "./components/CompletedTripItem";
 
 // ── Themes ────────────────────────────────────────────────────────────────────
@@ -220,8 +219,7 @@ export default function TripHistoryScreen() {
             headerTintColor: t.headerText,
           }}
         />
-        <SafeAreaView
-          edges={["bottom"]}
+        <View
           style={[
             styles.safeArea,
             {
@@ -235,7 +233,7 @@ export default function TripHistoryScreen() {
           <Text style={[styles.loadingText, { color: t.emptyText }]}>
             Loading trips...
           </Text>
-        </SafeAreaView>
+        </View>
       </>
     );
   }
@@ -250,10 +248,7 @@ export default function TripHistoryScreen() {
           headerTintColor: t.headerText,
         }}
       />
-      <SafeAreaView
-        edges={["bottom"]}
-        style={[styles.safeArea, { backgroundColor: t.bg }]}
-      >
+      <View style={[styles.safeArea, { backgroundColor: t.bg }]}>
         <FlatList
           contentContainerStyle={styles.listContent}
           data={weekGroups}
@@ -459,7 +454,7 @@ export default function TripHistoryScreen() {
             );
           }}
         />
-      </SafeAreaView>
+      </View>
     </>
   );
 }
