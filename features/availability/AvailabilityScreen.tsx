@@ -1,9 +1,16 @@
 import { db } from "@/components/providers/SystemProvider";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import { DARK_BLUE } from "@/constants/Colors";
+import {
+  BRAND_BLUE,
+  SCREEN_BG_DARK,
+  SCREEN_BG_LIGHT,
+} from "@/constants/Colors";
+import AvailabilityIntroStrip from "@/features/availability/components/AvailabilityIntroStrip";
+import UpcomingTripCard from "@/features/availability/components/UpcomingTripCard";
 import { useDriver } from "@/hooks/db/useDriver";
 import { useDriverUnavailability } from "@/hooks/db/useDriverUnavailability";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -30,6 +37,41 @@ import { Calendar, DateData } from "react-native-calendars";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MID_BLUE = "#164d82";
+
+// ─── Themes ───────────────────────────────────────────────────────────────────
+
+const themes = {
+  light: {
+    bg: SCREEN_BG_LIGHT,
+    calendarBg: "#F8F9FA",
+    calendarBorder: "#E5E7EB",
+    legendText: "#6B7280",
+    sectionCount: "#6B7280",
+    saveBtnCleanBg: "#e5e7eb",
+    saveBtnCleanText: "#6b7280",
+    discardBtnBg: "#f3f4f6",
+    discardBtnIcon: "#6b7280",
+    menuIcon: "#111827",
+    statusAvailText: "#14532d",
+    statusUnavailText: "#991b1b",
+    clearText: "#dc2626",
+  },
+  dark: {
+    bg: SCREEN_BG_DARK,
+    calendarBg: "#1C1C1E",
+    calendarBorder: "#2C2C2E",
+    legendText: "#7fb3d3",
+    sectionCount: "#4a6f96",
+    saveBtnCleanBg: "#374151",
+    saveBtnCleanText: "#9ca3af",
+    discardBtnBg: "#374151",
+    discardBtnIcon: "#9ca3af",
+    menuIcon: "#FFFFFF",
+    statusAvailText: "#86efac",
+    statusUnavailText: "#fca5a5",
+    clearText: "#fca5a5",
+  },
+};
 
 const SAVED_RED = "#EF4444";
 const PENDING_COLOR = "#F97316";
@@ -63,15 +105,6 @@ type MarkedDates = { [date: string]: MarkedDate };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDisplayDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  const day = date.getDate();
-  const s = ["th", "st", "nd", "rd"];
-  const v = day % 100;
-  const ord = s[(v - 20) % 10] || s[v] || s[0];
-  return `${date.toLocaleDateString(undefined, { weekday: "short" })}, ${date.toLocaleDateString(undefined, { month: "short" })} ${day}${ord}`;
-}
-
 function formatMonthName(yyyyMM: string): string {
   const [year, month] = yyyyMM.split("-").map(Number);
   return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
@@ -102,6 +135,8 @@ function formatStatus(status: string | null): string {
 export default function AvailabilityCalendarScreen() {
   const navigation = useNavigation<any>();
   const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
+  const colorScheme = useColorScheme();
+  const t = themes[colorScheme === "dark" ? "dark" : "light"];
 
   const [currentMonth, setCurrentMonth] = useState(TODAY.substring(0, 7));
   const [isSaving, setIsSaving] = useState(false);
@@ -408,11 +443,18 @@ export default function AvailabilityCalendarScreen() {
         >
           {hasPendingChanges && (
             <TouchableOpacity
-              style={styles.headerDiscardBtn}
+              style={[
+                styles.headerDiscardBtn,
+                { backgroundColor: t.discardBtnBg },
+              ]}
               onPress={handleDiscard}
               activeOpacity={0.7}
             >
-              <Ionicons name="close-circle-outline" size={18} color="#6b7280" />
+              <Ionicons
+                name="close-circle-outline"
+                size={18}
+                color={t.discardBtnIcon}
+              />
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -420,7 +462,7 @@ export default function AvailabilityCalendarScreen() {
               styles.headerSaveBtn,
               hasPendingChanges
                 ? styles.headerSaveBtnDirty
-                : styles.headerSaveBtnClean,
+                : { backgroundColor: t.saveBtnCleanBg },
             ]}
             onPress={handleSave}
             disabled={!hasPendingChanges || isSaving}
@@ -429,14 +471,14 @@ export default function AvailabilityCalendarScreen() {
             <Text
               style={[
                 styles.headerSaveBtnText,
-                !hasPendingChanges && styles.headerSaveBtnTextClean,
+                !hasPendingChanges && { color: t.saveBtnCleanText },
               ]}
             >
               {isSaving ? "Saving…" : hasPendingChanges ? "Save" : "Saved ✓"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={openDrawer} activeOpacity={0.7}>
-            <Menu size={24} color="#111827" strokeWidth={1.75} />
+            <Menu size={24} color={t.menuIcon} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       ),
@@ -448,13 +490,14 @@ export default function AvailabilityCalendarScreen() {
     isSaving,
     handleSave,
     handleDiscard,
+    colorScheme,
   ]);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   const monthLabel = formatMonthName(currentMonth);
 
   return (
-    <View style={{ flex: 1, backgroundColor: DARK_BLUE }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ProfileCompletionBanner />
 
       <ScrollView
@@ -462,18 +505,7 @@ export default function AvailabilityCalendarScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Intro strip */}
-        <View style={styles.introStrip}>
-          <Ionicons name="calendar-outline" size={16} color="#93c5fd" />
-          <Text style={styles.introText}>
-            Tap a date to toggle unavailability.{" "}
-            <Text style={{ color: PENDING_COLOR, fontWeight: "700" }}>
-              Orange
-            </Text>{" "}
-            = unsaved,{" "}
-            <Text style={{ color: SAVED_RED, fontWeight: "700" }}>red</Text> =
-            saved.
-          </Text>
-        </View>
+        <AvailabilityIntroStrip />
 
         {/* Status banner */}
         <View
@@ -496,7 +528,12 @@ export default function AvailabilityCalendarScreen() {
           <Text
             style={[
               styles.statusText,
-              { color: futureCountThisMonth > 0 ? "#fca5a5" : "#86efac" },
+              {
+                color:
+                  futureCountThisMonth > 0
+                    ? t.statusUnavailText
+                    : t.statusAvailText,
+              },
             ]}
           >
             {futureCountThisMonth === 0
@@ -509,14 +546,17 @@ export default function AvailabilityCalendarScreen() {
               onPress={handleClearMonth}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.clearText}>Clear month</Text>
+              <Text style={[styles.clearText, { color: t.clearText }]}>
+                Clear month
+              </Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Calendar */}
-        <View style={styles.calendarCard}>
+        <View style={[styles.calendarCard, { borderColor: t.calendarBorder }]}>
           <Calendar
+            key={colorScheme}
             current={currentMonth + "-01"}
             onDayPress={handleDayPress}
             onMonthChange={(month: DateData) =>
@@ -528,23 +568,24 @@ export default function AvailabilityCalendarScreen() {
             hideExtraDays
             enableSwipeMonths
             theme={{
-              backgroundColor: MID_BLUE,
-              calendarBackground: MID_BLUE,
-              monthTextColor: "#FFFFFF",
+              backgroundColor: t.calendarBg,
+              calendarBackground: t.calendarBg,
+              monthTextColor: colorScheme === "dark" ? "#FFFFFF" : "#111827",
               textMonthFontSize: 16,
               textMonthFontWeight: "700",
-              arrowColor: "#93c5fd",
-              textSectionTitleColor: "#7fb3d3",
+              arrowColor: colorScheme === "dark" ? "#93c5fd" : BRAND_BLUE,
+              textSectionTitleColor:
+                colorScheme === "dark" ? "#7fb3d3" : "#6B7280",
               textDayHeaderFontSize: 12,
               textDayHeaderFontWeight: "600",
-              dayTextColor: "#FFFFFF",
+              dayTextColor: colorScheme === "dark" ? "#FFFFFF" : "#111827",
               textDayFontSize: 14,
               textDayFontWeight: "500",
               todayTextColor: TODAY_BLUE,
               todayBackgroundColor: TODAY_BLUE + "25",
               selectedDayBackgroundColor: SAVED_RED,
               selectedDayTextColor: "#FFFFFF",
-              textDisabledColor: "#4a6f96",
+              textDisabledColor: colorScheme === "dark" ? "#4a6f96" : "#C7C7CC",
             }}
           />
         </View>
@@ -555,10 +596,26 @@ export default function AvailabilityCalendarScreen() {
             color={SAVED_RED}
             label="Unavailable (saved)"
             shape="square"
+            textColor={t.legendText}
           />
-          <LegendItem color={PENDING_COLOR} label="Unsaved" shape="square" />
-          <LegendItem color={DOT_UPCOMING} label="Upcoming trip" shape="dot" />
-          <LegendItem color={DOT_COMPLETED} label="Completed" shape="dot" />
+          <LegendItem
+            color={PENDING_COLOR}
+            label="Unsaved"
+            shape="square"
+            textColor={t.legendText}
+          />
+          <LegendItem
+            color={DOT_UPCOMING}
+            label="Upcoming trip"
+            shape="dot"
+            textColor={t.legendText}
+          />
+          <LegendItem
+            color={DOT_COMPLETED}
+            label="Completed"
+            shape="dot"
+            textColor={t.legendText}
+          />
         </View>
 
         {/* Upcoming Trips */}
@@ -584,7 +641,9 @@ export default function AvailabilityCalendarScreen() {
                   Upcoming Trips
                 </Text>
               </View>
-              <Text style={styles.sectionCount}>{upcomingTrips.length}</Text>
+              <Text style={[styles.sectionCount, { color: t.sectionCount }]}>
+                {upcomingTrips.length}
+              </Text>
             </View>
 
             {upcomingTrips.map((trip) => {
@@ -592,54 +651,11 @@ export default function AvailabilityCalendarScreen() {
                 trip.date && localUnavailable.has(trip.date)
               );
               return (
-                <View
+                <UpcomingTripCard
                   key={trip.id}
-                  style={[
-                    styles.tripCard,
-                    conflictDate && styles.tripCardConflict,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.tripCardAccent,
-                      {
-                        backgroundColor: conflictDate
-                          ? SAVED_RED
-                          : DOT_UPCOMING,
-                      },
-                    ]}
-                  />
-                  <View style={styles.tripCardBody}>
-                    <View style={styles.tripCardRow}>
-                      <Text style={styles.tripCardDate}>
-                        {formatDisplayDate(trip.date!)}
-                      </Text>
-                      {conflictDate && <ConflictBadge />}
-                    </View>
-                    <View style={styles.tripCardRow}>
-                      <Ionicons name="time-outline" size={12} color="#7fb3d3" />
-                      <Text style={styles.tripCardMeta}>
-                        {trip.pickup_time ?? "TBD"}
-                        {trip.dropoff_time ? ` → ${trip.dropoff_time}` : ""}
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor: DOT_UPCOMING + "25",
-                        borderColor: DOT_UPCOMING + "55",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.statusBadgeText, { color: DOT_UPCOMING }]}
-                    >
-                      {formatStatus(trip.status)}
-                    </Text>
-                  </View>
-                </View>
+                  trip={trip}
+                  conflictDate={conflictDate}
+                />
               );
             })}
           </View>
@@ -668,36 +684,18 @@ export default function AvailabilityCalendarScreen() {
   );
 }
 
-// ─── Conflict badge ───────────────────────────────────────────────────────────
-
-function ConflictBadge() {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <TouchableOpacity
-      onPress={() => setExpanded((e) => !e)}
-      style={styles.conflictBadge}
-      activeOpacity={0.7}
-    >
-      <Ionicons name="warning" size={13} color="#FEF08A" />
-      {expanded && (
-        <Text style={styles.conflictBadgeText}>
-          Booked on an unavailable day — contact your account manager.
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
-}
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function LegendItem({
   color,
   label,
   shape,
+  textColor,
 }: {
   color: string;
   label: string;
   shape: "dot" | "square";
+  textColor: string;
 }) {
   return (
     <View style={styles.legendItem}>
@@ -706,7 +704,7 @@ function LegendItem({
       ) : (
         <View style={[styles.legendSwatch, { backgroundColor: color }]} />
       )}
-      <Text style={styles.legendLabel}>{label}</Text>
+      <Text style={[styles.legendLabel, { color: textColor }]}>{label}</Text>
     </View>
   );
 }
@@ -757,16 +755,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
   introStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: MID_BLUE,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 12,
+    // kept for reference — moved to AvailabilityIntroStrip component
   },
-  introText: { color: "#93c5fd", fontSize: 13, fontWeight: "500", flex: 1 },
+  introText: { fontSize: 13, fontWeight: "500", flex: 1 },
   statusBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -834,56 +825,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   sectionCount: { fontSize: 13, color: "#4a6f96", fontWeight: "600" },
-  tripCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: MID_BLUE,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#1e5799",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
-    paddingRight: 14,
-  },
-  tripCardConflict: {
-    borderColor: SAVED_RED + "80",
-    backgroundColor: "#1f1a2e",
-  },
-  tripCardAccent: { width: 4, alignSelf: "stretch", marginRight: 12 },
-  tripCardBody: { flex: 1, paddingVertical: 12, gap: 4 },
-  tripCardDate: { fontSize: 14, color: "#FFFFFF", fontWeight: "600" },
-  tripCardRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  tripCardMeta: { fontSize: 12, color: "#7fb3d3", fontWeight: "500" },
-  statusBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    marginLeft: 8,
-  },
-  statusBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
-  conflictBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#422006",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "#92400e",
-  },
-  conflictBadgeText: {
-    fontSize: 11,
-    color: "#FEF08A",
-    fontWeight: "500",
-    maxWidth: 200,
-  },
 
   // ── Header actions cluster ──
   headerActions: {
