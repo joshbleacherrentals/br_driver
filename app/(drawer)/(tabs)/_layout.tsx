@@ -199,13 +199,6 @@ export default function TabLayout() {
                   tabBarItemStyle: { display: "none" },
                 }}
               />
-              <Tabs.Screen
-                name="more"
-                options={{
-                  tabBarItemStyle: { display: "none" },
-                  headerShown: false,
-                }}
-              />
             </Tabs>
 
             {/* Auto-open pending trips sheet on launch */}
