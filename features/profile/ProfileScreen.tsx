@@ -1,6 +1,12 @@
 import Card from "@/components/ui/Card";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import { DARK_BLUE, SCREEN_BG_DARK, SCREEN_BG_LIGHT } from "@/constants/Colors";
+import {
+  BRAND_BLUE,
+  DARK_BLUE,
+  GREEN_ACCENT,
+  SCREEN_BG_DARK,
+  SCREEN_BG_LIGHT,
+} from "@/constants/Colors";
 import {
   useAccountManager,
   UserContactData,
@@ -11,6 +17,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { LogOut } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   Alert,
@@ -273,7 +280,7 @@ export default function ProfileScreen() {
 
             <View style={styles.documentRow}>
               <View style={styles.documentIconContainer}>
-                <Ionicons name="card" size={20} color="#0A84FF" />
+                <Ionicons name="card" size={20} color={BRAND_BLUE} />
               </View>
               <View style={styles.documentContent}>
                 <Text style={styles.documentText}>Driver&apos;s License</Text>
@@ -290,7 +297,11 @@ export default function ProfileScreen() {
 
             <View style={styles.documentRow}>
               <View style={styles.documentIconContainer}>
-                <Ionicons name="shield-checkmark" size={20} color="#0A84FF" />
+                <Ionicons
+                  name="shield-checkmark"
+                  size={20}
+                  color={BRAND_BLUE}
+                />
               </View>
               <View style={styles.documentContent}>
                 <Text style={styles.documentText}>
@@ -309,7 +320,7 @@ export default function ProfileScreen() {
             {isUSA && (
               <View style={styles.documentRow}>
                 <View style={styles.documentIconContainer}>
-                  <Ionicons name="medical" size={20} color="#0A84FF" />
+                  <Ionicons name="medical" size={20} color={BRAND_BLUE} />
                 </View>
                 <View style={styles.documentContent}>
                   <Text style={styles.documentText}>Medical Card</Text>
@@ -328,7 +339,16 @@ export default function ProfileScreen() {
         )}
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={onLogout}
+          activeOpacity={0.7}
+        >
+          <LogOut
+            size={16}
+            color={isDark ? "#8E8E93" : DARK_BLUE}
+            strokeWidth={2}
+          />
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -395,7 +415,7 @@ function makeStyles(isDark: boolean) {
     editButton: {
       paddingHorizontal: 12,
       paddingVertical: 6,
-      backgroundColor: "#0A84FF",
+      backgroundColor: BRAND_BLUE,
       borderRadius: 6,
     },
     editButtonText: {
@@ -469,21 +489,22 @@ function makeStyles(isDark: boolean) {
       width: 24,
       height: 24,
       borderRadius: 12,
-      backgroundColor: "#34C759",
+      backgroundColor: GREEN_ACCENT,
       alignItems: "center",
       justifyContent: "center",
     },
     logoutButton: {
-      backgroundColor: "#FF3B30",
-      paddingVertical: 16,
-      borderRadius: 8,
+      flexDirection: "row",
       alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 16,
       marginTop: 8,
       marginBottom: 36,
     },
     logoutButtonText: {
-      color: "#FFFFFF",
-      fontWeight: "600",
+      color: isDark ? "#8E8E93" : DARK_BLUE,
+      fontWeight: "500",
       fontSize: 16,
     },
   });
