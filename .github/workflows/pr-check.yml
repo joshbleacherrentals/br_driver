@@ -16,6 +16,18 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           BLOCKED_TITLES="Staging|staging|Main|main|Update|update"
+          if [ ${#PR_TITLE} -lt 10 ]; then
+            echo "============================================================"
+            echo "❌ PR TITLE TOO SHORT"
+            echo "============================================================"
+            echo ""
+            echo "PR title must be at least 10 characters."
+            echo "Current title: \"$PR_TITLE\" (${#PR_TITLE} chars)"
+            echo ""
+            echo "============================================================"
+            exit 1
+          fi
+
           if echo "$PR_TITLE" | grep -qxE "$BLOCKED_TITLES"; then
             echo "============================================================"
             echo "❌ PR TITLE REJECTED"
