@@ -48,6 +48,7 @@ export function useDamageReport(bleacher_uuid: string | null | undefined): {
         "created_at",
         "resolved_at",
         "maintenance_event_uuid",
+        "created_by_user_uuid",
       ])
       .where("bleacher_uuid", "=", bleacher_uuid)
       .where("resolved_at", "is", null)
@@ -56,7 +57,10 @@ export function useDamageReport(bleacher_uuid: string | null | undefined): {
       .compile();
   }, [bleacher_uuid]);
 
-  const { data, isLoading } = useTypedQuery(compiled, expect<DamageReportData>());
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
 
   return {
     damageReport: data?.[0] ?? null,
@@ -89,6 +93,7 @@ export function useDamageReports(bleacher_uuid: string | null | undefined): {
         "created_at",
         "resolved_at",
         "maintenance_event_uuid",
+        "created_by_user_uuid",
       ])
       .where("bleacher_uuid", "=", bleacher_uuid)
       .where("resolved_at", "is", null)
@@ -96,7 +101,10 @@ export function useDamageReports(bleacher_uuid: string | null | undefined): {
       .compile();
   }, [bleacher_uuid]);
 
-  const { data, isLoading } = useTypedQuery(compiled, expect<DamageReportData>());
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
 
   return {
     damageReports: data ?? [],
@@ -108,7 +116,9 @@ export function useDamageReports(bleacher_uuid: string | null | undefined): {
  * Returns the damage report tied to a specific inspection,
  * for use in inspection summaries.
  */
-export function useDamageReportByInspection(inspection_uuid: string | null | undefined): {
+export function useDamageReportByInspection(
+  inspection_uuid: string | null | undefined,
+): {
   damageReport: DamageReportData | null;
   isLoading: boolean;
 } {
@@ -129,6 +139,7 @@ export function useDamageReportByInspection(inspection_uuid: string | null | und
         "created_at",
         "resolved_at",
         "maintenance_event_uuid",
+        "created_by_user_uuid",
       ])
       .where("inspection_uuid", "=", inspection_uuid)
       .orderBy("created_at", "desc")
@@ -136,7 +147,10 @@ export function useDamageReportByInspection(inspection_uuid: string | null | und
       .compile();
   }, [inspection_uuid]);
 
-  const { data, isLoading } = useTypedQuery(compiled, expect<DamageReportData>());
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
 
   return {
     damageReport: data?.[0] ?? null,
@@ -176,7 +190,10 @@ export function useMyDamageReports(userUuid: string | null | undefined): {
       .compile();
   }, [userUuid]);
 
-  const { data, isLoading } = useTypedQuery(compiled, expect<DamageReportData>());
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
 
   return {
     damageReports: data ?? [],

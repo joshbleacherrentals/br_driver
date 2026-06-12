@@ -1,9 +1,10 @@
+import { BRAND_BLUE } from "@/constants/Colors";
 import { ActivityIndicator, View } from "react-native";
 
 export default function LoadingScreen() {
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color="#1D62A3" />
+      <ActivityIndicator size="large" color={BRAND_BLUE} />
     </View>
   );
 }

@@ -1,0 +1,37 @@
+name: Production Build
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build iOS & Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Build for iOS
+        run: eas build --profile production --platform ios --non-interactive
+
+      - name: Build for Android
+        run: eas build --profile production --platform android --non-interactive
+
+      # Store submission is intentionally manual.
+      # When ready to release, run locally:
+      #   eas submit --profile production --platform ios
+      #   eas submit --profile production --platform android

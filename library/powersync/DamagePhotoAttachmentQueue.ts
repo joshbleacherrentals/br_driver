@@ -1,8 +1,8 @@
 import {
-    AbstractAttachmentQueue,
-    AttachmentRecord,
-    AttachmentState,
-    EncodingType,
+  AbstractAttachmentQueue,
+  AttachmentRecord,
+  AttachmentState,
+  EncodingType,
 } from "@powersync/attachments";
 import { randomUUID } from "expo-crypto";
 import * as FileSystem from "expo-file-system/legacy";
@@ -36,6 +36,36 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       return;
     }
     await super.init();
+  }
+
+  async expireCache() {
+    const res = await this.powersync.getAll<AttachmentRecord>(
+      `SELECT * FROM ${this.table}
+       WHERE state = ${AttachmentState.SYNCED} OR state = ${AttachmentState.ARCHIVED}
+       ORDER BY timestamp DESC
+       LIMIT 100 OFFSET ${this.options.cacheLimit}`,
+    );
+
+    if (res.length === 0) return;
+
+    this.logger.debug(
+      `Expiring ${res.length} damage-photo attachments from local cache only`,
+    );
+    await this.powersync.writeTransaction(async (tx) => {
+      for (const record of res) {
+        await tx.execute(`DELETE FROM ${this.table} WHERE id = ?`, [record.id]);
+        const localUri = this.getLocalUri(
+          record.local_uri || this.getLocalFilePathSuffix(record.filename),
+        );
+        try {
+          if (await this.storage.fileExists(localUri)) {
+            await FileSystem.deleteAsync(localUri);
+          }
+        } catch (e) {
+          this.logger.error(e);
+        }
+      }
+    });
   }
 
   // ── Watch ─────────────────────────────────────────────────────────────────

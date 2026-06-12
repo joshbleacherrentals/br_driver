@@ -25,6 +25,12 @@ function getDynamicIds(environment: AppEnv) {
       iosBundleId: IOS_BUNDLE_ID,
       androidPackage: ANDROID_PACKAGE,
       scheme: SCHEME,
+      iosIcon: {
+        light: "./assets/icons/ios-light.png",
+        dark: "./assets/icons/ios-dark.png",
+        tinted: "./assets/icons/ios-tinted.png",
+      },
+      androidAdaptiveIcon: "./assets/icons/adaptive-icon.png",
     };
   }
 
@@ -34,6 +40,12 @@ function getDynamicIds(environment: AppEnv) {
       iosBundleId: `${IOS_BUNDLE_ID}.staging`,
       androidPackage: `${ANDROID_PACKAGE}.staging`,
       scheme: `${SCHEME}-staging`,
+      iosIcon: {
+        light: "./assets/icons/ios-light-staging.png",
+        dark: "./assets/icons/ios-dark-staging.png",
+        tinted: "./assets/icons/ios-tinted-staging.png",
+      },
+      androidAdaptiveIcon: "./assets/icons/adaptive-icon-staging.png",
     };
   }
 
@@ -42,6 +54,12 @@ function getDynamicIds(environment: AppEnv) {
     iosBundleId: `${IOS_BUNDLE_ID}.dev`,
     androidPackage: `${ANDROID_PACKAGE}.dev`,
     scheme: `${SCHEME}-dev`,
+    iosIcon: {
+      light: "./assets/icons/ios-light-dev.png",
+      dark: "./assets/icons/ios-dark-dev.png",
+      tinted: "./assets/icons/ios-tinted-dev.png",
+    },
+    androidAdaptiveIcon: "./assets/icons/adaptive-icon-dev.png",
   };
 }
 
@@ -63,10 +81,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       ...config.ios,
       bundleIdentifier: dynamic.iosBundleId,
+      icon: dynamic.iosIcon,
     },
     android: {
       ...config.android,
       package: dynamic.androidPackage,
+      adaptiveIcon: {
+        ...config.android?.adaptiveIcon,
+        foregroundImage: dynamic.androidAdaptiveIcon,
+        monochromeImage: dynamic.androidAdaptiveIcon,
+      },
     },
     extra: {
       ...(config.extra ?? {}),

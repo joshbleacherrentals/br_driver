@@ -1,0 +1,60 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [dev, staging, main]
+
+jobs:
+  check:
+    name: Lint, Typecheck & Build
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Install Supabase CLI
+        run: npm install -g supabase
+
+      - name: Generate DB types from production
+        run: supabase gen types typescript --project-id ${{ secrets.SUPABASE_PROJECT_ID }} > database.types.ts
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: |
+          if ! npx tsc --noEmit 2>&1; then
+            echo ""
+            echo "============================================================"
+            echo "❌ TYPECHECK FAILED"
+            echo "============================================================"
+            echo ""
+            echo "database.types.ts was regenerated from the PRODUCTION"
+            echo "Supabase database before this check."
+            echo ""
+            echo "If you made schema changes locally (new tables, columns,"
+            echo "altered types, etc.), those migrations must be pushed to"
+            echo "production BEFORE this mobile app PR can pass."
+            echo ""
+            echo "1. Push your Supabase migrations to production first"
+            echo "2. Then re-run this PR check"
+            echo ""
+            echo "============================================================"
+            exit 1
+          fi
+
+      - name: Build check (iOS)
+        run: npx expo export --platform ios
+
+      - name: Build check (Android)
+        run: npx expo export --platform android

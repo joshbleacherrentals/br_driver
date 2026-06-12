@@ -37,11 +37,6 @@ export function AppleSignInButton({
   const { startSSOFlow } = useSSO();
   const router = useRouter();
 
-  // Only render on iOS
-  if (Platform.OS !== "ios") {
-    return null;
-  }
-
   const handleAppleSignIn = useCallback(async () => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
@@ -74,6 +69,11 @@ export function AppleSignInButton({
       }
     }
   }, [startSSOFlow, onSignInComplete, router, onError]);
+
+  // Only render on iOS
+  if (Platform.OS !== "ios") {
+    return null;
+  }
 
   return (
     <>
