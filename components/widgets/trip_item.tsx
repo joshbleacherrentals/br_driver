@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
   addressText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#0A84FF",
+    color: BRAND_BLUE,
     marginBottom: 4,
   },
   detailText: { fontSize: 13, marginTop: 2 },

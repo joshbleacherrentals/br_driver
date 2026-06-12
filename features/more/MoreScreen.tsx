@@ -44,15 +44,10 @@ export default function MoreScreen() {
             key={item.route}
             style={styles.menuItem}
             onPress={() => router.push(item.route as any)}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
           >
-            <View style={styles.menuItemLeft}>
-              <View style={styles.iconWrap}>
-                <Ionicons name={item.icon as any} size={22} color="#FFFFFF" />
-              </View>
-              <Text style={styles.menuItemLabel}>{item.label}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+            <Ionicons name={item.icon as any} size={22} color={DARK_BLUE} />
+            <Text style={styles.menuItemLabel}>{item.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -62,29 +57,14 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F2F2F7" },
-  list: { paddingHorizontal: 16, paddingTop: 16 },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 14,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E5EA",
   },
-  menuItemLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: DARK_BLUE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuItemLabel: { fontSize: 16, fontWeight: "600", color: "#1C1C1E" },
+  menuItemLabel: { fontSize: 16, color: "#1C1C1E" },
 });

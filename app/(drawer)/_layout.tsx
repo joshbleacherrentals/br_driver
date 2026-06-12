@@ -60,27 +60,23 @@ function CustomDrawerContent(props: any) {
         {DRAWER_ITEMS.map((item) => (
           <TouchableOpacity
             key={item.route}
-            style={[
-              styles.menuItem,
-              { backgroundColor: isDark ? "#2C2C2E" : "#FFFFFF" },
-            ]}
+            style={styles.menuItem}
             onPress={() => handleNav(item.route)}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
           >
-            <View style={styles.menuItemLeft}>
-              <View style={styles.iconWrap}>
-                <Ionicons name={item.icon as any} size={22} color="#FFFFFF" />
-              </View>
-              <Text
-                style={[
-                  styles.menuItemLabel,
-                  { color: isDark ? "#FFFFFF" : "#1C1C1E" },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+            <Ionicons
+              name={item.icon as any}
+              size={22}
+              color={isDark ? "#EBEBF5" : DARK_BLUE}
+            />
+            <Text
+              style={[
+                styles.menuItemLabel,
+                { color: isDark ? "#FFFFFF" : "#1C1C1E" },
+              ]}
+            >
+              {item.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -117,37 +113,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   list: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  menuItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 14,
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: DARK_BLUE,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(120,120,128,0.2)",
   },
   menuItemLabel: {
     fontSize: 16,
-    fontWeight: "600",
   },
 });
