@@ -39,6 +39,7 @@ All database queries and mutations **must** go through the Kysely-powered typed 
 - **Single Responsibility** — Each file does one thing. A hook fetches data. A widget renders UI. A utility transforms values.
 - **Small files** — Prefer many small, well-named files over large monoliths. Break components into sub-components. Extract helpers into utility files. If a file exceeds ~200-250 lines, consider splitting.
 - **Helpers and utilities** — When a feature needs transformation, formatting, or calculation logic, create appropriately named files in `utils/` or co-located with the feature, and import them.
+- **Consistent colors** — Never hardcode color hex values. Import from `@/constants/Colors` (`DARK_BLUE`, `BRAND_BLUE`, `ACCENT_BLUE`, `GREEN_ACCENT`, `Colors.light.*`, `Colors.dark.*`). If a new color is needed, add it to `constants/Colors.ts` first, then import it.
 
 ### Feature Folder Architecture
 
