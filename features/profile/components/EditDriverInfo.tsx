@@ -1,5 +1,5 @@
 import { db } from "@/components/providers/SystemProvider";
-import AddressAutocomplete from "@/components/widgets/addressAutoComplete";
+import AddressAutocomplete from "./AddressAutoComplete";
 import { useAddress } from "@/hooks/db/useAddress";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";

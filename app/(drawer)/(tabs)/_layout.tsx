@@ -19,7 +19,7 @@ import TabBarBackground from "@/components/ui/TabBarBackground";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import LoadingScreen from "@/components/widgets/loadingScreen";
 import NoDriverScreen from "@/components/widgets/no-driver";
-import PendingTripsList from "@/components/widgets/PendingTripsList";
+import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useColorScheme } from "@/hooks/useColorScheme";

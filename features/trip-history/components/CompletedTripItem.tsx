@@ -18,7 +18,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import BillOfLading, { BOLButton } from './billOfLading';
+import BillOfLading, { BOLButton } from '@/components/widgets/billOfLading';
 
 interface CompletedTripProps {
   workTracker: WorkTracker;

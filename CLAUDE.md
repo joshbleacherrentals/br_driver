@@ -1,4 +1,3 @@
-@ -0,0 +1,144 @@
 
 # CLAUDE.md — Bleacher Rentals Driver App
 
@@ -41,40 +40,97 @@ All database queries and mutations **must** go through the Kysely-powered typed 
 - **Small files** — Prefer many small, well-named files over large monoliths. Break components into sub-components. Extract helpers into utility files. If a file exceeds ~200-250 lines, consider splitting.
 - **Helpers and utilities** — When a feature needs transformation, formatting, or calculation logic, create appropriately named files in `utils/` or co-located with the feature, and import them.
 
+### Feature Folder Architecture
+
+The app uses a **feature folder** pattern. Each screen owns its code in `features/`, and `app/` is a thin routing layer of one-line re-exports.
+
+**Rules:**
+- `app/` files are **one-liners**: `export { default } from "@/features/..."`
+- Each feature folder contains the screen component + its **page-specific** components, hooks, and utils
+- Components/hooks used by **2+ features** stay in the global `components/`, `hooks/`, or `utils/` directories
+- When adding a new screen: create the feature folder first, then add a thin re-export in `app/`
+
 ## Project Structure
 
 ```
-app/                          # Expo Router file-based routing
+app/                          # Expo Router — thin re-exports only
 ├── _layout.tsx               # Root layout (Stack: drawer, auth, standalone screens)
-├── (auth)/                   # Auth screens (Clerk)
-│   └── sign-in.tsx
-├── (drawer)/                 # Main app (right-side drawer for nav)
-│   ├── _layout.tsx           # Drawer layout
-│   └── (tabs)/               # Bottom tab navigator
-│       ├── _layout.tsx       # Tab bar config
-│       ├── index.tsx         # Pending Trips (default tab)
-│       ├── trips.tsx         # Active/Upcoming Trips
-│       ├── driverAvailability.tsx
-│       ├── documents.tsx
-│       ├── profile.tsx
-│       └── more.tsx
-├── damage-report.tsx         # Standalone screens (Stack)
-├── damage-report-history.tsx
-└── trip-history.tsx
+├── (auth)/sign-in.tsx        → features/auth/SignInScreen.tsx
+├── (drawer)/
+│   ├── _layout.tsx           # Drawer layout (stays here — routing config)
+│   └── (tabs)/
+│       ├── _layout.tsx       # Tab bar config (stays here — routing config)
+│       ├── index.tsx         → features/trips/TripsScreen.tsx
+│       ├── pendingTrips.tsx  → features/pending-trips/PendingTripsScreen.tsx
+│       ├── driverAvailability.tsx → features/availability/AvailabilityScreen.tsx
+│       ├── documents.tsx     → features/documents/DocumentsScreen.tsx
+│       ├── profile.tsx       → features/profile/ProfileScreen.tsx
+│       └── more.tsx          → features/more/MoreScreen.tsx
+├── damage-report.tsx         → features/damage-report/DamageReportScreen.tsx
+├── damage-report-history.tsx → features/damage-report-history/DamageReportHistoryScreen.tsx
+└── trip-history.tsx          → features/trip-history/TripHistoryScreen.tsx
 
-components/
-├── providers/                # Context providers
+features/                     # Feature folders — each screen owns its code
+├── trips/
+│   ├── TripsScreen.tsx
+│   └── components/
+│       └── ReleasedTripsBanner.tsx
+├── pending-trips/
+│   ├── PendingTripsScreen.tsx
+│   └── components/
+│       └── PendingTripsList.tsx
+├── availability/
+│   └── AvailabilityScreen.tsx
+├── documents/
+│   └── DocumentsScreen.tsx
+├── profile/
+│   ├── ProfileScreen.tsx
+│   └── components/
+│       ├── EditDriverInfo.tsx
+│       ├── EditVehicleInfo.tsx
+│       ├── EditProfileDocs.tsx
+│       └── AddressAutoComplete.tsx
+├── damage-report/
+│   ├── DamageReportScreen.tsx
+│   └── components/
+│       └── DamageSeveritySelector.tsx
+├── damage-report-history/
+│   └── DamageReportHistoryScreen.tsx
+├── trip-history/
+│   ├── TripHistoryScreen.tsx
+│   └── components/
+│       └── CompletedTripItem.tsx
+├── auth/
+│   └── SignInScreen.tsx
+└── more/
+    └── MoreScreen.tsx
+
+components/                   # Shared across 2+ features
+├── providers/
 │   └── SystemProvider.tsx    # PowerSync + Kysely init, attachment queues
-├── ui/                       # Reusable UI primitives
-└── widgets/                  # Feature-specific composite components
+├── ui/                       # Reusable UI primitives (BottomSheetModal, TabBarBackground, etc.)
+├── widgets/                  # Shared feature widgets
+│   ├── trip_item.tsx         # Used by trips, pending-trips, trip-history
+│   ├── inspection.tsx        # Used by trips, damage-report
+│   ├── inspectionSummaryWidget.tsx
+│   ├── billOfLading.tsx
+│   ├── bleacherDropdown.tsx
+│   ├── bleacherDamageBadge.tsx
+│   ├── onboardingBanner.tsx  # Used by 5+ screens
+│   ├── loadingScreen.tsx
+│   └── no-driver.tsx
+├── OAuthButton.tsx
+├── SignInWithApple.tsx
+├── SignOutButton.tsx
+└── SwipeAcceptBarV2.tsx
 
 hooks/
 ├── db/                       # Database hooks (one per domain entity)
-│   ├── useWorkTrackers.ts    # Trips/work tracker queries
-│   ├── useInspection.ts      # Inspection queries
-│   ├── useBleacher.ts        # Bleacher queries
-│   ├── useDriver.ts          # Driver profile queries
-│   ├── useAddress.ts         # Address queries
+│   ├── useWorkTrackers.ts
+│   ├── useInspection.ts
+│   ├── useBleacher.ts
+│   ├── useDriver.ts
+│   ├── useAddress.ts
 │   └── ...
 ├── useColorScheme.ts
 ├── useProfileCompletion.ts
@@ -135,9 +191,15 @@ await executeTypedMutationVoid(
 
 ### Adding a new screen
 
-1. Add the file under `app/` following Expo Router conventions
-2. Register it in the appropriate `_layout.tsx` if needed
-3. Keep the screen file thin — extract widgets into `components/widgets/`
+1. Create a feature folder: `features/my-feature/MyFeatureScreen.tsx`
+2. Add page-specific components in `features/my-feature/components/`
+3. Add page-specific hooks in `features/my-feature/hooks/`
+4. Add a thin re-export in `app/`: `export { default } from "@/features/my-feature/MyFeatureScreen"`
+5. Register in the appropriate `_layout.tsx` if needed
+
+### Moving a component to shared
+
+If a component in a feature folder starts being used by a second feature, move it to `components/widgets/` (or `components/ui/` for primitives) and update imports.
 
 ## Environment
 
