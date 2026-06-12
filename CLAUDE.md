@@ -1,4 +1,3 @@
-
 # CLAUDE.md — Bleacher Rentals Driver App
 
 ## Overview
@@ -46,6 +45,7 @@ All database queries and mutations **must** go through the Kysely-powered typed 
 The app uses a **feature folder** pattern. Each screen owns its code in `features/`, and `app/` is a thin routing layer of one-line re-exports.
 
 **Rules:**
+
 - `app/` files are **one-liners**: `export { default } from "@/features/..."`
 - Each feature folder contains the screen component + its **page-specific** components, hooks, and utils
 - Components/hooks used by **2+ features** stay in the global `components/`, `hooks/`, or `utils/` directories
@@ -208,3 +208,23 @@ If a component in a feature folder starts being used by a second feature, move i
 - Config in `app.config.ts` — switches bundle IDs, icons, and env vars per environment
 - Supabase/PowerSync credentials come from env vars (`EXPO_PUBLIC_*`)
 - EAS Build for native builds, OTA updates via `expo-updates`
+
+## CI/CD Pipeline
+
+Uses `@expo/fingerprint` runtime version policy to automatically detect JS-only vs native changes.
+
+| Trigger                              | What happens                                                       |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check (`pr-check.yml`)             |
+| Push to `dev`                        | OTA update → `development` channel (`ota-dev.yml`)                 |
+| Push to `staging`                    | OTA update → `preview` channel (`ota-staging.yml`)                 |
+| Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)            |
+| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`) |
+
+**How fingerprint deploy works (push to main):**
+
+1. Runs typecheck + lint
+2. `continuous-deploy-fingerprint` action computes native fingerprint
+3. If fingerprint matches an existing production build → **OTA update only** (Vercel-style instant deploy)
+4. If fingerprint changed (new native dep, SDK upgrade, config plugin change) → **triggers EAS Build** for iOS + Android
+5. Store submission is always manual — run the `Store Submit` workflow after verifying the build

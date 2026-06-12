@@ -1,13 +1,58 @@
-name: Production Build
+name: Production Deploy
+
+# Runs on every push to main (i.e. merged PRs).
+# Uses Expo fingerprint to decide:
+#   - Native runtime unchanged → OTA update to production channel
+#   - Native runtime changed   → EAS Build (iOS + Android), no auto-submit
+#
+# Store submission is intentionally manual. After a native build completes:
+#   eas submit --profile production --platform ios
+#   eas submit --profile production --platform android
 
 on:
   push:
     branches: [main]
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
-  build:
-    name: Build iOS & Android
+  check:
+    name: Typecheck & Lint
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Install Supabase CLI
+        run: npm install -g supabase
+
+      - name: Generate DB types from production
+        run: supabase gen types typescript --project-id ${{ secrets.SUPABASE_PROJECT_ID }} > database.types.ts
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+  deploy:
+    name: Fingerprint Deploy
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
     steps:
       - uses: actions/checkout@v5
 
@@ -25,13 +70,18 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      - name: Build for iOS
-        run: eas build --profile production --platform ios --non-interactive
-
-      - name: Build for Android
-        run: eas build --profile production --platform android --non-interactive
-
-      # Store submission is intentionally manual.
-      # When ready to release, run locally:
-      #   eas submit --profile production --platform ios
-      #   eas submit --profile production --platform android
+      # This action automatically:
+      # 1. Computes the native fingerprint for iOS and Android
+      # 2. Checks if a production EAS Build already exists with that fingerprint
+      # 3. If no matching build exists → triggers eas build (native change detected)
+      # 4. Publishes an EAS Update to the production channel
+      #
+      # When the fingerprint hasn't changed since the last build,
+      # only step 4 runs — giving you Vercel-style instant OTA deploys.
+      - name: Continuous Deploy (fingerprint)
+        uses: expo/expo-github-action/continuous-deploy-fingerprint@main
+        with:
+          profile: production
+          branch: production
+          environment: production
+          platform: all
