@@ -1,26 +1,36 @@
 import BleacherDropdown, { BleacherOption } from '@/components/widgets/bleacherDropdown';
 import DamageSeveritySelector, {
   DamageSeverityValue,
+  severityEnumToValue,
   severityValueToEnum,
 } from './components/DamageSeveritySelector';
 import { DebugUploadTracker } from './components/DebugUploadTracker';
+import { ImageViewer, ImageViewerItem } from './components/ImageViewer';
+import { PhotoUploadIndicator } from './components/PhotoUploadIndicator';
+import { resolvePhotoUri } from './utils/resolvePhotoUri';
 import {
   damageReportPhotoAttachmentQueue,
   db,
 } from '@/components/providers/SystemProvider';
 import { useAllBleachers } from '@/hooks/db/useBleacher';
+import { useDamageReportById } from '@/hooks/db/useDamageReport';
+import {
+  DamageReportPhotoWithStatus,
+  useDamageReportPhotos,
+} from '@/hooks/db/useDamageReportPhotos';
 import { useDriver } from '@/hooks/db/useDriver';
 import { executeTypedMutation } from '@/library/powersync/typedMutation';
 import { convertToJpegIfNeeded } from '@/utils/convertToJpeg';
+import { generateThumbnail } from '@/utils/generateThumbnail';
 import { persistPickerPhoto } from '@/utils/persistPickerPhoto';
 import { readAsBase64 } from '@/utils/readAsBase64';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -48,10 +58,115 @@ interface DocumentPhoto {
   ext?: string;
 }
 
+// ── View-only photo grid ────────────────────────────────────────────────────
+
+function ViewOnlyPhotoGrid({ photos }: { photos: DamageReportPhotoWithStatus[] }) {
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [fullSizeItems, setFullSizeItems] = useState<ImageViewerItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolve() {
+      const items: ImageViewerItem[] = await Promise.all(
+        photos.map(async (p) => {
+          const uri = p.photo_path
+            ? await resolvePhotoUri(p.photo_path)
+            : "";
+          return {
+            id: p.id,
+            uri,
+            thumbnail: p.thumbnail ?? undefined,
+          };
+        }),
+      );
+      if (!cancelled) setFullSizeItems(items);
+    }
+    resolve();
+    return () => { cancelled = true; };
+  }, [photos]);
+
+  if (photos.length === 0) {
+    return (
+      <Text style={{ color: '#8E8E93', fontSize: 14, fontStyle: 'italic' }}>
+        No photos attached
+      </Text>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.photoGrid}>
+        {photos.map((photo, index) => {
+          const thumbUri = photo.thumbnail
+            ? `data:image/jpeg;base64,${photo.thumbnail}`
+            : undefined;
+          return (
+            <TouchableOpacity
+              key={photo.id}
+              style={styles.photoContainer}
+              activeOpacity={0.7}
+              onPress={() => setViewerIndex(index)}
+            >
+              {thumbUri ? (
+                <Image source={{ uri: thumbUri }} style={styles.photo} />
+              ) : (
+                <View style={[styles.photo, styles.photoPlaceholder]}>
+                  <Ionicons name="image-outline" size={28} color="#C7C7CC" />
+                </View>
+              )}
+              <PhotoUploadIndicator status={photo.uploadStatus} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {viewerIndex !== null && fullSizeItems.length > 0 && (
+        <ImageViewer
+          images={fullSizeItems}
+          initialIndex={viewerIndex}
+          visible
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Severity display (read-only) ────────────────────────────────────────────
+
+function SeverityDisplay({ label, value }: { label: string; value: string | null }) {
+  const isNone = !value || value === 'none';
+  const isMajor = value === 'major' || value === '1';
+  const color = isNone ? '#34C759' : isMajor ? '#FF3B30' : '#FF9500';
+  const text = isNone ? 'None' : isMajor ? 'Major' : 'Minor';
+
+  return (
+    <View style={styles.severityRow}>
+      <Text style={styles.severityLabel}>{label}</Text>
+      <View style={[styles.severityBadge, { backgroundColor: color + '18', borderColor: color }]}>
+        <Text style={[styles.severityBadgeText, { color }]}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Main screen ─────────────────────────────────────────────────────────────
+
 export default function DamageReportScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ damageReportId?: string }>();
   const { bleachers } = useAllBleachers();
   const { driver } = useDriver();
+
+  // View-only state — set either from route param or after submit
+  const [viewOnlyId, setViewOnlyId] = useState<string | null>(
+    params.damageReportId ?? null,
+  );
+  const isViewOnly = !!viewOnlyId;
+
+  // Load existing report data when in view-only mode
+  const { damageReport } = useDamageReportById(viewOnlyId);
+  const { photos: reportPhotos } = useDamageReportPhotos(viewOnlyId);
 
   const bleacherOptions: BleacherOption[] = useMemo(
     () =>
@@ -62,9 +177,15 @@ export default function DamageReportScreen() {
           bleacher_number: b.bleacher_number ?? '',
           bleacher_rows: b.bleacher_rows,
         })),
-    [bleachers]
+    [bleachers],
   );
 
+  const viewBleacher = useMemo(() => {
+    if (!damageReport?.bleacher_uuid) return null;
+    return bleacherOptions.find((b) => b.uuid === damageReport.bleacher_uuid) ?? null;
+  }, [damageReport, bleacherOptions]);
+
+  // ── Create mode state ───────────────────────────────────────────────────
   const [selectedBleacher, setSelectedBleacher] = useState<string | null>(null);
   const [seatDamage, setSeatDamage] = useState<DamageSeverityValue>(null);
   const [haulDamage, setHaulDamage] = useState<DamageSeverityValue>(null);
@@ -193,15 +314,11 @@ export default function DamageReportScreen() {
             maintenance_event_uuid: null,
             created_by_user_uuid: driver?.user_uuid ?? null,
           })
-          .compile()
+          .compile(),
       );
       dlog(`SUBMIT: DamageReport row inserted id=${damageId.slice(0, 8)}`);
 
       if (damageReportPhotoAttachmentQueue) {
-        // For each photo: save file to disk, then insert DamageReportPhotos row.
-        // The base class reconciliation watches DamageReportPhotos, creates an
-        // attachment record (with local_uri via newAttachmentRecord), finds the
-        // local file we saved, and queues it for upload automatically.
         let savedCount = 0;
         let skipCount = 0;
         const filenames: string[] = [];
@@ -224,6 +341,15 @@ export default function DamageReportScreen() {
             const base64 = await readAsBase64(photo.uri);
             dlog(`PHOTO[${i}]: base64 len=${base64.length} (${Math.round(base64.length / 1024)}KB)`);
 
+            // Generate thumbnail
+            let thumb: string | null = null;
+            try {
+              thumb = await generateThumbnail(photo.uri);
+              dlog(`PHOTO[${i}]: thumbnail ${Math.round(thumb.length / 1024)}KB`);
+            } catch (e) {
+              dlog(`PHOTO[${i}]: thumbnail FAILED - ${String(e).slice(0, 80)}`);
+            }
+
             const ext = photo.ext ?? 'jpg';
             const filename = `${damageId}/photo_${i}_${Date.now()}.${ext}`;
 
@@ -237,8 +363,9 @@ export default function DamageReportScreen() {
                   id: randomUUID(),
                   damage_report_uuid: damageId,
                   photo_path: filename,
+                  thumbnail: thumb,
                 })
-                .compile()
+                .compile(),
             );
             dlog(`PHOTO[${i}]: DB row inserted`);
             filenames.push(filename);
@@ -255,14 +382,8 @@ export default function DamageReportScreen() {
         dlog('SUBMIT: NO attachment queue available!');
       }
 
-      if (DEBUG_PHOTO_UPLOAD) {
-        dlog('SUBMIT: success! Staying on page to watch uploads...');
-        Alert.alert('Success', 'Damage report submitted. Stay on this page to watch upload progress.');
-      } else {
-        Alert.alert('Success', 'Damage report submitted', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
-      }
+      dlog('SUBMIT: success! Switching to view-only mode...');
+      setViewOnlyId(damageId);
     } catch (error) {
       dlog(`SUBMIT: FATAL ERROR - ${String(error).slice(0, 200)}`);
       Alert.alert('Error', 'Failed to submit damage report. Please try again.');
@@ -270,6 +391,136 @@ export default function DamageReportScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // ── View-only render ────────────────────────────────────────────────────
+
+  if (isViewOnly) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Bleacher */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Bleacher</Text>
+            <Text style={styles.viewOnlyValue}>
+              #{viewBleacher?.bleacher_number ?? damageReport?.bleacher_uuid?.slice(0, 8) ?? '—'}
+              {viewBleacher?.bleacher_rows ? ` (${viewBleacher.bleacher_rows} rows)` : ''}
+            </Text>
+          </View>
+
+          {/* Severity */}
+          <View style={styles.section}>
+            <SeverityDisplay
+              label="Seating Configuration"
+              value={damageReport?.seat_damage ?? null}
+            />
+            <SeverityDisplay
+              label="Hauling Configuration"
+              value={damageReport?.haul_damage ?? null}
+            />
+          </View>
+
+          {/* Notes */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Damage Notes</Text>
+            <Text style={styles.viewOnlyValue}>
+              {damageReport?.note || '—'}
+            </Text>
+          </View>
+
+          {/* Photos with upload status */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Damage Photos ({reportPhotos.length})
+            </Text>
+            <View style={{ marginTop: 8 }}>
+              <ViewOnlyPhotoGrid photos={reportPhotos} />
+            </View>
+          </View>
+
+          {/* Metadata */}
+          <View style={styles.section}>
+            <Text style={styles.metaText}>
+              Created: {damageReport?.created_at
+                ? new Date(damageReport.created_at).toLocaleString()
+                : '—'}
+            </Text>
+            {damageReport?.resolved_at && (
+              <Text style={[styles.metaText, { color: '#34C759' }]}>
+                Resolved: {new Date(damageReport.resolved_at).toLocaleString()}
+              </Text>
+            )}
+          </View>
+
+          {/* Back button */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: '#0A84FF' }]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.submitButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Debug panel (only shown after submit with debug on) */}
+          {DEBUG_PHOTO_UPLOAD && debugLogs.length > 0 && (
+            <View style={debugStyles.container}>
+              <View style={debugStyles.header}>
+                <Text style={debugStyles.title}>Debug Log ({debugLogs.length})</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={debugStyles.copyBtn}
+                    onPress={() => {
+                      const text = debugLogs.map((l) => `${l.ts} ${l.msg}`).join('\n');
+                      Clipboard.setStringAsync(text);
+                      Alert.alert('Copied', `${debugLogs.length} log entries copied to clipboard`);
+                    }}
+                  >
+                    <Text style={debugStyles.copyBtnText}>Copy All</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[debugStyles.copyBtn, { backgroundColor: '#FF3B30' }]}
+                    onPress={() => setDebugLogs([])}
+                  >
+                    <Text style={debugStyles.copyBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <ScrollView
+                ref={debugScrollRef}
+                style={debugStyles.logScroll}
+                onContentSizeChange={() =>
+                  debugScrollRef.current?.scrollToEnd({ animated: false })
+                }
+              >
+                {debugLogs.map((entry, i) => (
+                  <Text key={i} style={debugStyles.logLine} selectable>
+                    <Text style={debugStyles.logTs}>{entry.ts} </Text>
+                    <Text
+                      style={
+                        entry.msg.includes('ERROR') || entry.msg.includes('FAILED') || entry.msg.includes('MISSING')
+                          ? debugStyles.logError
+                          : entry.msg.includes('done') || entry.msg.includes('success')
+                            ? debugStyles.logSuccess
+                            : debugStyles.logMsg
+                      }
+                    >
+                      {entry.msg}
+                    </Text>
+                  </Text>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {DEBUG_PHOTO_UPLOAD && trackedAttachmentIds.length > 0 && (
+            <DebugUploadTracker attachmentIds={trackedAttachmentIds} />
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Create mode render ──────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -431,7 +682,6 @@ export default function DamageReportScreen() {
           </View>
         )}
 
-        {/* Upload tracker — watches attachment queue in real time */}
         {DEBUG_PHOTO_UPLOAD && (
           <DebugUploadTracker attachmentIds={trackedAttachmentIds} />
         )}
@@ -501,6 +751,11 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoContainer: { position: 'relative', width: 100, height: 100 },
   photo: { width: '100%', height: '100%', borderRadius: 8 },
+  photoPlaceholder: {
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   removePhotoButton: {
     position: 'absolute',
     top: -8,
@@ -530,6 +785,39 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: { backgroundColor: '#A8E6B7' },
   submitButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  // View-only styles
+  viewOnlyValue: {
+    fontSize: 16,
+    color: '#3C3C43',
+    marginTop: 6,
+    lineHeight: 22,
+  },
+  severityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  severityLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  severityBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  severityBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  metaText: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
 });
 
 const debugStyles = StyleSheet.create({

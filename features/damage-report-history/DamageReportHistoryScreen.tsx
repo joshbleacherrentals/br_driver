@@ -7,9 +7,9 @@ import {
 import { useDriver } from "@/hooks/db/useDriver";
 import { Ionicons } from "@expo/vector-icons";
 import { usePowerSyncQuery } from "@powersync/react-native";
+import { useRouter } from "expo-router";
 import React from "react";
 import {
-  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -57,41 +57,21 @@ function DamageReportCard({
   report,
   bleacherNumber,
   photoCount,
+  onPress,
 }: {
   report: DamageReportData;
   bleacherNumber: string | number | null;
   photoCount: number;
+  onPress: () => void;
 }) {
   const isResolved = !!report.resolved_at;
   const severity = worstSeverity(report.seat_damage, report.haul_damage);
   const colors = SEVERITY_COLORS[severity];
 
-  const handlePress = () => {
-    const lines = [
-      `Created: ${formatDate(report.created_at)}`,
-      isResolved
-        ? `Resolved: ${formatDate(report.resolved_at)}`
-        : "Status: Open",
-      "",
-      `Seat Damage: ${severityLabel(report.seat_damage)}`,
-      `Haul Damage: ${severityLabel(report.haul_damage)}`,
-    ];
-    if (report.note) lines.push("", `Notes:\n${report.note}`);
-    if (photoCount > 0)
-      lines.push(
-        "",
-        `${photoCount} photo${photoCount > 1 ? "s" : ""} attached`,
-      );
-
-    Alert.alert(`Bleacher #${bleacherNumber ?? "?"}`, lines.join("\n"), [
-      { text: "Close", style: "cancel" },
-    ]);
-  };
-
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={handlePress}
+      onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>
@@ -162,6 +142,7 @@ function DamageReportCard({
 }
 
 export default function DamageReportHistoryScreen() {
+  const router = useRouter();
   const { driver } = useDriver();
   const { damageReports, isLoading } = useMyDamageReports(driver?.user_uuid);
 
@@ -210,6 +191,12 @@ export default function DamageReportHistoryScreen() {
                 report={item}
                 bleacherNumber={bleacher?.bleacher_number ?? null}
                 photoCount={photoCounts[item.id] ?? 0}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(drawer)/(tabs)/damage-report",
+                    params: { damageReportId: item.id },
+                  })
+                }
               />
             );
           }}
