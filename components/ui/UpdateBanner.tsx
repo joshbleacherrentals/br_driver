@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 interface UpdateBannerProps {
   visible: boolean;
   onRestart: () => void;
+  restarting?: boolean;
   message?: string;
 }
 
@@ -24,6 +25,7 @@ interface UpdateBannerProps {
 export function UpdateBanner({
   visible,
   onRestart,
+  restarting = false,
   message,
 }: UpdateBannerProps) {
   const [dismissed, setDismissed] = useState(false);
@@ -72,11 +74,16 @@ export function UpdateBanner({
         {!!message && <Text style={styles.subText}>{message}</Text>}
       </View>
       <View style={styles.actions}>
-        <Pressable onPress={onRestart} style={styles.updateButton}>
-          <Text style={styles.updateText}>Update</Text>
+        <Pressable
+          onPress={restarting ? undefined : onRestart}
+          style={[styles.updateButton, restarting && { opacity: 0.5 }]}
+        >
+          <Text style={styles.updateText}>
+            {restarting ? "Restarting…" : "Update"}
+          </Text>
         </Pressable>
         <Pressable
-          onPress={() => setDismissed(true)}
+          onPress={restarting ? undefined : () => setDismissed(true)}
           style={styles.dismissButton}
         >
           <Text style={styles.dismissText}>Later</Text>

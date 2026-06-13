@@ -13,6 +13,8 @@ interface OTAUpdateState {
   status: OTAUpdateStatus;
   /** True when a new bundle has been downloaded and is ready to apply */
   updateReady: boolean;
+  /** True while reloadAsync is in-flight — disables buttons to prevent double-tap */
+  restarting: boolean;
   /** Optional message from `eas update --message` */
   updateMessage: string | undefined;
   /** Restart the app to apply the downloaded update */
@@ -32,6 +34,7 @@ interface OTAUpdateState {
  */
 export function useOTAUpdate(): OTAUpdateState {
   const [status, setStatus] = useState<OTAUpdateStatus>("idle");
+  const [restarting, setRestarting] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | undefined>(
     undefined,
   );
@@ -78,12 +81,20 @@ export function useOTAUpdate(): OTAUpdateState {
   }, [checkForUpdate]);
 
   const restart = useCallback(async () => {
-    await Updates.reloadAsync();
-  }, []);
+    if (restarting) return;
+    setRestarting(true);
+    try {
+      await Updates.reloadAsync();
+    } catch (err) {
+      console.warn("[OTA] Reload failed:", err);
+      if (isMounted.current) setRestarting(false);
+    }
+  }, [restarting]);
 
   return {
     status,
     updateReady: status === "ready",
+    restarting,
     updateMessage,
     restart,
     checkForUpdate,

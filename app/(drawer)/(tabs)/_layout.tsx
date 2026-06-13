@@ -54,7 +54,8 @@ function AnimatedHapticTab(props: any) {
 
 export default function TabLayout() {
   const { driverProfile, isLoading } = useCheckDriver();
-  const { updateReady, restart, updateMessage } = useOTAUpdateContext();
+  const { updateReady, restart, updateMessage, restarting } =
+    useOTAUpdateContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const navigation = useNavigation<any>();
@@ -88,6 +89,7 @@ export default function TabLayout() {
         <UpdateBanner
           visible={updateReady}
           onRestart={restart}
+          restarting={restarting}
           message={updateMessage}
         />
         {isLoading ? (

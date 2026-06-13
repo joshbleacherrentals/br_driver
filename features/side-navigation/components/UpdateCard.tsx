@@ -20,7 +20,7 @@ interface UpdateCardProps {
 }
 
 export default function UpdateCard({ onRestart }: UpdateCardProps) {
-  const { updateMessage } = useOTAUpdateContext();
+  const { updateMessage, restarting } = useOTAUpdateContext();
   const isDark = useColorScheme() === "dark";
 
   const shimmerX = useSharedValue(-80);
@@ -68,12 +68,16 @@ export default function UpdateCard({ onRestart }: UpdateCardProps) {
         </Text>
       )}
       <TouchableOpacity
-        onPress={onRestart}
-        activeOpacity={0.8}
-        style={styles.btn}
+        onPress={restarting ? undefined : onRestart}
+        activeOpacity={restarting ? 1 : 0.8}
+        style={[styles.btn, restarting && { opacity: 0.55 }]}
       >
-        <Animated.View style={[styles.shimmer, shimmerStyle]} />
-        <Text style={styles.btnText}>Restart &amp; apply</Text>
+        {!restarting && (
+          <Animated.View style={[styles.shimmer, shimmerStyle]} />
+        )}
+        <Text style={styles.btnText}>
+          {restarting ? "Restarting…" : "Restart \u0026 apply"}
+        </Text>
       </TouchableOpacity>
     </Card>
   );

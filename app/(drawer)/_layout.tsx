@@ -19,11 +19,13 @@ export default function DrawerLayout() {
   const otaValue = DEV_MOCK_OTA
     ? {
         updateReady: true,
+        restarting: ota.restarting,
         updateMessage: "Performance improvements and bug fixes.",
         restart: ota.restart,
       }
     : {
         updateReady: ota.updateReady,
+        restarting: ota.restarting,
         updateMessage: ota.updateMessage,
         restart: ota.restart,
       };
