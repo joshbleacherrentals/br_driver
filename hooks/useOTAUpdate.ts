@@ -28,9 +28,7 @@ export function useOTAUpdate(): OTAUpdateState {
   const [restarting, setRestarting] = useState(false);
 
   const updateMessage = (
-    availableUpdate?.manifest as
-      | { metadata?: { message?: string } }
-      | undefined
+    availableUpdate?.manifest as { metadata?: { message?: string } } | undefined
   )?.metadata?.message;
 
   const restart = useCallback(async () => {
@@ -49,8 +47,5 @@ export function useOTAUpdate(): OTAUpdateState {
     restarting,
     updateMessage,
     restart,
-  };
-}
-
   };
 }
