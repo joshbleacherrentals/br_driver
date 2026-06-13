@@ -83,8 +83,11 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
        WHERE photo_path IS NOT NULL`,
       [],
       {
-        onResult: (result) =>
-          onUpdate(result.rows?._array.map((r: any) => r.id) ?? []),
+        onResult: (result) => {
+          const ids = result.rows?._array.map((r: any) => r.id) ?? [];
+          console.log(`[DmgQueue] onAttachmentIdsChange: ${ids.length} photo_paths`);
+          onUpdate(ids);
+        },
       },
     );
   }
@@ -98,14 +101,27 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     const hasExtension = /\.\w+$/.test(photoId);
     const filename =
       record?.filename ?? (hasExtension ? photoId : `${photoId}.jpg`);
+    const localUriSuffix = this.getLocalFilePathSuffix(filename);
+
+    // Resolve QUEUED_SYNC: local file exists → upload, otherwise → download.
+    // Prevents the download path from marking locally-created photos as SYNCED
+    // before the blob reaches Supabase Storage.
+    let state = record?.state ?? AttachmentState.QUEUED_UPLOAD;
+    if (state === AttachmentState.QUEUED_SYNC) {
+      const localUri = this.getLocalUri(localUriSuffix);
+      const exists = await this.storage.fileExists(localUri);
+      state = exists
+        ? AttachmentState.QUEUED_UPLOAD
+        : AttachmentState.QUEUED_DOWNLOAD;
+    }
 
     return {
       id: photoId,
       filename,
       media_type: "image/jpeg",
-      state: AttachmentState.QUEUED_UPLOAD,
-      local_uri: this.getLocalFilePathSuffix(filename),
+      local_uri: localUriSuffix,
       ...record,
+      state,
     };
   }
 

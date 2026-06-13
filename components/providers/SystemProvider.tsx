@@ -178,7 +178,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
       attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
       performInitialSync: false,
-      downloadAttachments: false,
       onDownloadError: async (_attachment, error) => {
         if (
           String(error).includes("Object not found") ||
