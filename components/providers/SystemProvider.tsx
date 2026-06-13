@@ -177,6 +177,8 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       storage: damageReportStorage,
       attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
       attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
+      performInitialSync: false,
+      downloadAttachments: false,
       onDownloadError: async (_attachment, error) => {
         if (
           String(error).includes("Object not found") ||
@@ -186,7 +188,12 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         }
         return { retry: true };
       },
-      // cacheLimit: 2,
+      onUploadError: async (_attachment, error) => {
+        if (String(error).includes("Duplicate")) {
+          return { retry: false };
+        }
+        return { retry: true };
+      },
     });
 
     return bc;

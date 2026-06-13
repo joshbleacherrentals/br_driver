@@ -35,6 +35,7 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       this.options.syncInterval = 0;
       return;
     }
+    console.log("[DmgQueue] init()");
     await super.init();
   }
 
@@ -94,9 +95,6 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     record?: Partial<AttachmentRecord>,
   ): Promise<AttachmentRecord> {
     const photoId = record?.id ?? randomUUID();
-    // If the caller already passed a path with an extension (e.g.
-    // "damageReportId/questionId/photo_0_1234567890.jpg") use it directly
-    // as the filename so we never produce double-extension filenames.
     const hasExtension = /\.\w+$/.test(photoId);
     const filename =
       record?.filename ?? (hasExtension ? photoId : `${photoId}.jpg`);
@@ -106,21 +104,101 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       filename,
       media_type: "image/jpeg",
       state: AttachmentState.QUEUED_UPLOAD,
+      local_uri: this.getLocalFilePathSuffix(filename),
       ...record,
     };
   }
 
-  // ── Save helper ───────────────────────────────────────────────────────────
+  // ── Upload (override) ─────────────────────────────────────────────────────
+
+  async uploadAttachment(record: AttachmentRecord): Promise<boolean> {
+    const shortId = record.id.slice(-30);
+    const t0 = Date.now();
+
+    // 1. Check local_uri
+    if (!record.local_uri) {
+      console.warn(`[DmgQueue] SKIP ${shortId} — no local_uri, archiving`);
+      await this.update({ ...record, state: AttachmentState.ARCHIVED });
+      return true;
+    }
+
+    // 2. Check local file exists
+    const localUri = this.getLocalUri(record.local_uri);
+    const exists = await this.storage.fileExists(localUri);
+    if (!exists) {
+      console.warn(`[DmgQueue] SKIP ${shortId} — local file missing, archiving`);
+      await this.update({ ...record, state: AttachmentState.ARCHIVED });
+      return true;
+    }
+
+    // 3. Read local file
+    let fileBuffer: ArrayBuffer;
+    try {
+      fileBuffer = await this.storage.readFile(localUri, {
+        encoding: EncodingType.Base64,
+        mediaType: record.media_type,
+      });
+      const readKB = Math.round(fileBuffer.byteLength / 1024);
+      console.log(`[DmgQueue] READ OK ${shortId} (${readKB}KB)`);
+    } catch (e) {
+      const errStr = e instanceof Error ? e.message : String(e);
+      console.error(`[DmgQueue] READ FAILED ${shortId}: ${errStr}`);
+      return true;
+    }
+
+    // 4. Upload to Supabase Storage
+    try {
+      console.log(`[DmgQueue] UPLOADING ${shortId} → bucket=${this.bucketName} file=${record.filename}`);
+      await this.storage.uploadFile(record.filename, fileBuffer, {
+        mediaType: record.media_type,
+      });
+      const ms = Date.now() - t0;
+      console.log(`[DmgQueue] UPLOAD OK ${shortId} in ${ms}ms`);
+    } catch (e: any) {
+      const ms = Date.now() - t0;
+      if (e?.error === "Duplicate" || String(e).includes("Duplicate")) {
+        console.log(`[DmgQueue] DUPLICATE ${shortId} — already in storage, marking synced`);
+        await this.update({ ...record, state: AttachmentState.SYNCED });
+        return true;
+      }
+      const errStr = e instanceof Error
+        ? `${e.name}: ${e.message}`
+        : JSON.stringify(e);
+      console.error(`[DmgQueue] SUPABASE UPLOAD FAILED ${shortId} after ${ms}ms: ${errStr}`);
+      return true;
+    }
+
+    // 5. Mark as synced
+    await this.update({ ...record, state: AttachmentState.SYNCED });
+    console.log(`[DmgQueue] SYNCED ${shortId}`);
+    return true;
+  }
+
+  // ── Save helpers ────────────────────────────────────────────────────────────
+
+  /**
+   * Save base64 image data to the local attachment directory WITHOUT creating
+   * an attachment record. Use this when the DamageReportPhotos row will be
+   * inserted separately — the base class reconciliation will detect the
+   * photo_path, create an attachment record (via newAttachmentRecord which
+   * sets local_uri), find the local file, and queue it for upload.
+   */
+  async savePhotoToDisk(
+    base64Data: string,
+    filename: string,
+  ): Promise<void> {
+    const localUriSuffix = this.getLocalFilePathSuffix(filename);
+    const localUri = this.getLocalUri(localUriSuffix);
+    const parentDir = localUri.substring(0, localUri.lastIndexOf("/"));
+    await this.storage.makeDir(parentDir);
+    await this.storage.writeFile(localUri, base64Data, {
+      encoding: EncodingType.Base64,
+    });
+  }
 
   /**
    * Write base64 image data to the local attachment store and queue it for
    * upload to the `damage-report-photos` Supabase bucket.
-   *
-   * @param base64Data  Raw base64 string (no data-URI prefix).
-   * @param filename    Storage path, e.g. `"<reportId>/<questionId>/photo_0_<ts>.jpg"`.
-   *                    When omitted a random UUID filename is generated.
-   * @returns           The queued AttachmentRecord whose `.id` is the storage path
-   *                    (same value you should persist in DamageReportPhotos.photo_path).
    */
   async savePhoto(
     base64Data: string,
@@ -130,12 +208,7 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       filename ? { id: filename, filename } : undefined,
     );
 
-    photoAttachment.local_uri = this.getLocalFilePathSuffix(
-      photoAttachment.filename,
-    );
-    const localUri = this.getLocalUri(photoAttachment.local_uri);
-
-    // Make sure the parent directory exists
+    const localUri = this.getLocalUri(photoAttachment.local_uri!);
     const parentDir = localUri.substring(0, localUri.lastIndexOf("/"));
     await this.storage.makeDir(parentDir);
 
