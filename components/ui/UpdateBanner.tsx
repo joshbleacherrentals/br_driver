@@ -1,6 +1,6 @@
 import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
-import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 interface UpdateBannerProps {
   visible: boolean;
   onRestart: () => void;
+  message?: string;
 }
 
 /**
@@ -20,10 +21,27 @@ interface UpdateBannerProps {
  * has been downloaded and is ready to apply. The driver can tap "Update"
  * to restart or dismiss it and keep working.
  */
-export function UpdateBanner({ visible, onRestart }: UpdateBannerProps) {
+export function UpdateBanner({
+  visible,
+  onRestart,
+  message,
+}: UpdateBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(0);
+  const appState = useRef(AppState.currentState);
+
+  // Re-show the banner whenever the app comes back to the foreground
+  // so "Later" means "not right now" rather than "never this session".
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (appState.current.match(/inactive|background/) && next === "active") {
+        setDismissed(false);
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!visible || dismissed) return;
@@ -49,7 +67,10 @@ export function UpdateBanner({ visible, onRestart }: UpdateBannerProps) {
     <Animated.View
       style={[styles.container, { top: insets.top }, animatedStyle]}
     >
-      <Text style={styles.text}>New version available</Text>
+      <View style={styles.textGroup}>
+        <Text style={styles.text}>New version available</Text>
+        {!!message && <Text style={styles.subText}>{message}</Text>}
+      </View>
       <View style={styles.actions}>
         <Pressable onPress={onRestart} style={styles.updateButton}>
           <Text style={styles.updateText}>Update</Text>
@@ -84,11 +105,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  textGroup: {
+    flex: 1,
+  },
   text: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
-    flex: 1,
+  },
+  subText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    marginTop: 2,
   },
   actions: {
     flexDirection: "row",

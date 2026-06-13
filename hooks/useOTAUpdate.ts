@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import * as Updates from "expo-updates";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export type OTAUpdateStatus = "idle" | "checking" | "downloading" | "ready" | "error";
+export type OTAUpdateStatus =
+  | "idle"
+  | "checking"
+  | "downloading"
+  | "ready"
+  | "error";
 
 interface OTAUpdateState {
   /** Current update status */
   status: OTAUpdateStatus;
   /** True when a new bundle has been downloaded and is ready to apply */
   updateReady: boolean;
+  /** Optional message from `eas update --message` */
+  updateMessage: string | undefined;
   /** Restart the app to apply the downloaded update */
   restart: () => Promise<void>;
   /** Manually trigger an update check */
@@ -25,6 +32,9 @@ interface OTAUpdateState {
  */
 export function useOTAUpdate(): OTAUpdateState {
   const [status, setStatus] = useState<OTAUpdateStatus>("idle");
+  const [updateMessage, setUpdateMessage] = useState<string | undefined>(
+    undefined,
+  );
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -46,7 +56,13 @@ export function useOTAUpdate(): OTAUpdateState {
         return;
       }
 
-      if (isMounted.current) setStatus("downloading");
+      if (isMounted.current) {
+        setStatus("downloading");
+        const msg = (
+          check.manifest as { metadata?: { message?: string } } | undefined
+        )?.metadata?.message;
+        setUpdateMessage(msg);
+      }
       await Updates.fetchUpdateAsync();
 
       if (isMounted.current) setStatus("ready");
@@ -68,6 +84,7 @@ export function useOTAUpdate(): OTAUpdateState {
   return {
     status,
     updateReady: status === "ready",
+    updateMessage,
     restart,
     checkForUpdate,
   };

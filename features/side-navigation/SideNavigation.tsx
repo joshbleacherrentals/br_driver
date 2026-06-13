@@ -1,5 +1,7 @@
 import { DARK_BLUE } from "@/constants/Colors";
+import UpdateCard from "@/features/side-navigation/components/UpdateCard";
 import UserProfileCard from "@/features/side-navigation/components/UserProfileCard";
+import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -48,6 +50,7 @@ export default function SideNavigation() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const version = Constants.expoConfig?.version ?? "—";
+  const { updateReady, restart } = useOTAUpdateContext();
 
   const handleNav = useCallback(
     (route: string) => {
@@ -89,6 +92,7 @@ export default function SideNavigation() {
           </TouchableOpacity>
         ))}
       </View>
+      {updateReady && <UpdateCard onRestart={restart} />}
       <Text
         style={[styles.versionText, { color: isDark ? "#636366" : "#8E8E93" }]}
       >

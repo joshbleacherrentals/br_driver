@@ -15,6 +15,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
+import NotificationDot from "@/components/ui/NotificationDot";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import LoadingScreen from "@/components/widgets/loadingScreen";
@@ -23,8 +24,8 @@ import { BRAND_BLUE } from "@/constants/Colors";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { ClipboardClock, Menu, Navigation2 } from "lucide-react-native";
@@ -53,7 +54,7 @@ function AnimatedHapticTab(props: any) {
 
 export default function TabLayout() {
   const { driverProfile, isLoading } = useCheckDriver();
-  const { updateReady, restart } = useOTAUpdate();
+  const { updateReady, restart, updateMessage } = useOTAUpdateContext();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const navigation = useNavigation<any>();
@@ -84,7 +85,11 @@ export default function TabLayout() {
   return (
     <>
       <SignedIn>
-        <UpdateBanner visible={updateReady} onRestart={restart} />
+        <UpdateBanner
+          visible={updateReady}
+          onRestart={restart}
+          message={updateMessage}
+        />
         {isLoading ? (
           <LoadingScreen />
         ) : driverProfile === false ? (
@@ -117,11 +122,14 @@ export default function TabLayout() {
                     style={{ marginRight: 16 }}
                     activeOpacity={0.7}
                   >
-                    <Menu
-                      size={28}
-                      color={isDark ? "#FFFFFF" : "#111827"}
-                      strokeWidth={1.75}
-                    />
+                    <View>
+                      <Menu
+                        size={28}
+                        color={isDark ? "#FFFFFF" : "#111827"}
+                        strokeWidth={1.75}
+                      />
+                      {updateReady && <NotificationDot />}
+                    </View>
                   </TouchableOpacity>
                 ),
                 tabBarButton: AnimatedHapticTab,
