@@ -1,4 +1,4 @@
-import { DARK_BLUE } from "@/constants/Colors";
+import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import {
   DamageReportData,
@@ -179,7 +179,7 @@ export default function DamageReportHistoryScreen() {
         </View>
       ) : (
         <FlatList
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           data={damageReports}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
@@ -193,7 +193,7 @@ export default function DamageReportHistoryScreen() {
                 photoCount={photoCounts[item.id] ?? 0}
                 onPress={() =>
                   router.push({
-                    pathname: "/(drawer)/(tabs)/damage-report",
+                    pathname: "/damage-report",
                     params: { damageReportId: item.id },
                   })
                 }
@@ -202,6 +202,15 @@ export default function DamageReportHistoryScreen() {
           }}
         />
       )}
+
+      {/* FAB — new damage report */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.8}
+        onPress={() => router.push("/damage-report")}
+      >
+        <Ionicons name="add" size={28} color="#FFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -264,4 +273,20 @@ const styles = StyleSheet.create({
   },
   footerItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   footerText: { fontSize: 12, color: "#8E8E93" },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: BRAND_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
 });

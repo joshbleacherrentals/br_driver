@@ -1,7 +1,6 @@
 import BleacherDropdown, { BleacherOption } from '@/components/widgets/bleacherDropdown';
 import DamageSeveritySelector, {
   DamageSeverityValue,
-  severityEnumToValue,
   severityValueToEnum,
 } from './components/DamageSeveritySelector';
 import { DebugUploadTracker } from './components/DebugUploadTracker';
