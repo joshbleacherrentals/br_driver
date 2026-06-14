@@ -7,10 +7,8 @@ const STATUS_CONFIG: Record<
   PhotoUploadStatus,
   { icon: string; color: string; spinning?: boolean }
 > = {
-  pending: { icon: "time-outline", color: "#FF9500" },
-  uploading: { icon: "", color: "#0A84FF", spinning: true },
-  synced: { icon: "cloud-done-outline", color: "#34C759" },
-  failed: { icon: "cloud-offline-outline", color: "#FF3B30" },
+  pending: { icon: "", color: "#FF9500", spinning: true },
+  uploaded: { icon: "cloud-done-outline", color: "#34C759" },
 };
 
 export function PhotoUploadIndicator({

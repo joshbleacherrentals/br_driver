@@ -611,6 +611,7 @@ export type Database = {
           id: string;
           photo_path: string;
           thumbnail: string | null;
+          upload_status: string;
         };
         Insert: {
           created_at?: string;
@@ -618,6 +619,7 @@ export type Database = {
           id?: string;
           photo_path: string;
           thumbnail?: string | null;
+          upload_status?: string;
         };
         Update: {
           created_at?: string;
@@ -625,6 +627,7 @@ export type Database = {
           id?: string;
           photo_path?: string;
           thumbnail?: string | null;
+          upload_status?: string;
         };
         Relationships: [
           {

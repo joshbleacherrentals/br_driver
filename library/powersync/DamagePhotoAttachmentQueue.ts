@@ -175,6 +175,7 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       if (e?.error === "Duplicate" || String(e).includes("Duplicate")) {
         console.log(`[DmgQueue] DUPLICATE ${shortId} — already in storage, marking synced`);
         await this.update({ ...record, state: AttachmentState.SYNCED });
+        await this.markPhotoUploaded(record.filename);
         return true;
       }
       const errStr = e instanceof Error
@@ -184,10 +185,25 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       return true;
     }
 
-    // 5. Mark as synced
+    // 5. Mark as synced in attachment table
     await this.update({ ...record, state: AttachmentState.SYNCED });
     console.log(`[DmgQueue] SYNCED ${shortId}`);
+
+    // 6. Permanently mark photo as uploaded in DamageReportPhotos
+    await this.markPhotoUploaded(record.filename);
+
     return true;
+  }
+
+  private async markPhotoUploaded(photoPath: string): Promise<void> {
+    try {
+      await this.powersync.execute(
+        `UPDATE "DamageReportPhotos" SET upload_status = 'uploaded' WHERE photo_path = ?`,
+        [photoPath],
+      );
+    } catch (e) {
+      console.warn(`[DmgQueue] Failed to mark upload_status for ${photoPath}: ${e}`);
+    }
   }
 
   // ── Save helpers ────────────────────────────────────────────────────────────

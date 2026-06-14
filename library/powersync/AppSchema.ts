@@ -166,6 +166,7 @@ const DamageReportPhotosCols = {
   damage_report_uuid: column.text,
   photo_path: column.text,
   thumbnail: column.text,
+  upload_status: column.text,
   created_at: column.text,
 } satisfies PowerSyncColsFor<"DamageReportPhotos">;
 const DamageReportPhotos = new Table(DamageReportPhotosCols, {

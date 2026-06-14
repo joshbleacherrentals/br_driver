@@ -34,7 +34,7 @@ export default function DrawerLayout() {
     <OTAUpdateContext.Provider value={otaValue}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <Drawer
-          drawerContent={() => <SideNavigation />}
+          drawerContent={(props) => <SideNavigation drawerNavigation={props.navigation} />}
           screenOptions={{
             headerShown: false,
             drawerPosition: "right",

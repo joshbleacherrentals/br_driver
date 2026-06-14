@@ -6,6 +6,7 @@ import DamageSeveritySelector, {
 import { DebugUploadTracker } from './components/DebugUploadTracker';
 import { ImageViewer, ImageViewerItem } from './components/ImageViewer';
 import { PhotoUploadIndicator } from './components/PhotoUploadIndicator';
+import { SubmitProgressModal } from './components/SubmitProgressModal';
 import { resolvePhotoUri } from './utils/resolvePhotoUri';
 import {
   damageReportPhotoAttachmentQueue,
@@ -191,6 +192,8 @@ export default function DamageReportScreen() {
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<DocumentPhoto[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0 });
+  const abortRef = useRef(false);
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>([]);
   const debugScrollRef = useRef<ScrollView>(null);
@@ -272,6 +275,10 @@ export default function DamageReportScreen() {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleAbort = useCallback(() => {
+    abortRef.current = true;
+  }, []);
+
   const handleSubmit = async () => {
     if (!selectedBleacher) {
       Alert.alert('Required', 'Please select a bleacher');
@@ -290,8 +297,13 @@ export default function DamageReportScreen() {
       return;
     }
 
+    abortRef.current = false;
     setIsSubmitting(true);
-    dlog(`SUBMIT: starting with ${photos.length} photos`);
+
+    const newPhotos = photos.filter((p) => p.isNew && p.uri);
+    setPrepProgress({ current: 0, total: newPhotos.length });
+    dlog(`SUBMIT: starting with ${newPhotos.length} photos`);
+
     try {
       const damageId = randomUUID();
       const now = new Date().toISOString();
@@ -319,31 +331,30 @@ export default function DamageReportScreen() {
 
       if (damageReportPhotoAttachmentQueue) {
         let savedCount = 0;
-        let skipCount = 0;
         const filenames: string[] = [];
-        for (let i = 0; i < photos.length; i++) {
-          const photo = photos[i];
-          if (!photo.isNew || !photo.uri) {
-            skipCount++;
-            dlog(`PHOTO[${i}]: SKIP isNew=${photo.isNew} uri=${!!photo.uri}`);
-            continue;
+        for (let i = 0; i < newPhotos.length; i++) {
+          if (abortRef.current) {
+            dlog(`SUBMIT: ABORTED by user at photo ${i}/${newPhotos.length}`);
+            break;
           }
+
+          const photo = newPhotos[i];
           try {
-            const fileInfo = await FileSystem.getInfoAsync(photo.uri);
+            const fileInfo = await FileSystem.getInfoAsync(photo.uri!);
             if (!fileInfo.exists) {
-              dlog(`PHOTO[${i}]: FILE MISSING uri=${photo.uri.slice(-40)}`);
+              dlog(`PHOTO[${i}]: FILE MISSING uri=${photo.uri!.slice(-40)}`);
+              setPrepProgress((p) => ({ ...p, current: i + 1 }));
               continue;
             }
             const fileSizeKB = Math.round(((fileInfo as any).size ?? 0) / 1024);
-            dlog(`PHOTO[${i}]: reading ${fileSizeKB}KB from ${photo.uri.slice(-40)}`);
+            dlog(`PHOTO[${i}]: reading ${fileSizeKB}KB from ${photo.uri!.slice(-40)}`);
 
-            const base64 = await readAsBase64(photo.uri);
+            const base64 = await readAsBase64(photo.uri!);
             dlog(`PHOTO[${i}]: base64 len=${base64.length} (${Math.round(base64.length / 1024)}KB)`);
 
-            // Generate thumbnail
             let thumb: string | null = null;
             try {
-              thumb = await generateThumbnail(photo.uri);
+              thumb = await generateThumbnail(photo.uri!);
               dlog(`PHOTO[${i}]: thumbnail ${Math.round(thumb.length / 1024)}KB`);
             } catch (e) {
               dlog(`PHOTO[${i}]: thumbnail FAILED - ${String(e).slice(0, 80)}`);
@@ -372,8 +383,16 @@ export default function DamageReportScreen() {
           } catch (err) {
             dlog(`PHOTO[${i}]: ERROR - ${String(err).slice(0, 150)}`);
           }
+          setPrepProgress({ current: i + 1, total: newPhotos.length });
         }
-        dlog(`SUBMIT: done saved=${savedCount} skipped=${skipCount} failed=${photos.length - savedCount - skipCount}`);
+
+        if (abortRef.current) {
+          dlog('SUBMIT: user cancelled — report row exists but photos are partial');
+          setIsSubmitting(false);
+          return;
+        }
+
+        dlog(`SUBMIT: done saved=${savedCount} failed=${newPhotos.length - savedCount}`);
         if (DEBUG_PHOTO_UPLOAD) {
           setTrackedAttachmentIds(filenames);
         }
@@ -381,12 +400,12 @@ export default function DamageReportScreen() {
         dlog('SUBMIT: NO attachment queue available!');
       }
 
-      dlog('SUBMIT: success! Switching to view-only mode...');
+      dlog('SUBMIT: success! Navigating to view-only...');
+      setIsSubmitting(false);
       setViewOnlyId(damageId);
     } catch (error) {
       dlog(`SUBMIT: FATAL ERROR - ${String(error).slice(0, 200)}`);
       Alert.alert('Error', 'Failed to submit damage report. Please try again.');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -685,6 +704,13 @@ export default function DamageReportScreen() {
           <DebugUploadTracker attachmentIds={trackedAttachmentIds} />
         )}
       </ScrollView>
+
+      <SubmitProgressModal
+        visible={isSubmitting}
+        current={prepProgress.current}
+        total={prepProgress.total}
+        onAbort={handleAbort}
+      />
     </SafeAreaView>
   );
 }
