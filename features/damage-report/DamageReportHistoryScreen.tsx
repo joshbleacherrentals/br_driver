@@ -1,4 +1,4 @@
-import { DARK_BLUE } from "@/constants/Colors";
+import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import {
   DamageReportData,
@@ -7,9 +7,9 @@ import {
 import { useDriver } from "@/hooks/db/useDriver";
 import { Ionicons } from "@expo/vector-icons";
 import { usePowerSyncQuery } from "@powersync/react-native";
+import { useRouter } from "expo-router";
 import React from "react";
 import {
-  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -57,41 +57,21 @@ function DamageReportCard({
   report,
   bleacherNumber,
   photoCount,
+  onPress,
 }: {
   report: DamageReportData;
   bleacherNumber: string | number | null;
   photoCount: number;
+  onPress: () => void;
 }) {
   const isResolved = !!report.resolved_at;
   const severity = worstSeverity(report.seat_damage, report.haul_damage);
   const colors = SEVERITY_COLORS[severity];
 
-  const handlePress = () => {
-    const lines = [
-      `Created: ${formatDate(report.created_at)}`,
-      isResolved
-        ? `Resolved: ${formatDate(report.resolved_at)}`
-        : "Status: Open",
-      "",
-      `Seat Damage: ${severityLabel(report.seat_damage)}`,
-      `Haul Damage: ${severityLabel(report.haul_damage)}`,
-    ];
-    if (report.note) lines.push("", `Notes:\n${report.note}`);
-    if (photoCount > 0)
-      lines.push(
-        "",
-        `${photoCount} photo${photoCount > 1 ? "s" : ""} attached`,
-      );
-
-    Alert.alert(`Bleacher #${bleacherNumber ?? "?"}`, lines.join("\n"), [
-      { text: "Close", style: "cancel" },
-    ]);
-  };
-
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={handlePress}
+      onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>
@@ -162,6 +142,7 @@ function DamageReportCard({
 }
 
 export default function DamageReportHistoryScreen() {
+  const router = useRouter();
   const { driver } = useDriver();
   const { damageReports, isLoading } = useMyDamageReports(driver?.user_uuid);
 
@@ -198,7 +179,7 @@ export default function DamageReportHistoryScreen() {
         </View>
       ) : (
         <FlatList
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           data={damageReports}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
@@ -210,11 +191,26 @@ export default function DamageReportHistoryScreen() {
                 report={item}
                 bleacherNumber={bleacher?.bleacher_number ?? null}
                 photoCount={photoCounts[item.id] ?? 0}
+                onPress={() =>
+                  router.push({
+                    pathname: "/damage-report",
+                    params: { damageReportId: item.id },
+                  })
+                }
               />
             );
           }}
         />
       )}
+
+      {/* FAB — new damage report */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.8}
+        onPress={() => router.push("/damage-report")}
+      >
+        <Ionicons name="add" size={28} color="#FFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -277,4 +273,20 @@ const styles = StyleSheet.create({
   },
   footerItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   footerText: { fontSize: 12, color: "#8E8E93" },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: BRAND_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
 });

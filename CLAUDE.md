@@ -66,10 +66,9 @@ app/                          # Expo Router — thin re-exports only
 │       ├── driverAvailability.tsx → features/availability/AvailabilityScreen.tsx
 │       ├── documents.tsx     → features/documents/DocumentsScreen.tsx
 │       ├── profile.tsx       → features/profile/ProfileScreen.tsx
-│       └── more.tsx          → features/more/MoreScreen.tsx
-├── damage-report.tsx         → features/damage-report/DamageReportScreen.tsx
-├── damage-report-history.tsx → features/damage-report-history/DamageReportHistoryScreen.tsx
-└── trip-history.tsx          → features/trip-history/TripHistoryScreen.tsx
+│       ├── damage-report-history.tsx → features/damage-report-history/DamageReportHistoryScreen.tsx
+│       └── trip-history.tsx  → features/trip-history/TripHistoryScreen.tsx
+├── damage-report.tsx         → features/damage-report/DamageReportScreen.tsx (standalone stack screen)
 
 features/                     # Feature folders — each screen owns its code
 ├── trips/
