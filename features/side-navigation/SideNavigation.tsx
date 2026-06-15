@@ -4,7 +4,7 @@ import UserProfileCard from "@/features/side-navigation/components/UserProfileCa
 import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Ionicons } from "@expo/vector-icons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback } from "react";
@@ -33,20 +33,18 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(drawer)/(tabs)/documents",
   },
   {
-    label: "Damage Report",
+    label: "Damage Reports",
     icon: "warning-outline",
-    route: "/(drawer)/(tabs)/damage-report",
-  },
-  {
-    label: "Damage Report History",
-    icon: "document-text-outline",
     route: "/(drawer)/(tabs)/damage-report-history",
   },
 ];
 
-export default function SideNavigation() {
+interface SideNavigationProps {
+  drawerNavigation: DrawerContentComponentProps["navigation"];
+}
+
+export default function SideNavigation({ drawerNavigation }: SideNavigationProps) {
   const router = useRouter();
-  const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const version = Constants.expoConfig?.version ?? "—";
@@ -54,10 +52,10 @@ export default function SideNavigation() {
 
   const handleNav = useCallback(
     (route: string) => {
-      navigation.dispatch(DrawerActions.closeDrawer());
-      router.push(route as any);
+      drawerNavigation.closeDrawer();
+      setTimeout(() => router.push(route as any), 0);
     },
-    [navigation, router],
+    [drawerNavigation, router],
   );
 
   return (

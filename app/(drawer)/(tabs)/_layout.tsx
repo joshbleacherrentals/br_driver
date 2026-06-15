@@ -207,16 +207,9 @@ export default function TabLayout() {
                 }}
               />
               <Tabs.Screen
-                name="damage-report"
-                options={{
-                  title: "Damage Report",
-                  tabBarItemStyle: { display: "none" },
-                }}
-              />
-              <Tabs.Screen
                 name="damage-report-history"
                 options={{
-                  title: "Damage Report History",
+                  title: "Damage Reports",
                   tabBarItemStyle: { display: "none" },
                 }}
               />
