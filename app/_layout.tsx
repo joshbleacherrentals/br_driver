@@ -80,6 +80,13 @@ function RootLayoutContent() {
       <Stack>
         <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="damage-report"
+          options={{
+            title: "Damage Report",
+            presentation: "card",
+          }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

@@ -159,6 +159,48 @@ export function useDamageReportByInspection(
 }
 
 /**
+ * Returns a single damage report by its ID.
+ */
+export function useDamageReportById(damageReportId: string | null | undefined): {
+  damageReport: DamageReportData | null;
+  isLoading: boolean;
+} {
+  const compiled = useMemo(() => {
+    if (!damageReportId) return null;
+
+    return db
+      .selectFrom("DamageReports")
+      .select([
+        "id",
+        "inspection_uuid",
+        "bleacher_uuid",
+        "is_safe_to_sit",
+        "is_safe_to_haul",
+        "seat_damage",
+        "haul_damage",
+        "note",
+        "created_at",
+        "resolved_at",
+        "maintenance_event_uuid",
+        "created_by_user_uuid",
+      ])
+      .where("id", "=", damageReportId)
+      .limit(1)
+      .compile();
+  }, [damageReportId]);
+
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
+
+  return {
+    damageReport: data?.[0] ?? null,
+    isLoading,
+  };
+}
+
+/**
  * Returns damage reports created by the given user, newest first.
  * If no userUuid provided, returns empty.
  */
