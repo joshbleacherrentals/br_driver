@@ -11,6 +11,10 @@ export const BRAND_BLUE = "#1D62A3";
 /** iOS system blue — links, action buttons */
 export const ACCENT_BLUE = "#0A84FF";
 export const GREEN_ACCENT = "#3A8B61";
+/** Warning / pending upload */
+export const WARNING_ORANGE = "#FF9500";
+/** Error / failed upload */
+export const DANGER_RED = "#FF3B30";
 
 // ── Screen backgrounds ─────────────────────────────────────────────────────
 /** Default screen background — light mode */

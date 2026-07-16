@@ -7,27 +7,45 @@ import {
 import { randomUUID } from "expo-crypto";
 import * as FileSystem from "expo-file-system/legacy";
 
+function isAlreadyInStorageError(e: unknown): boolean {
+  const msg =
+    e instanceof Error
+      ? `${e.name} ${e.message}`
+      : typeof e === "string"
+        ? e
+        : JSON.stringify(e);
+  return (
+    /duplicate/i.test(msg) ||
+    /already exists/i.test(msg) ||
+    /resource already exists/i.test(msg) ||
+    (typeof e === "object" &&
+      e !== null &&
+      "error" in e &&
+      String((e as { error?: unknown }).error).toLowerCase() === "duplicate")
+  );
+}
+
 /**
  * Attachment queue for damage-report photos.
  *
- * Storage bucket : damage-report-photos
+ * Storage bucket : damage-report-photos (insert-only, no upsert)
  * Watched table  : DamageReportPhotos (column: photo_path)
- *
- * Usage (in SystemProvider / wherever queues are initialised):
- *
- *   export const damageReportPhotoAttachmentQueue = new DamageReportPhotoAttachmentQueue(
- *     powerSync,
- *     supabaseStorageAdapter,   // same adapter used by PhotoAttachmentQueue
- *     { syncInterval: 30 },
- *   );
  */
 export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
   /** Supabase storage bucket name */
   readonly bucketName = "damage-report-photos";
 
+  private initialized = false;
+  /** Prevents parallel uploads of the same attachment id */
+  private inFlightIds = new Set<string>();
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   async init() {
+    if (this.initialized) {
+      console.log("[DmgQueue] init() skipped — already initialized");
+      return;
+    }
     if (!this.options.storage) {
       console.debug(
         "No storage configured, skip DamageReportPhotoAttachmentQueue setup",
@@ -37,6 +55,7 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     }
     console.log("[DmgQueue] init()");
     await super.init();
+    this.initialized = true;
   }
 
   async expireCache() {
@@ -85,7 +104,9 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       {
         onResult: (result) => {
           const ids = result.rows?._array.map((r: any) => r.id) ?? [];
-          console.log(`[DmgQueue] onAttachmentIdsChange: ${ids.length} photo_paths`);
+          console.log(
+            `[DmgQueue] onAttachmentIdsChange: ${ids.length} photo_paths`,
+          );
           onUpdate(ids);
         },
       },
@@ -131,20 +152,42 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     const shortId = record.id.slice(-30);
     const t0 = Date.now();
 
+    if (this.inFlightIds.has(record.id)) {
+      // Another pass is already uploading this file — stop this loop.
+      return false;
+    }
+    this.inFlightIds.add(record.id);
+
+    try {
+      return await this.uploadAttachmentInner(record, shortId, t0);
+    } finally {
+      this.inFlightIds.delete(record.id);
+    }
+  }
+
+  private async uploadAttachmentInner(
+    record: AttachmentRecord,
+    shortId: string,
+    t0: number,
+  ): Promise<boolean> {
     // 1. Check local_uri
     if (!record.local_uri) {
-      console.warn(`[DmgQueue] SKIP ${shortId} — no local_uri, archiving`);
+      console.warn(`[DmgQueue] SKIP ${shortId} — no local_uri, marking failed`);
       await this.update({ ...record, state: AttachmentState.ARCHIVED });
-      return true;
+      await this.markPhotoStatus(record.filename, "failed");
+      return true; // move on to next photo
     }
 
     // 2. Check local file exists
     const localUri = this.getLocalUri(record.local_uri);
     const exists = await this.storage.fileExists(localUri);
     if (!exists) {
-      console.warn(`[DmgQueue] SKIP ${shortId} — local file missing, archiving`);
+      console.warn(
+        `[DmgQueue] SKIP ${shortId} — local file missing, marking failed`,
+      );
       await this.update({ ...record, state: AttachmentState.ARCHIVED });
-      return true;
+      await this.markPhotoStatus(record.filename, "failed");
+      return true; // move on — user must retry / re-add
     }
 
     // 3. Read local file
@@ -159,12 +202,15 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     } catch (e) {
       const errStr = e instanceof Error ? e.message : String(e);
       console.error(`[DmgQueue] READ FAILED ${shortId}: ${errStr}`);
-      return true;
+      // Temporary — stop this pass; retry on next syncInterval
+      return false;
     }
 
-    // 4. Upload to Supabase Storage
+    // 4. Upload to Supabase Storage (insert-only, no upsert)
     try {
-      console.log(`[DmgQueue] UPLOADING ${shortId} → bucket=${this.bucketName} file=${record.filename}`);
+      console.log(
+        `[DmgQueue] UPLOADING ${shortId} → bucket=${this.bucketName} file=${record.filename}`,
+      );
       await this.storage.uploadFile(record.filename, fileBuffer, {
         mediaType: record.media_type,
       });
@@ -172,17 +218,23 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
       console.log(`[DmgQueue] UPLOAD OK ${shortId} in ${ms}ms`);
     } catch (e: any) {
       const ms = Date.now() - t0;
-      if (e?.error === "Duplicate" || String(e).includes("Duplicate")) {
-        console.log(`[DmgQueue] DUPLICATE ${shortId} — already in storage, marking synced`);
+      if (isAlreadyInStorageError(e)) {
+        console.log(
+          `[DmgQueue] ALREADY EXISTS ${shortId} — marking synced`,
+        );
         await this.update({ ...record, state: AttachmentState.SYNCED });
-        await this.markPhotoUploaded(record.filename);
+        await this.markPhotoStatus(record.filename, "uploaded");
         return true;
       }
-      const errStr = e instanceof Error
-        ? `${e.name}: ${e.message}`
-        : JSON.stringify(e);
-      console.error(`[DmgQueue] SUPABASE UPLOAD FAILED ${shortId} after ${ms}ms: ${errStr}`);
-      return true;
+      const errStr =
+        e instanceof Error
+          ? `${e.name}: ${e.message}`
+          : JSON.stringify(e);
+      console.error(
+        `[DmgQueue] SUPABASE UPLOAD FAILED ${shortId} after ${ms}ms: ${errStr}`,
+      );
+      // Stop the tight loop; syncInterval / next trigger will retry
+      return false;
     }
 
     // 5. Mark as synced in attachment table
@@ -190,20 +242,94 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
     console.log(`[DmgQueue] SYNCED ${shortId}`);
 
     // 6. Permanently mark photo as uploaded in DamageReportPhotos
-    await this.markPhotoUploaded(record.filename);
+    await this.markPhotoStatus(record.filename, "uploaded");
 
     return true;
   }
 
-  private async markPhotoUploaded(photoPath: string): Promise<void> {
+  private async markPhotoStatus(
+    photoPath: string,
+    status: "pending" | "uploaded" | "failed",
+  ): Promise<void> {
     try {
       await this.powersync.execute(
-        `UPDATE "DamageReportPhotos" SET upload_status = 'uploaded' WHERE photo_path = ?`,
-        [photoPath],
+        `UPDATE "DamageReportPhotos" SET upload_status = ? WHERE photo_path = ?`,
+        [status, photoPath],
       );
     } catch (e) {
-      console.warn(`[DmgQueue] Failed to mark upload_status for ${photoPath}: ${e}`);
+      console.warn(
+        `[DmgQueue] Failed to mark upload_status=${status} for ${photoPath}: ${e}`,
+      );
     }
+  }
+
+  /** Whether the local cache file for this photo_path still exists. */
+  async hasLocalFile(photoPath: string): Promise<boolean> {
+    const localUriSuffix = this.getLocalFilePathSuffix(photoPath);
+    const localUri = this.getLocalUri(localUriSuffix);
+    return this.storage.fileExists(localUri);
+  }
+
+  /**
+   * Re-queue a photo for upload after a failure.
+   * Returns false if the local file is gone (caller should ask user to re-add).
+   */
+  async retryUpload(photoPath: string): Promise<boolean> {
+    const localUriSuffix = this.getLocalFilePathSuffix(photoPath);
+    const localUri = this.getLocalUri(localUriSuffix);
+    const exists = await this.storage.fileExists(localUri);
+    if (!exists) {
+      console.warn(`[DmgQueue] retryUpload: no local file for ${photoPath}`);
+      return false;
+    }
+
+    await this.markPhotoStatus(photoPath, "pending");
+
+    const existing = await this.record(photoPath);
+    if (existing) {
+      await this.update({
+        ...existing,
+        local_uri: existing.local_uri ?? localUriSuffix,
+        state: AttachmentState.QUEUED_UPLOAD,
+      });
+    } else {
+      const record = await this.newAttachmentRecord({
+        id: photoPath,
+        filename: photoPath,
+        state: AttachmentState.QUEUED_UPLOAD,
+      });
+      await this.saveToQueue(record);
+    }
+
+    this.trigger();
+    return true;
+  }
+
+  /**
+   * Replace a missing local photo and re-queue upload at the same photo_path.
+   */
+  async replaceAndRetry(photoPath: string, base64Data: string): Promise<void> {
+    await this.savePhotoToDisk(base64Data, photoPath);
+    await this.markPhotoStatus(photoPath, "pending");
+
+    const existing = await this.record(photoPath);
+    if (existing) {
+      await this.update({
+        ...existing,
+        local_uri: this.getLocalFilePathSuffix(photoPath),
+        state: AttachmentState.QUEUED_UPLOAD,
+      });
+    } else {
+      await this.saveToQueue(
+        await this.newAttachmentRecord({
+          id: photoPath,
+          filename: photoPath,
+          state: AttachmentState.QUEUED_UPLOAD,
+        }),
+      );
+    }
+
+    this.trigger();
   }
 
   // ── Save helpers ────────────────────────────────────────────────────────────
@@ -215,10 +341,7 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
    * photo_path, create an attachment record (via newAttachmentRecord which
    * sets local_uri), find the local file, and queue it for upload.
    */
-  async savePhotoToDisk(
-    base64Data: string,
-    filename: string,
-  ): Promise<void> {
+  async savePhotoToDisk(base64Data: string, filename: string): Promise<void> {
     const localUriSuffix = this.getLocalFilePathSuffix(filename);
     const localUri = this.getLocalUri(localUriSuffix);
     const parentDir = localUri.substring(0, localUri.lastIndexOf("/"));

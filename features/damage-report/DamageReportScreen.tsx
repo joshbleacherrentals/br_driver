@@ -6,6 +6,7 @@ import DamageSeveritySelector, {
 import { DebugUploadTracker } from './components/DebugUploadTracker';
 import { ImageViewer, ImageViewerItem } from './components/ImageViewer';
 import { PhotoUploadIndicator } from './components/PhotoUploadIndicator';
+import { PhotoUploadStatusBanner } from './components/PhotoUploadStatusBanner';
 import { SubmitProgressModal } from './components/SubmitProgressModal';
 import { resolvePhotoUri } from './utils/resolvePhotoUri';
 import {
@@ -166,7 +167,12 @@ export default function DamageReportScreen() {
 
   // Load existing report data when in view-only mode
   const { damageReport } = useDamageReportById(viewOnlyId);
-  const { photos: reportPhotos } = useDamageReportPhotos(viewOnlyId);
+  const {
+    photos: reportPhotos,
+    hasPending: photosPending,
+    hasFailed: photosFailed,
+  } = useDamageReportPhotos(viewOnlyId);
+  const [isRetryingPhotos, setIsRetryingPhotos] = useState(false);
 
   const bleacherOptions: BleacherOption[] = useMemo(
     () =>
@@ -278,6 +284,55 @@ export default function DamageReportScreen() {
   const handleAbort = useCallback(() => {
     abortRef.current = true;
   }, []);
+
+  const handleRetryFailedPhotos = useCallback(async () => {
+    if (!damageReportPhotoAttachmentQueue) {
+      Alert.alert("Unavailable", "Photo upload is not ready yet. Try again shortly.");
+      return;
+    }
+
+    const toRetry = reportPhotos.filter(
+      (p) =>
+        (p.uploadStatus === "failed" || p.uploadStatus === "pending") &&
+        p.photo_path,
+    );
+    if (toRetry.length === 0) return;
+
+    setIsRetryingPhotos(true);
+    try {
+      let retried = 0;
+      let needReAdd = 0;
+
+      for (const photo of toRetry) {
+        const path = photo.photo_path!;
+        const ok = await damageReportPhotoAttachmentQueue.retryUpload(path);
+        if (ok) {
+          retried++;
+        } else {
+          needReAdd++;
+        }
+      }
+
+      if (needReAdd > 0 && retried === 0) {
+        Alert.alert(
+          "Photos missing on this device",
+          "The original files are no longer on this phone, so upload cannot be retried automatically. Please create a new damage report with the photos.",
+        );
+      } else if (needReAdd > 0) {
+        Alert.alert(
+          "Partial retry",
+          `${retried} photo(s) re-queued. ${needReAdd} photo(s) are no longer on this device and need a new report.`,
+        );
+      }
+    } catch (e) {
+      Alert.alert(
+        "Retry failed",
+        e instanceof Error ? e.message : "Could not retry photo upload.",
+      );
+    } finally {
+      setIsRetryingPhotos(false);
+    }
+  }, [reportPhotos]);
 
   const handleSubmit = async () => {
     if (!selectedBleacher) {
@@ -451,6 +506,12 @@ export default function DamageReportScreen() {
               Damage Photos ({reportPhotos.length})
             </Text>
             <View style={{ marginTop: 8 }}>
+              <PhotoUploadStatusBanner
+                hasPending={photosPending}
+                hasFailed={photosFailed}
+                isRetrying={isRetryingPhotos}
+                onRetry={handleRetryFailedPhotos}
+              />
               <ViewOnlyPhotoGrid photos={reportPhotos} />
             </View>
           </View>

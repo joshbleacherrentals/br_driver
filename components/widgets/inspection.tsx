@@ -2,8 +2,10 @@ import {
   InspectionQuestion,
   useInspectionQuestions,
 } from "@/hooks/db/useInspectionQuestions";
+import { severityValueToEnum } from "@/features/damage-report/components/DamageSeveritySelector";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
+import { generateThumbnail } from "@/utils/generateThumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
@@ -455,8 +457,9 @@ export default function InspectionScreen({
   };
 
   /**
-   * Saves a damage photo → damage-report-photos bucket, then inserts a row
-   * into DamageReportPhotos so PowerSync tracks and syncs it.
+   * Saves a damage photo locally, inserts DamageReportPhotos, then lets the
+   * attachment queue upload to damage-report-photos (same order as standalone
+   * Damage Report screen — avoids orphan files without DB rows).
    */
   const saveDamagePhoto = async (
     photo: DocumentPhoto,
@@ -471,19 +474,29 @@ export default function InspectionScreen({
 
     const ext = photo.ext ?? "jpg";
     const filename = `${damageReportId}/photo_${photoIndex}_${Date.now()}.${ext}`;
-    const record = await damageReportPhotoAttachmentQueue.savePhoto(
+
+    await damageReportPhotoAttachmentQueue.savePhotoToDisk(
       photo.base64,
       filename,
     );
 
-    // Insert the DamageReportPhotos row so PowerSync watches this file
+    let thumb: string | null = null;
+    if (photo.uri) {
+      try {
+        thumb = await generateThumbnail(photo.uri);
+      } catch (e) {
+        console.warn("[inspection] thumbnail failed:", e);
+      }
+    }
+
     await executeTypedMutation(
       db
         .insertInto("DamageReportPhotos")
         .values({
           id: randomUUID(),
           damage_report_uuid: damageReportId,
-          photo_path: record.id,
+          photo_path: filename,
+          thumbnail: thumb,
         })
         .compile(),
     );
@@ -576,7 +589,9 @@ export default function InspectionScreen({
       if (damageFound) {
         const damageId = randomUUID();
 
-        // Insert DamageReports first so photos can reference it by UUID
+        // Insert DamageReports first so photos can reference it by UUID.
+        // seat_damage / haul_damage are the canonical severity enums (admin UI).
+        // is_safe_to_* is boolean-ish: 1 = safe (no damage), 0 = not safe.
         await executeTypedMutation(
           db
             .insertInto("DamageReports")
@@ -584,9 +599,10 @@ export default function InspectionScreen({
               id: damageId,
               inspection_uuid: inspectionId,
               bleacher_uuid: bleacherUuid,
-              // null = none, 0 = minor, 1 = major
-              is_safe_to_sit: seatingDamage,
-              is_safe_to_haul: haulingDamage,
+              seat_damage: severityValueToEnum(seatingDamage),
+              haul_damage: severityValueToEnum(haulingDamage),
+              is_safe_to_sit: seatingDamage === null ? 1 : 0,
+              is_safe_to_haul: haulingDamage === null ? 1 : 0,
               note: damageNote,
               created_at: now,
               resolved_at: null,
@@ -595,8 +611,8 @@ export default function InspectionScreen({
             .compile(),
         );
 
-        // Upload each damage photo → damage-report-photos bucket
-        // and insert a DamageReportPhotos row per photo
+        // Persist each damage photo locally + DamageReportPhotos row;
+        // attachment queue uploads to damage-report-photos in the background.
         for (let i = 0; i < damagePhotos.length; i++) {
           await saveDamagePhoto(damagePhotos[i], damageId, i);
         }

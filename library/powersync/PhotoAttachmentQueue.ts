@@ -9,7 +9,13 @@ import * as FileSystem from "expo-file-system/legacy";
 import { DRIVERS_TABLE } from "./AppSchema";
 
 export class PhotoAttachmentQueue extends AbstractAttachmentQueue {
+  private initialized = false;
+
   async init() {
+    if (this.initialized) {
+      console.debug("[PhotoQueue] init() skipped — already initialized");
+      return;
+    }
     if (!this.options.storage) {
       console.debug(
         "No storage configured, skip setting up PhotoAttachmentQueue",
@@ -19,6 +25,7 @@ export class PhotoAttachmentQueue extends AbstractAttachmentQueue {
     }
 
     await super.init();
+    this.initialized = true;
 
     // Clean up stale/corrupt attachment records (e.g. double extensions from earlier bugs)
     // await this.cleanupStaleRecords();

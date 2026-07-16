@@ -56,18 +56,22 @@ function useDamageReportPhotos(damageReportId: string | null): { storage_path: s
 
 // ─── Severity helpers ─────────────────────────────────────────────────────────
 
-function severityConfig(value: number | null): {
+function severityConfig(value: string | null): {
   label: string;
   color: string;
   bg: string;
   icon: 'checkmark-circle' | 'warning-outline' | 'warning';
 } {
-  if (value === 0) return { label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline' };
-  if (value === 1) return { label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning' };
+  if (value === 'minor') {
+    return { label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline' };
+  }
+  if (value === 'major') {
+    return { label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning' };
+  }
   return { label: 'None', color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' };
 }
 
-function SeverityBadge({ value }: { value: number | null }) {
+function SeverityBadge({ value }: { value: string | null }) {
   const cfg = severityConfig(value);
   return (
     <View style={[severityBadge.pill, { backgroundColor: cfg.bg }]}>
@@ -99,13 +103,13 @@ function DamageCard({
       {/* Seating configuration */}
       <View style={damageCard.row}>
         <Text style={damageCard.label}>Seating Configuration</Text>
-        <SeverityBadge value={damage.is_safe_to_sit} />
+        <SeverityBadge value={damage.seat_damage} />
       </View>
 
       {/* Hauling configuration */}
       <View style={[damageCard.row, { borderBottomWidth: photos.length > 0 || !!damage.note ? 1 : 0 }]}>
         <Text style={damageCard.label}>Hauling Configuration</Text>
-        <SeverityBadge value={damage.is_safe_to_haul} />
+        <SeverityBadge value={damage.haul_damage} />
       </View>
 
       {/* Notes */}
@@ -544,12 +548,12 @@ export default function InspectionSummaryWidget({
 
                 <View style={styles.damageSummaryRow}>
                   <Text style={styles.damageSummaryLabel}>Seating Config</Text>
-                  <SeverityBadge value={damage!.is_safe_to_sit} />
+                  <SeverityBadge value={damage!.seat_damage} />
                 </View>
 
                 <View style={[styles.damageSummaryRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.damageSummaryLabel}>Hauling Config</Text>
-                  <SeverityBadge value={damage!.is_safe_to_haul} />
+                  <SeverityBadge value={damage!.haul_damage} />
                 </View>
               </View>
             )}

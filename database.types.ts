@@ -43,18 +43,21 @@ export type Database = {
           account_manager_uuid: string;
           created_at: string;
           id: string;
+          is_lead: boolean;
           zone_uuid: string;
         };
         Insert: {
           account_manager_uuid: string;
           created_at?: string;
           id?: string;
+          is_lead?: boolean;
           zone_uuid: string;
         };
         Update: {
           account_manager_uuid?: string;
           created_at?: string;
           id?: string;
+          is_lead?: boolean;
           zone_uuid?: string;
         };
         Relationships: [
@@ -220,6 +223,7 @@ export type Database = {
           bleacher_number: number;
           bleacher_rows: number;
           bleacher_seats: number;
+          bleacher_type_uuid: string | null;
           created_at: string;
           created_by: string | null;
           deleted: boolean;
@@ -233,6 +237,7 @@ export type Database = {
           opening_direction:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null;
+          storage_location_uuid: string | null;
           summer_account_manager_uuid: string | null;
           summer_home_base_uuid: string | null;
           tag_number: string | null;
@@ -250,6 +255,7 @@ export type Database = {
           bleacher_number: number;
           bleacher_rows: number;
           bleacher_seats: number;
+          bleacher_type_uuid?: string | null;
           created_at?: string;
           created_by?: string | null;
           deleted?: boolean;
@@ -263,6 +269,7 @@ export type Database = {
           opening_direction?:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null;
+          storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
           tag_number?: string | null;
@@ -280,6 +287,7 @@ export type Database = {
           bleacher_number?: number;
           bleacher_rows?: number;
           bleacher_seats?: number;
+          bleacher_type_uuid?: string | null;
           created_at?: string;
           created_by?: string | null;
           deleted?: boolean;
@@ -293,6 +301,7 @@ export type Database = {
           opening_direction?:
             | Database["public"]["Enums"]["bleacher_opening_dir"]
             | null;
+          storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
           tag_number?: string | null;
@@ -307,6 +316,20 @@ export type Database = {
           zone_uuid?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "Bleachers_bleacher_type_uuid_fkey";
+            columns: ["bleacher_type_uuid"];
+            isOneToOne: false;
+            referencedRelation: "BleacherTypes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "Bleachers_storage_location_uuid_fkey";
+            columns: ["storage_location_uuid"];
+            isOneToOne: false;
+            referencedRelation: "StorageLocations";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "Bleachers_summer_account_manager_uuid_fkey";
             columns: ["summer_account_manager_uuid"];
@@ -351,6 +374,7 @@ export type Database = {
           deleted: boolean;
           id: string;
           name: string;
+          roof_type: Database["public"]["Enums"]["roof_type"];
           row_count: number;
         };
         Insert: {
@@ -359,6 +383,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name: string;
+          roof_type?: Database["public"]["Enums"]["roof_type"];
           row_count: number;
         };
         Update: {
@@ -367,6 +392,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name?: string;
+          roof_type?: Database["public"]["Enums"]["roof_type"];
           row_count?: number;
         };
         Relationships: [
@@ -604,6 +630,57 @@ export type Database = {
           },
         ];
       };
+      ContractSignatures: {
+        Row: {
+          created_at: string;
+          event_uuid: string;
+          id: string;
+          invalidated_at: string | null;
+          signed_at: string;
+          signed_pdf_path: string | null;
+          signer_name: string;
+          status: Database["public"]["Enums"]["contract_signature_status"];
+          terms_and_conditions_uuid: string;
+        };
+        Insert: {
+          created_at?: string;
+          event_uuid: string;
+          id?: string;
+          invalidated_at?: string | null;
+          signed_at?: string;
+          signed_pdf_path?: string | null;
+          signer_name: string;
+          status?: Database["public"]["Enums"]["contract_signature_status"];
+          terms_and_conditions_uuid: string;
+        };
+        Update: {
+          created_at?: string;
+          event_uuid?: string;
+          id?: string;
+          invalidated_at?: string | null;
+          signed_at?: string;
+          signed_pdf_path?: string | null;
+          signer_name?: string;
+          status?: Database["public"]["Enums"]["contract_signature_status"];
+          terms_and_conditions_uuid?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ContractSignatures_event_uuid_fkey";
+            columns: ["event_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ContractSignatures_terms_and_conditions_uuid_fkey";
+            columns: ["terms_and_conditions_uuid"];
+            isOneToOne: false;
+            referencedRelation: "TermsAndConditions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       DamageReportPhotos: {
         Row: {
           created_at: string;
@@ -644,6 +721,7 @@ export type Database = {
           bleacher_uuid: string;
           created_at: string;
           created_by_user_uuid: string | null;
+          deleted: boolean;
           haul_damage: Database["public"]["Enums"]["damage_severity"];
           id: string;
           inspection_uuid: string | null;
@@ -658,6 +736,7 @@ export type Database = {
           bleacher_uuid: string;
           created_at?: string;
           created_by_user_uuid?: string | null;
+          deleted?: boolean;
           haul_damage?: Database["public"]["Enums"]["damage_severity"];
           id?: string;
           inspection_uuid?: string | null;
@@ -672,6 +751,7 @@ export type Database = {
           bleacher_uuid?: string;
           created_at?: string;
           created_by_user_uuid?: string | null;
+          deleted?: boolean;
           haul_damage?: Database["public"]["Enums"]["damage_severity"];
           id?: string;
           inspection_uuid?: string | null;
@@ -724,12 +804,14 @@ export type Database = {
           rows_quick_filter: number | null;
           season: string | null;
           show_address_tooltip: boolean;
+          show_unassigned_zone: boolean;
           state_provinces: string;
           summer_home_base_uuids: string;
           updated_at: string;
           user_uuid: string;
           winter_home_base_uuids: string;
           y_axis: string;
+          zone_uuids: string;
         };
         Insert: {
           account_manager_uuid?: string | null;
@@ -741,12 +823,14 @@ export type Database = {
           rows_quick_filter?: number | null;
           season?: string | null;
           show_address_tooltip?: boolean;
+          show_unassigned_zone?: boolean;
           state_provinces?: string;
           summer_home_base_uuids?: string;
           updated_at?: string;
           user_uuid: string;
           winter_home_base_uuids?: string;
           y_axis?: string;
+          zone_uuids?: string;
         };
         Update: {
           account_manager_uuid?: string | null;
@@ -758,12 +842,14 @@ export type Database = {
           rows_quick_filter?: number | null;
           season?: string | null;
           show_address_tooltip?: boolean;
+          show_unassigned_zone?: boolean;
           state_provinces?: string;
           summer_home_base_uuids?: string;
           updated_at?: string;
           user_uuid?: string;
           winter_home_base_uuids?: string;
           y_axis?: string;
+          zone_uuids?: string;
         };
         Relationships: [
           {
@@ -1081,25 +1167,31 @@ export type Database = {
       };
       EventChangeLog: {
         Row: {
+          action_type: string;
           changed_at: string;
           changed_by_user_uuid: string | null;
           event_uuid: string;
+          field_name: string | null;
           id: string;
           next_value: string | null;
           prev_value: string | null;
         };
         Insert: {
+          action_type?: string;
           changed_at?: string;
           changed_by_user_uuid?: string | null;
           event_uuid: string;
+          field_name?: string | null;
           id?: string;
           next_value?: string | null;
           prev_value?: string | null;
         };
         Update: {
+          action_type?: string;
           changed_at?: string;
           changed_by_user_uuid?: string | null;
           event_uuid?: string;
+          field_name?: string | null;
           id?: string;
           next_value?: string | null;
           prev_value?: string | null;
@@ -1114,6 +1206,50 @@ export type Database = {
           },
           {
             foreignKeyName: "EventChangeLog_event_uuid_fkey";
+            columns: ["event_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      EventFiles: {
+        Row: {
+          created_at: string;
+          event_uuid: string;
+          file_name: string;
+          file_size_bytes: number | null;
+          id: string;
+          mime_type: string | null;
+          source: string;
+          storage_path: string;
+          uploaded_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          event_uuid: string;
+          file_name: string;
+          file_size_bytes?: number | null;
+          id?: string;
+          mime_type?: string | null;
+          source?: string;
+          storage_path: string;
+          uploaded_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          event_uuid?: string;
+          file_name?: string;
+          file_size_bytes?: number | null;
+          id?: string;
+          mime_type?: string | null;
+          source?: string;
+          storage_path?: string;
+          uploaded_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EventFiles_event_uuid_fkey";
             columns: ["event_uuid"];
             isOneToOne: false;
             referencedRelation: "Events";
@@ -1188,6 +1324,42 @@ export type Database = {
           },
         ];
       };
+      EventMessageMentions: {
+        Row: {
+          created_at: string;
+          id: string;
+          mentioned_user_uuid: string;
+          message_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          mentioned_user_uuid: string;
+          message_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          mentioned_user_uuid?: string;
+          message_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EventMessageMentions_mentioned_user_uuid_fkey";
+            columns: ["mentioned_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EventMessageMentions_message_id_fkey";
+            columns: ["message_id"];
+            isOneToOne: false;
+            referencedRelation: "EventMessages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       EventMessageReadReceipts: {
         Row: {
           id: string;
@@ -1228,25 +1400,31 @@ export type Database = {
         Row: {
           body: string;
           created_at: string;
+          edited_at: string | null;
           event_uuid: string;
           id: string;
           is_system: boolean;
+          reply_to_message_id: string | null;
           user_uuid: string;
         };
         Insert: {
           body: string;
           created_at?: string;
+          edited_at?: string | null;
           event_uuid: string;
           id?: string;
           is_system?: boolean;
+          reply_to_message_id?: string | null;
           user_uuid: string;
         };
         Update: {
           body?: string;
           created_at?: string;
+          edited_at?: string | null;
           event_uuid?: string;
           id?: string;
           is_system?: boolean;
+          reply_to_message_id?: string | null;
           user_uuid?: string;
         };
         Relationships: [
@@ -1255,6 +1433,13 @@ export type Database = {
             columns: ["event_uuid"];
             isOneToOne: false;
             referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EventMessages_reply_to_message_id_fkey";
+            columns: ["reply_to_message_id"];
+            isOneToOne: false;
+            referencedRelation: "EventMessages";
             referencedColumns: ["id"];
           },
           {
@@ -1282,19 +1467,25 @@ export type Database = {
           event_type_uuid: string | null;
           external_notes: string | null;
           fifteen_row: number | null;
+          finance_contact_uuid: string | null;
           goodshuffle_url: string | null;
           hsl_hue: number | null;
           id: string;
           internal_notes: string | null;
+          invoice_number: number | null;
           lenient: boolean;
           must_be_clean: boolean;
           notes: string | null;
+          po_number: string | null;
           quote_valid_till: string | null;
           sales_office_uuid: string | null;
           setup_start: string | null;
           seven_row: number | null;
+          tax_amount_cents: number | null;
+          tax_percent: number | null;
           teardown_end: string | null;
           ten_row: number | null;
+          terms_and_conditions_uuid: string | null;
           total_seats: number | null;
         };
         Insert: {
@@ -1312,19 +1503,25 @@ export type Database = {
           event_type_uuid?: string | null;
           external_notes?: string | null;
           fifteen_row?: number | null;
+          finance_contact_uuid?: string | null;
           goodshuffle_url?: string | null;
           hsl_hue?: number | null;
           id?: string;
           internal_notes?: string | null;
+          invoice_number?: number | null;
           lenient: boolean;
           must_be_clean?: boolean;
           notes?: string | null;
+          po_number?: string | null;
           quote_valid_till?: string | null;
           sales_office_uuid?: string | null;
           setup_start?: string | null;
           seven_row?: number | null;
+          tax_amount_cents?: number | null;
+          tax_percent?: number | null;
           teardown_end?: string | null;
           ten_row?: number | null;
+          terms_and_conditions_uuid?: string | null;
           total_seats?: number | null;
         };
         Update: {
@@ -1342,19 +1539,25 @@ export type Database = {
           event_type_uuid?: string | null;
           external_notes?: string | null;
           fifteen_row?: number | null;
+          finance_contact_uuid?: string | null;
           goodshuffle_url?: string | null;
           hsl_hue?: number | null;
           id?: string;
           internal_notes?: string | null;
+          invoice_number?: number | null;
           lenient?: boolean;
           must_be_clean?: boolean;
           notes?: string | null;
+          po_number?: string | null;
           quote_valid_till?: string | null;
           sales_office_uuid?: string | null;
           setup_start?: string | null;
           seven_row?: number | null;
+          tax_amount_cents?: number | null;
+          tax_percent?: number | null;
           teardown_end?: string | null;
           ten_row?: number | null;
+          terms_and_conditions_uuid?: string | null;
           total_seats?: number | null;
         };
         Relationships: [
@@ -1387,46 +1590,63 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "Events_finance_contact_uuid_fkey";
+            columns: ["finance_contact_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Contacts";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "Events_sales_office_uuid_fkey";
             columns: ["sales_office_uuid"];
             isOneToOne: false;
             referencedRelation: "SalesOffices";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "Events_terms_and_conditions_uuid_fkey";
+            columns: ["terms_and_conditions_uuid"];
+            isOneToOne: false;
+            referencedRelation: "TermsAndConditions";
+            referencedColumns: ["id"];
+          },
         ];
       };
       EventSubscriptions: {
         Row: {
-          account_manager_uuid: string;
           created_at: string;
           event_uuid: string;
           id: string;
+          unread: boolean;
+          user_uuid: string;
         };
         Insert: {
-          account_manager_uuid: string;
           created_at?: string;
           event_uuid: string;
           id?: string;
+          unread?: boolean;
+          user_uuid: string;
         };
         Update: {
-          account_manager_uuid?: string;
           created_at?: string;
           event_uuid?: string;
           id?: string;
+          unread?: boolean;
+          user_uuid?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "EventSubscriptions_account_manager_uuid_fkey";
-            columns: ["account_manager_uuid"];
-            isOneToOne: false;
-            referencedRelation: "AccountManagers";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "EventSubscriptions_event_uuid_fkey";
             columns: ["event_uuid"];
             isOneToOne: false;
             referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EventSubscriptions_user_uuid_fkey";
+            columns: ["user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
             referencedColumns: ["id"];
           },
         ];
@@ -1691,6 +1911,75 @@ export type Database = {
           },
         ];
       };
+      PaymentHistory: {
+        Row: {
+          amount_cents: number;
+          created_at: string;
+          currency: string;
+          event_uuid: string;
+          id: string;
+          installment_id: string | null;
+          notes: string | null;
+          paid_at: string | null;
+          payer_email: string | null;
+          payer_name: string;
+          payment_method_type: string | null;
+          status: string;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          stripe_receipt_url: string | null;
+        };
+        Insert: {
+          amount_cents: number;
+          created_at?: string;
+          currency?: string;
+          event_uuid: string;
+          id?: string;
+          installment_id?: string | null;
+          notes?: string | null;
+          paid_at?: string | null;
+          payer_email?: string | null;
+          payer_name: string;
+          payment_method_type?: string | null;
+          status?: string;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_receipt_url?: string | null;
+        };
+        Update: {
+          amount_cents?: number;
+          created_at?: string;
+          currency?: string;
+          event_uuid?: string;
+          id?: string;
+          installment_id?: string | null;
+          notes?: string | null;
+          paid_at?: string | null;
+          payer_email?: string | null;
+          payer_name?: string;
+          payment_method_type?: string | null;
+          status?: string;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          stripe_receipt_url?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "PaymentHistory_event_uuid_fkey";
+            columns: ["event_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "PaymentHistory_installment_id_fkey";
+            columns: ["installment_id"];
+            isOneToOne: false;
+            referencedRelation: "PaymentInstallments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       PaymentInstallments: {
         Row: {
           amount_cents: number;
@@ -1837,6 +2126,7 @@ export type Database = {
       };
       QboConnections: {
         Row: {
+          currency: string | null;
           display_name: string;
           encrypted_token_value: string;
           id: string;
@@ -1844,6 +2134,7 @@ export type Database = {
           realm_id: string | null;
         };
         Insert: {
+          currency?: string | null;
           display_name: string;
           encrypted_token_value: string;
           id?: string;
@@ -1851,6 +2142,7 @@ export type Database = {
           realm_id?: string | null;
         };
         Update: {
+          currency?: string | null;
           display_name?: string;
           encrypted_token_value?: string;
           id?: string;
@@ -2277,6 +2569,7 @@ export type Database = {
           deleted: boolean;
           id: string;
           name: string;
+          phone: string | null;
           quickbook_uuid: string;
         };
         Insert: {
@@ -2286,6 +2579,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name: string;
+          phone?: string | null;
           quickbook_uuid: string;
         };
         Update: {
@@ -2295,6 +2589,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name?: string;
+          phone?: string | null;
           quickbook_uuid?: string;
         };
         Relationships: [
@@ -2395,6 +2690,104 @@ export type Database = {
           },
         ];
       };
+      StorageLocations: {
+        Row: {
+          address_uuid: string | null;
+          contact_phone_number: string | null;
+          created_at: string;
+          deleted: boolean;
+          gate_code: string | null;
+          id: string;
+          name: string;
+          notes: string | null;
+        };
+        Insert: {
+          address_uuid?: string | null;
+          contact_phone_number?: string | null;
+          created_at?: string;
+          deleted?: boolean;
+          gate_code?: string | null;
+          id?: string;
+          name: string;
+          notes?: string | null;
+        };
+        Update: {
+          address_uuid?: string | null;
+          contact_phone_number?: string | null;
+          created_at?: string;
+          deleted?: boolean;
+          gate_code?: string | null;
+          id?: string;
+          name?: string;
+          notes?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "storage_locations_address_uuid_fkey";
+            columns: ["address_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Addresses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      SubrentalEvents: {
+        Row: {
+          bleacher_uuid: string | null;
+          created_at: string;
+          created_by_user_uuid: string | null;
+          event_end: string;
+          event_start: string;
+          id: string;
+          notes: string | null;
+          requested_zone_uuid: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_uuid: string | null;
+          status: Database["public"]["Enums"]["bleacher_subrental_status"];
+        };
+        Insert: {
+          bleacher_uuid?: string | null;
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          event_end: string;
+          event_start: string;
+          id?: string;
+          notes?: string | null;
+          requested_zone_uuid?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_uuid?: string | null;
+          status?: Database["public"]["Enums"]["bleacher_subrental_status"];
+        };
+        Update: {
+          bleacher_uuid?: string | null;
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          event_end?: string;
+          event_start?: string;
+          id?: string;
+          notes?: string | null;
+          requested_zone_uuid?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_uuid?: string | null;
+          status?: Database["public"]["Enums"]["bleacher_subrental_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "subrental_events_bleacher_uuid_fkey";
+            columns: ["bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "subrental_events_requested_zone_uuid_fkey";
+            columns: ["requested_zone_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Zones";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       Tasks: {
         Row: {
           created_at: string;
@@ -2426,6 +2819,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "Tasks_created_by_user_uuid_fkey";
+            columns: ["created_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      TermsAndConditions: {
+        Row: {
+          created_at: string;
+          created_by_user_uuid: string | null;
+          deleted: boolean;
+          html_content: string;
+          id: string;
+          name: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          deleted?: boolean;
+          html_content?: string;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          deleted?: boolean;
+          html_content?: string;
+          id?: string;
+          name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "TermsAndConditions_created_by_user_uuid_fkey";
             columns: ["created_by_user_uuid"];
             isOneToOne: false;
             referencedRelation: "Users";
@@ -2965,18 +3393,21 @@ export type Database = {
           created_at: string;
           display_name: string;
           id: string;
+          is_deleted: boolean;
           sort_order: number;
         };
         Insert: {
           created_at?: string;
           display_name: string;
           id?: string;
+          is_deleted?: boolean;
           sort_order?: number;
         };
         Update: {
           created_at?: string;
           display_name?: string;
           id?: string;
+          is_deleted?: boolean;
           sort_order?: number;
         };
         Relationships: [];
@@ -3078,6 +3509,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      generate_invoice_number: { Args: never; Returns: number };
       get_current_account_manager_id: { Args: never; Returns: string };
       get_current_driver_id: { Args: never; Returns: string };
       get_current_user_uuid: { Args: never; Returns: string };
@@ -3087,6 +3519,10 @@ export type Database = {
       is_current_user_account_manager: { Args: never; Returns: boolean };
       is_current_user_active: { Args: never; Returns: boolean };
       is_current_user_admin: { Args: never; Returns: boolean };
+      is_subscribed_to_event: {
+        Args: { p_event_uuid: string };
+        Returns: boolean;
+      };
       recompute_driver_scorecard_bucket: {
         Args: { p_driver: string; p_year: number };
         Returns: undefined;
@@ -3097,9 +3533,11 @@ export type Database = {
       };
     };
     Enums: {
-      alert_entity_type: "event";
+      alert_entity_type: "event" | "bleacher_event" | "work_tracker";
       bleacher_opening_dir: "driver" | "passenger";
+      bleacher_subrental_status: "pending" | "accepted" | "denied";
       bluebook_region: "CAN" | "US" | "Both";
+      contract_signature_status: "active" | "invalidated";
       currency: "USD" | "CAD";
       damage_severity: "none" | "minor" | "major";
       event_status: "quoted" | "booked" | "lost" | "draft";
@@ -3114,6 +3552,7 @@ export type Database = {
         | "in_progress"
         | "completed";
       roadmap_task_status: "to_do" | "in_progress" | "completed";
+      roof_type: "canopy" | "none";
       task_status:
         | "in_progress"
         | "backlog"
@@ -3268,9 +3707,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      alert_entity_type: ["event"],
+      alert_entity_type: ["event", "bleacher_event", "work_tracker"],
       bleacher_opening_dir: ["driver", "passenger"],
+      bleacher_subrental_status: ["pending", "accepted", "denied"],
       bluebook_region: ["CAN", "US", "Both"],
+      contract_signature_status: ["active", "invalidated"],
       currency: ["USD", "CAD"],
       damage_severity: ["none", "minor", "major"],
       event_status: ["quoted", "booked", "lost", "draft"],
@@ -3286,6 +3727,7 @@ export const Constants = {
         "completed",
       ],
       roadmap_task_status: ["to_do", "in_progress", "completed"],
+      roof_type: ["canopy", "none"],
       task_status: [
         "in_progress",
         "backlog",

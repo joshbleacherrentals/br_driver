@@ -140,60 +140,69 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       client: bc.client,
       bucket: "driver-documents",
     });
-    photoAttachmentQueue = new PhotoAttachmentQueue({
-      powersync: powerSyncDb,
-      storage: driverDocStorage,
-      attachmentTableName: DRIVER_DOC_ATTACHMENT_TABLE,
-      attachmentDirectoryName: DRIVER_DOC_ATTACHMENT_TABLE,
-      performInitialSync: false,
-      onDownloadError: async (_attachment, error) => {
-        if (
-          String(error).includes("Object not found") ||
-          String(error).includes("400")
-        ) {
-          return { retry: false };
-        }
-        return { retry: true };
-      },
-      // cacheLimit: 2,
-    });
+    if (!photoAttachmentQueue) {
+      photoAttachmentQueue = new PhotoAttachmentQueue({
+        powersync: powerSyncDb,
+        storage: driverDocStorage,
+        attachmentTableName: DRIVER_DOC_ATTACHMENT_TABLE,
+        attachmentDirectoryName: DRIVER_DOC_ATTACHMENT_TABLE,
+        performInitialSync: false,
+        onDownloadError: async (_attachment, error) => {
+          if (
+            String(error).includes("Object not found") ||
+            String(error).includes("400")
+          ) {
+            return { retry: false };
+          }
+          return { retry: true };
+        },
+      });
+    } else {
+      photoAttachmentQueue.options.storage = driverDocStorage;
+    }
 
-    // Inspection photos (answers_json photo questions)
-    const inspectionStorage = new SupabaseStorageAdapter({
-      client: bc.client,
-      bucket: "inspection-photos",
-    });
+    // Inspection photos — no watchers/timers; safe to recreate with fresh client
     inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
-      storage: inspectionStorage,
+      storage: new SupabaseStorageAdapter({
+        client: bc.client,
+        bucket: "inspection-photos",
+      }),
     });
 
     // Damage report photos (DamageReportPhotos table)
+    // Insert-only: bucket has deny-update RLS; upsert would fail on retry.
     const damageReportStorage = new SupabaseStorageAdapter({
       client: bc.client,
       bucket: "damage-report-photos",
+      upsert: false,
     });
-    damageReportPhotoAttachmentQueue = new DamageReportPhotoAttachmentQueue({
-      powersync: powerSyncDb,
-      storage: damageReportStorage,
-      attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
-      attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
-      performInitialSync: false,
-      onDownloadError: async (_attachment, error) => {
-        if (
-          String(error).includes("Object not found") ||
-          String(error).includes("400")
-        ) {
-          return { retry: false };
-        }
-        return { retry: true };
-      },
-      onUploadError: async (_attachment, error) => {
-        if (String(error).includes("Duplicate")) {
-          return { retry: false };
-        }
-        return { retry: true };
-      },
-    });
+    if (!damageReportPhotoAttachmentQueue) {
+      damageReportPhotoAttachmentQueue = new DamageReportPhotoAttachmentQueue({
+        powersync: powerSyncDb,
+        storage: damageReportStorage,
+        attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
+        attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
+        performInitialSync: false,
+        onDownloadError: async (_attachment, error) => {
+          if (
+            String(error).includes("Object not found") ||
+            String(error).includes("400")
+          ) {
+            return { retry: false };
+          }
+          return { retry: true };
+        },
+        onUploadError: async (_attachment, error) => {
+          const msg = String(error);
+          if (/duplicate/i.test(msg) || /already exists/i.test(msg)) {
+            return { retry: false };
+          }
+          return { retry: true };
+        },
+      });
+    } else {
+      damageReportPhotoAttachmentQueue.options.storage = damageReportStorage;
+    }
 
     return bc;
   }, [getToken]);

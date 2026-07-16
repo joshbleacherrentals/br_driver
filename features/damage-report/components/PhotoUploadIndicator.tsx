@@ -1,4 +1,9 @@
 import { PhotoUploadStatus } from "@/hooks/db/useDamageReportPhotos";
+import {
+  DANGER_RED,
+  GREEN_ACCENT,
+  WARNING_ORANGE,
+} from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
@@ -7,8 +12,9 @@ const STATUS_CONFIG: Record<
   PhotoUploadStatus,
   { icon: string; color: string; spinning?: boolean }
 > = {
-  pending: { icon: "", color: "#FF9500", spinning: true },
-  uploaded: { icon: "cloud-done-outline", color: "#34C759" },
+  pending: { icon: "", color: WARNING_ORANGE, spinning: true },
+  uploaded: { icon: "cloud-done-outline", color: GREEN_ACCENT },
+  failed: { icon: "cloud-offline-outline", color: DANGER_RED },
 };
 
 export function PhotoUploadIndicator({
