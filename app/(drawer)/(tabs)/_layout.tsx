@@ -174,16 +174,15 @@ export default function TabLayout() {
                 }}
               />
               {/*
-                Rare / heavy screens: unmount when leaving so PowerSync hooks
-                and list state release RAM. Trips + Pending stay mounted
-                (primary workflow; already lightened in Phase 2).
+                Rare / heavy screens: wrapped with withUnmountOnBlur in their
+                route files so PowerSync hooks and list state release RAM.
+                Trips + Pending stay mounted (primary workflow).
               */}
               <Tabs.Screen
                 name="driverAvailability"
                 options={{
                   title: "My Availability",
                   tabBarItemStyle: { display: "none" },
-                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -191,7 +190,6 @@ export default function TabLayout() {
                 options={{
                   title: "Documents",
                   tabBarItemStyle: { display: "none" },
-                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -199,7 +197,6 @@ export default function TabLayout() {
                 options={{
                   title: "Profile",
                   tabBarItemStyle: { display: "none" },
-                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -207,7 +204,6 @@ export default function TabLayout() {
                 options={{
                   title: "Trip History",
                   tabBarItemStyle: { display: "none" },
-                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -215,7 +211,6 @@ export default function TabLayout() {
                 options={{
                   title: "Damage Reports",
                   tabBarItemStyle: { display: "none" },
-                  unmountOnBlur: true,
                 }}
               />
             </Tabs>
