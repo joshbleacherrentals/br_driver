@@ -130,6 +130,62 @@ export function useWorkTrackers(): {
   return { workTrackers: WTData.data, isLoading: false };
 }
 
+/**
+ * Lightweight pending-trips badge count for the tab bar.
+ * Avoids subscribing the full WorkTrackers payload in TabLayout.
+ */
+export function useReleasedTripsCount(): {
+  count: number;
+  isLoading: boolean;
+} {
+  const { user } = useUser();
+  const clerkUserId = user?.id ?? null;
+
+  const compiled = useMemo(() => {
+    if (!clerkUserId) return null;
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
+
+  const userData = useTypedQuery(compiled, expect<UserData>());
+
+  const compiledDriver = useMemo(() => {
+    const userId = userData.data?.[0]?.id;
+    if (!userId) return null;
+    return db
+      .selectFrom("Drivers as d")
+      .select(["d.id as id"])
+      .where("user_uuid", "=", userId)
+      .limit(1)
+      .compile();
+  }, [userData.data]);
+
+  const driverData = useTypedQuery(compiledDriver, expect<DriverData>());
+
+  const compiledCount = useMemo(() => {
+    const driverId = driverData.data?.[0]?.id;
+    if (!driverId) return null;
+    return db
+      .selectFrom("WorkTrackers")
+      .select(["id"])
+      .where("driver_uuid", "=", driverId)
+      .where("status", "=", "released")
+      .compile();
+  }, [driverData.data]);
+
+  const released = useTypedQuery(compiledCount, expect<{ id: string }>());
+
+  if (!clerkUserId) return { count: 0, isLoading: true };
+  if (!compiled || !userData.data?.[0]?.id) return { count: 0, isLoading: true };
+  if (!compiledCount) return { count: 0, isLoading: true };
+
+  return { count: released.data?.length ?? 0, isLoading: false };
+}
+
 // ---------------------------------------------------------------------------
 // Fleet-wide WorkTrackers for bleacher address resolution.
 // No status filter — we want the last known dropoff regardless of status.

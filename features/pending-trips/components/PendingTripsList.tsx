@@ -7,7 +7,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 
 const themes = {
@@ -56,7 +56,7 @@ export default function PendingTripsList() {
     [workTrackers],
   );
 
-  const handleAccept = async (workTrackerId: string) => {
+  const handleAccept = useCallback(async (workTrackerId: string) => {
     if (!isProfileComplete) {
       Alert.alert(
         "Error",
@@ -76,9 +76,9 @@ export default function PendingTripsList() {
     } catch {
       Alert.alert("Error", "Failed to accept trip.");
     }
-  };
+  }, [isProfileComplete]);
 
-  const handleSkip = async (workTrackerId: string) => {
+  const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Skip Trip", "Are you sure you want to skip this trip?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -102,15 +102,17 @@ export default function PendingTripsList() {
         },
       },
     ]);
-  };
-
-  const noop = async () => {};
+  }, []);
 
   return (
     <FlatList
       contentContainerStyle={styles.listContent}
       data={pendingTrips}
       keyExtractor={(item) => String(item.id)}
+      initialNumToRender={4}
+      maxToRenderPerBatch={4}
+      windowSize={5}
+      removeClippedSubviews
       renderItem={({ item }) => (
         <TripItem
           workTracker={item}
@@ -120,7 +122,7 @@ export default function PendingTripsList() {
           onSkip={handleSkip}
           onArrived={noop}
           onStartInspection={noop}
-          onBleacherChange={() => {}}
+          onBleacherChange={noopBleacherChange}
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -142,6 +144,9 @@ export default function PendingTripsList() {
     />
   );
 }
+
+const noop = async () => {};
+const noopBleacherChange = (_workTrackerId: string, _uuid: string) => {};
 
 const styles = StyleSheet.create({
   listContent: {

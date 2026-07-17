@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -23,7 +23,7 @@ import NoDriverScreen from "@/components/widgets/no-driver";
 import { BRAND_BLUE } from "@/constants/Colors";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useCheckDriver } from "@/hooks/db/useCheckActiveDriver";
-import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useReleasedTripsCount } from "@/hooks/db/useWorkTrackers";
 import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
@@ -59,15 +59,10 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const navigation = useNavigation<any>();
-  const { workTrackers } = useWorkTrackers();
+  const { count: pendingCount } = useReleasedTripsCount();
 
   const shownRef = useRef(false);
   const [sheetVisible, setSheetVisible] = useState(false);
-
-  const pendingCount = useMemo(
-    () => (workTrackers ?? []).filter((wt) => wt.status === "released").length,
-    [workTrackers],
-  );
 
   // Auto-show bottom sheet once per session when pending trips exist
   useEffect(() => {
@@ -178,11 +173,17 @@ export default function TabLayout() {
                   ),
                 }}
               />
+              {/*
+                Rare / heavy screens: unmount when leaving so PowerSync hooks
+                and list state release RAM. Trips + Pending stay mounted
+                (primary workflow; already lightened in Phase 2).
+              */}
               <Tabs.Screen
                 name="driverAvailability"
                 options={{
                   title: "My Availability",
                   tabBarItemStyle: { display: "none" },
+                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -190,6 +191,7 @@ export default function TabLayout() {
                 options={{
                   title: "Documents",
                   tabBarItemStyle: { display: "none" },
+                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -197,6 +199,7 @@ export default function TabLayout() {
                 options={{
                   title: "Profile",
                   tabBarItemStyle: { display: "none" },
+                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -204,6 +207,7 @@ export default function TabLayout() {
                 options={{
                   title: "Trip History",
                   tabBarItemStyle: { display: "none" },
+                  unmountOnBlur: true,
                 }}
               />
               <Tabs.Screen
@@ -211,6 +215,7 @@ export default function TabLayout() {
                 options={{
                   title: "Damage Reports",
                   tabBarItemStyle: { display: "none" },
+                  unmountOnBlur: true,
                 }}
               />
             </Tabs>
@@ -220,7 +225,8 @@ export default function TabLayout() {
               visible={sheetVisible}
               onClose={() => setSheetVisible(false)}
             >
-              <PendingTripsList />
+              {/* Mount list only while sheet is open — avoids permanent RAM cost */}
+              {sheetVisible ? <PendingTripsList /> : null}
             </BottomSheetModal>
           </>
         )}

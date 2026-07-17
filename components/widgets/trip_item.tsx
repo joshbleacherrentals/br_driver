@@ -68,7 +68,7 @@ interface TripItemProps {
   onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
 
-export default function TripItem({
+function TripItem({
   workTracker,
   bleacherOptions = [],
   onAccept,
@@ -108,15 +108,24 @@ export default function TripItem({
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
   const { bleacher } = useBleacher(bleacher_uuid);
+
+  // Load full inspection (incl. answers_json) only when the modal is open.
   const { inspection: preInspection } = useInspection(
-    workTracker.pre_inspection_uuid ?? null,
+    preInspectionVisible
+      ? (workTracker.pre_inspection_uuid ?? null)
+      : null,
   );
   const { inspection: postInspection } = useInspection(
-    workTracker.post_inspection_uuid ?? null,
+    postInspectionVisible
+      ? (workTracker.post_inspection_uuid ?? null)
+      : null,
   );
 
   // ── Damage report for the assigned bleacher ─────────────────────────────
   const { damageReports } = useDamageReports(bleacher_uuid);
+
+  const hasPreInspection = !!workTracker.pre_inspection_uuid;
+  const hasPostInspection = !!workTracker.post_inspection_uuid;
 
   const pickupStreet = pickupAddressData.address?.street ?? null;
 
@@ -426,7 +435,7 @@ export default function TripItem({
         </View>
       )}
 
-      {preInspection && (
+      {hasPreInspection && (
         <>
           <TouchableOpacity
             style={styles.viewInspectionButton}
@@ -438,13 +447,15 @@ export default function TripItem({
             </Text>
             <Ionicons name="chevron-forward" size={14} color="#34C759" />
           </TouchableOpacity>
-          <InspectionDetailModal
-            visible={preInspectionVisible}
-            inspection={preInspection}
-            damages={damageReports}
-            title="Pickup Inspection"
-            onClose={() => setPreInspectionVisible(false)}
-          />
+          {preInspectionVisible && preInspection ? (
+            <InspectionDetailModal
+              visible={preInspectionVisible}
+              inspection={preInspection}
+              damages={damageReports}
+              title="Pickup Inspection"
+              onClose={() => setPreInspectionVisible(false)}
+            />
+          ) : null}
         </>
       )}
 
@@ -555,7 +566,7 @@ export default function TripItem({
         </TouchableOpacity>
       )}
 
-      {postInspection && (
+      {hasPostInspection && (
         <>
           <TouchableOpacity
             style={styles.viewInspectionButton}
@@ -567,13 +578,15 @@ export default function TripItem({
             </Text>
             <Ionicons name="chevron-forward" size={14} color="#34C759" />
           </TouchableOpacity>
-          <InspectionDetailModal
-            visible={postInspectionVisible}
-            inspection={postInspection}
-            damages={damageReports}
-            title="Dropoff Inspection"
-            onClose={() => setPostInspectionVisible(false)}
-          />
+          {postInspectionVisible && postInspection ? (
+            <InspectionDetailModal
+              visible={postInspectionVisible}
+              inspection={postInspection}
+              damages={damageReports}
+              title="Dropoff Inspection"
+              onClose={() => setPostInspectionVisible(false)}
+            />
+          ) : null}
         </>
       )}
 
@@ -585,6 +598,24 @@ export default function TripItem({
     </Card>
   );
 }
+
+function tripItemPropsEqual(
+  prev: TripItemProps,
+  next: TripItemProps,
+): boolean {
+  return (
+    prev.workTracker === next.workTracker &&
+    prev.bleacherOptions === next.bleacherOptions &&
+    prev.onAccept === next.onAccept &&
+    prev.onStartTrip === next.onStartTrip &&
+    prev.onSkip === next.onSkip &&
+    prev.onArrived === next.onArrived &&
+    prev.onStartInspection === next.onStartInspection &&
+    prev.onBleacherChange === next.onBleacherChange
+  );
+}
+
+export default React.memo(TripItem, tripItemPropsEqual);
 
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: "flex-end", flexShrink: 0 },

@@ -1,6 +1,5 @@
 import { DamageReportData } from "@/hooks/db/useDamageReport";
 import { Ionicons } from "@expo/vector-icons";
-import { usePowerSyncQuery } from "@powersync/react-native";
 import React from "react";
 import { Alert, StyleSheet, TouchableOpacity } from "react-native";
 
@@ -13,29 +12,20 @@ interface BleacherDamageBadgeProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Severity mapping:
- *  null  → None   (no damage)
- *  0     → Minor
- *  1     → Major
- */
-function severityLabel(value: number | null): string {
-  if (value === 1) return "Major";
-  if (value === 0) return "Minor";
+function severityLabel(value: string | number | null): string {
+  if (value === "major" || value === 1) return "Major";
+  if (value === "minor" || value === 0) return "Minor";
   return "None";
 }
 
-/**
- * Returns the worst severity across both fields so the badge colour
- * reflects the most serious issue at a glance.
- *  1 (major) > 0 (minor) > null (none)
- */
 function worstSeverity(
-  sit: number | null,
-  haul: number | null,
+  seat: string | number | null,
+  haul: string | number | null,
 ): "major" | "minor" | "none" {
-  if (sit === 1 || haul === 1) return "major";
-  if (sit === 0 || haul === 0) return "minor";
+  const seatLabel = severityLabel(seat);
+  const haulLabel = severityLabel(haul);
+  if (seatLabel === "Major" || haulLabel === "Major") return "major";
+  if (seatLabel === "Minor" || haulLabel === "Minor") return "minor";
   return "none";
 }
 
@@ -46,17 +36,8 @@ export default function BleacherDamageBadge({
   bleacherNumber,
 }: BleacherDamageBadgeProps) {
   const severity = worstSeverity(
-    damageReport.is_safe_to_sit,
-    damageReport.is_safe_to_haul,
-  );
-
-  // Fetch the count of damage photos so we can mention it in the alert
-  const photoRows = usePowerSyncQuery<{ photo_path: string }>(
-    `SELECT photo_path 
-    FROM "DamageReportPhotos" 
-    WHERE damage_report_uuid = ? 
-    AND photo_path IS NOT NULL`,
-    [damageReport.id],
+    damageReport.seat_damage ?? damageReport.is_safe_to_sit,
+    damageReport.haul_damage ?? damageReport.is_safe_to_haul,
   );
 
   const formatDateTime = (iso?: string | null) => {
@@ -77,8 +58,8 @@ export default function BleacherDamageBadge({
       `Reported: ${formatDateTime(damageReport.created_at)}`,
       "",
       "Damage Severity:",
-      `• Seating Configuration: ${severityLabel(damageReport.is_safe_to_sit)}`,
-      `• Hauling Configuration: ${severityLabel(damageReport.is_safe_to_haul)}`,
+      `• Seating Configuration: ${severityLabel(damageReport.seat_damage ?? damageReport.is_safe_to_sit)}`,
+      `• Hauling Configuration: ${severityLabel(damageReport.haul_damage ?? damageReport.is_safe_to_haul)}`,
     ];
 
     if (damageReport.note) {

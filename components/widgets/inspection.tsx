@@ -6,6 +6,8 @@ import { severityValueToEnum } from "@/features/damage-report/components/DamageS
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
 import { generateThumbnail } from "@/utils/generateThumbnail";
+import { persistPickerPhoto } from "@/utils/persistPickerPhoto";
+import { readAsBase64 } from "@/utils/readAsBase64";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
@@ -30,11 +32,18 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DocumentPhoto {
+  /** Local file URI only — never keep full-image base64 in React state. */
   uri: string | null;
-  base64?: string;
   attachmentId?: string | null;
   isNew?: boolean;
   ext?: string;
+}
+
+/** Convert + persist picker asset to cache; returns a lightweight DocumentPhoto. */
+async function persistNewPhoto(tempUri: string): Promise<DocumentPhoto> {
+  const converted = await convertToJpegIfNeeded(tempUri);
+  const persisted = await persistPickerPhoto(converted.uri, converted.ext);
+  return { uri: persisted, isNew: true, ext: converted.ext };
 }
 
 type AnswerMap = Record<
@@ -359,19 +368,12 @@ export default function InspectionScreen({
       mediaTypes: ["images"],
       allowsMultipleSelection: true,
       quality: 0.8,
-      base64: true,
     });
     if (!result.canceled && result.assets?.length) {
-      const converted = await Promise.all(
-        result.assets.map(async (asset) => {
-          const c = await convertToJpegIfNeeded(
-            asset.uri,
-            asset.base64 ?? undefined,
-          );
-          return { uri: c.uri, base64: c.base64, isNew: true, ext: c.ext };
-        }),
+      const persisted = await Promise.all(
+        result.assets.map((asset) => persistNewPhoto(asset.uri)),
       );
-      addPhotosToQuestion(questionId, converted);
+      addPhotosToQuestion(questionId, persisted);
     }
   };
 
@@ -386,22 +388,10 @@ export default function InspectionScreen({
     }
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.8,
-      base64: true,
     });
     if (!result.canceled && result.assets?.length) {
-      const asset = result.assets[0];
-      const converted = await convertToJpegIfNeeded(
-        asset.uri,
-        asset.base64 ?? undefined,
-      );
-      addPhotosToQuestion(questionId, [
-        {
-          uri: converted.uri,
-          base64: converted.base64,
-          isNew: true,
-          ext: converted.ext,
-        },
-      ]);
+      const photo = await persistNewPhoto(result.assets[0].uri);
+      addPhotosToQuestion(questionId, [photo]);
     }
   };
 
@@ -442,15 +432,17 @@ export default function InspectionScreen({
     questionId: string,
     photoIndex: number,
   ): Promise<string | null> => {
-    if (!photo.isNew || !photo.base64) return photo.attachmentId ?? null;
+    if (!photo.isNew || !photo.uri) return photo.attachmentId ?? null;
     if (!inspectionPhotoAttachmentQueue) {
       console.warn("inspectionPhotoAttachmentQueue not initialized");
       return null;
     }
     const ext = photo.ext ?? "jpg";
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
+    // Read from disk only for this upload — do not keep base64 in component state.
+    const base64 = await readAsBase64(photo.uri);
     const record = await inspectionPhotoAttachmentQueue.savePhoto(
-      photo.base64,
+      base64,
       filename,
     );
     return record.id;
@@ -466,7 +458,7 @@ export default function InspectionScreen({
     damageReportId: string,
     photoIndex: number,
   ): Promise<void> => {
-    if (!photo.isNew || !photo.base64) return;
+    if (!photo.isNew || !photo.uri) return;
     if (!damageReportPhotoAttachmentQueue) {
       console.warn("damageReportPhotoAttachmentQueue not initialized");
       return;
@@ -475,18 +467,14 @@ export default function InspectionScreen({
     const ext = photo.ext ?? "jpg";
     const filename = `${damageReportId}/photo_${photoIndex}_${Date.now()}.${ext}`;
 
-    await damageReportPhotoAttachmentQueue.savePhotoToDisk(
-      photo.base64,
-      filename,
-    );
+    const base64 = await readAsBase64(photo.uri);
+    await damageReportPhotoAttachmentQueue.savePhotoToDisk(base64, filename);
 
     let thumb: string | null = null;
-    if (photo.uri) {
-      try {
-        thumb = await generateThumbnail(photo.uri);
-      } catch (e) {
-        console.warn("[inspection] thumbnail failed:", e);
-      }
+    try {
+      thumb = await generateThumbnail(photo.uri);
+    } catch (e) {
+      console.warn("[inspection] thumbnail failed:", e);
     }
 
     await executeTypedMutation(
@@ -833,23 +821,10 @@ export default function InspectionScreen({
                 }
                 const result = await ImagePicker.launchCameraAsync({
                   quality: 0.8,
-                  base64: true,
                 });
                 if (!result.canceled && result.assets?.length) {
-                  const asset = result.assets[0];
-                  const converted = await convertToJpegIfNeeded(
-                    asset.uri,
-                    asset.base64 ?? undefined,
-                  );
-                  setDamagePhotos((prev) => [
-                    ...prev,
-                    {
-                      uri: converted.uri,
-                      base64: converted.base64,
-                      isNew: true,
-                      ext: converted.ext,
-                    },
-                  ]);
+                  const photo = await persistNewPhoto(result.assets[0].uri);
+                  setDamagePhotos((prev) => [...prev, photo]);
                 }
               }}
               onAddFromLibrary={async () => {
@@ -866,24 +841,12 @@ export default function InspectionScreen({
                   mediaTypes: ["images"],
                   allowsMultipleSelection: true,
                   quality: 0.8,
-                  base64: true,
                 });
                 if (!result.canceled && result.assets?.length) {
-                  const converted = await Promise.all(
-                    result.assets.map(async (asset) => {
-                      const c = await convertToJpegIfNeeded(
-                        asset.uri,
-                        asset.base64 ?? undefined,
-                      );
-                      return {
-                        uri: c.uri,
-                        base64: c.base64,
-                        isNew: true,
-                        ext: c.ext,
-                      };
-                    }),
+                  const persisted = await Promise.all(
+                    result.assets.map((asset) => persistNewPhoto(asset.uri)),
                   );
-                  setDamagePhotos((prev) => [...prev, ...converted]);
+                  setDamagePhotos((prev) => [...prev, ...persisted]);
                 }
               }}
               onRemove={(index) =>

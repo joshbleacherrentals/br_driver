@@ -10,7 +10,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -139,9 +139,9 @@ export default function TripsScreen() {
     [allBleachersFleet, resolvedAddresses],
   );
 
-  // ── Handlers (unchanged) ────────────────────────────────────────────────
+  // ── Handlers (stable refs so memoized TripItem can skip re-renders) ──────
 
-  const handleAccept = async (workTrackerId: string) => {
+  const handleAccept = useCallback(async (workTrackerId: string) => {
     if (!isProfileComplete) {
       Alert.alert(
         "Error",
@@ -161,9 +161,9 @@ export default function TripsScreen() {
     } catch {
       Alert.alert("Error", "Failed to accept trip.");
     }
-  };
+  }, [isProfileComplete]);
 
-  const handleStartTrip = async (workTrackerId: string) => {
+  const handleStartTrip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Start Trip", "Ready to start this trip?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -188,9 +188,9 @@ export default function TripsScreen() {
         },
       },
     ]);
-  };
+  }, []);
 
-  const handleArrived = async (workTrackerId: string, arrivedAt: string) => {
+  const handleArrived = useCallback(async (workTrackerId: string, _arrivedAt: string) => {
     const currentTrip = workTrackers?.find((t) => t.id === workTrackerId);
     const isAtPickup = currentTrip?.status === "dest_pickup";
 
@@ -226,13 +226,13 @@ export default function TripsScreen() {
         },
       ],
     );
-  };
+  }, [workTrackers]);
 
   const [pendingBleacherUuids, setPendingBleacherUuids] = React.useState<
     Record<string, string>
   >({});
 
-  const handleBleacherChange = (
+  const handleBleacherChange = useCallback((
     workTrackerId: string,
     newBleacherUuid: string,
   ) => {
@@ -240,9 +240,9 @@ export default function TripsScreen() {
       ...prev,
       [workTrackerId]: newBleacherUuid,
     }));
-  };
+  }, []);
 
-  const handleStartInspection = async (
+  const handleStartInspection = useCallback(async (
     workTrackerId: string,
     bleacherUuid: string | null,
     type: "pickup" | "dropoff",
@@ -268,9 +268,9 @@ export default function TripsScreen() {
       }
     }
     setInspectionData({ workTrackerId, bleacherUuid, type });
-  };
+  }, []);
 
-  const handleSkip = async (workTrackerId: string) => {
+  const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert(
       "Skip Trip",
       "Are you sure you want to skip this trip? This will move it to the end of your queue.",
@@ -298,7 +298,7 @@ export default function TripsScreen() {
         },
       ],
     );
-  };
+  }, []);
 
   const handleInspectionComplete = async (workTrackerId: string) => {
     try {
@@ -446,6 +446,10 @@ export default function TripsScreen() {
                 a.id.localeCompare(b.id),
             )}
           keyExtractor={(item) => String(item.id)}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          removeClippedSubviews
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
@@ -483,6 +487,10 @@ export default function TripsScreen() {
                 a.id.localeCompare(b.id),
             )}
           keyExtractor={(item) => String(item.id)}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          removeClippedSubviews
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
