@@ -341,7 +341,8 @@ export default function TripsScreen() {
 
   // ── Derived counts ──────────────────────────────────────────────────────
 
-  const activeStatuses = (wt: WorkTracker) => wt.status !== "completed";
+  const activeStatuses = (wt: WorkTracker) =>
+    wt.status !== "completed" && wt.status !== "draft";
 
   const todayCount = (workTrackers ?? []).filter(
     (wt) => activeStatuses(wt) && (wt.date == null || wt.date <= today),
