@@ -2,19 +2,24 @@ import {
   InspectionQuestion,
   useInspectionQuestions,
 } from "@/hooks/db/useInspectionQuestions";
-import { severityValueToEnum } from "@/features/damage-report/components/DamageSeveritySelector";
+import {
+  DamageDetailsForm,
+  DamageDetailsFormValues,
+} from "@/features/damage-report/components/DamageDetailsForm";
+import { EditablePhotoGrid } from "@/features/damage-report/components/EditablePhotoGrid";
+import type { DocumentPhoto } from "@/features/damage-report/types";
+import { createDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import {
+  pickDamagePhotosFromCamera,
+  pickDamagePhotosFromLibrary,
+} from "@/features/damage-report/utils/pickDamagePhotos";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
-import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
-import { generateThumbnail } from "@/utils/generateThumbnail";
-import { persistPickerPhoto } from "@/utils/persistPickerPhoto";
 import { readAsBase64 } from "@/utils/readAsBase64";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
-import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,27 +29,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  damageReportPhotoAttachmentQueue,
   db,
   inspectionPhotoAttachmentQueue,
 } from "../providers/SystemProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DocumentPhoto {
-  /** Local file URI only — never keep full-image base64 in React state. */
-  uri: string | null;
-  attachmentId?: string | null;
-  isNew?: boolean;
-  ext?: string;
-}
-
-/** Convert + persist picker asset to cache; returns a lightweight DocumentPhoto. */
-async function persistNewPhoto(tempUri: string): Promise<DocumentPhoto> {
-  const converted = await convertToJpegIfNeeded(tempUri);
-  const persisted = await persistPickerPhoto(converted.uri, converted.ext);
-  return { uri: persisted, isNew: true, ext: converted.ext };
-}
 
 type AnswerMap = Record<
   string,
@@ -57,14 +46,6 @@ type AnswerMap = Record<
 
 type InspectionType = "pickup" | "dropoff";
 
-/**
- * Damage severity for seating / hauling configuration.
- *  null  → None   (green)
- *  0     → Minor  (yellow)
- *  1     → Major  (red)
- */
-type DamageSeverity = null | 0 | 1;
-
 interface InspectionScreenProps {
   workTrackerId: string;
   bleacherUuid: string | null;
@@ -73,86 +54,12 @@ interface InspectionScreenProps {
   onCancel: () => void;
 }
 
-// ─── Damage Severity Selector ─────────────────────────────────────────────────
-
-const SEVERITY_OPTIONS: {
-  value: DamageSeverity;
-  label: string;
-  color: string;
-  bg: string;
-  icon: string;
-}[] = [
-  {
-    value: null,
-    label: "None",
-    color: "#34C759",
-    bg: "#E8F9ED",
-    icon: "checkmark-circle",
-  },
-  {
-    value: 0,
-    label: "Minor",
-    color: "#FF9500",
-    bg: "#FFF3E0",
-    icon: "warning-outline",
-  },
-  {
-    value: 1,
-    label: "Major",
-    color: "#FF3B30",
-    bg: "#FFEBEA",
-    icon: "warning",
-  },
-];
-
-function DamageSeveritySelector({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: DamageSeverity;
-  onChange: (v: DamageSeverity) => void;
-}) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{label}</Text>
-      <View style={severityStyles.row}>
-        {SEVERITY_OPTIONS.map((opt) => {
-          const active = value === opt.value;
-          return (
-            <TouchableOpacity
-              key={String(opt.value)}
-              style={[
-                severityStyles.option,
-                {
-                  borderColor: active ? opt.color : "#E5E7EB",
-                  backgroundColor: active ? opt.bg : "#F8F8F8",
-                },
-              ]}
-              onPress={() => onChange(opt.value)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={opt.icon as any}
-                size={20}
-                color={active ? opt.color : "#8E8E93"}
-              />
-              <Text
-                style={[
-                  severityStyles.optionLabel,
-                  { color: active ? opt.color : "#8E8E93" },
-                ]}
-              >
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
+const INITIAL_DAMAGE_DETAILS: DamageDetailsFormValues = {
+  seatDamage: null,
+  haulDamage: null,
+  note: "",
+  photos: [],
+};
 
 // ─── Question renderers ───────────────────────────────────────────────────────
 
@@ -233,50 +140,14 @@ function PhotoQuestion({
 }) {
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionTitle}>
-          {question.question_text} ({photos.length})
-        </Text>
-        {!!question.required && (
-          <View style={styles.requiredBadge}>
-            <Text style={styles.requiredText}>REQUIRED</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.photoButtons}>
-        <TouchableOpacity style={styles.photoButton} onPress={onAddFromCamera}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="camera" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.photoButtonText}>Take Photo</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.photoButton} onPress={onAddFromLibrary}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="images" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.photoButtonText}>Choose from Library</Text>
-        </TouchableOpacity>
-      </View>
-
-      {photos.length > 0 && (
-        <View style={styles.photoGrid}>
-          {photos.map((photo, index) => (
-            <View key={index} style={styles.photoContainer}>
-              <Image
-                source={{ uri: photo.uri ?? undefined }}
-                style={styles.photo}
-              />
-              <TouchableOpacity
-                style={styles.removePhotoButton}
-                onPress={() => onRemove(index)}
-              >
-                <Ionicons name="close" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
+      <EditablePhotoGrid
+        photos={photos}
+        title={question.question_text ?? "Photos"}
+        required={!!question.required}
+        onAddFromCamera={onAddFromCamera}
+        onAddFromLibrary={onAddFromLibrary}
+        onRemove={onRemove}
+      />
     </View>
   );
 }
@@ -301,12 +172,9 @@ export default function InspectionScreen({
   const [walkAroundComplete, setWalkAroundComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Damage report state
   const [damageFound, setDamageFound] = useState<boolean | null>(null);
-  const [seatingDamage, setSeatingDamage] = useState<DamageSeverity>(null);
-  const [haulingDamage, setHaulingDamage] = useState<DamageSeverity>(null);
-  const [damageNote, setDamageNote] = useState("");
-  const [damagePhotos, setDamagePhotos] = useState<DocumentPhoto[]>([]);
+  const [damageDetails, setDamageDetails] =
+    useState<DamageDetailsFormValues>(INITIAL_DAMAGE_DETAILS);
 
   // ── Answer helpers ──────────────────────────────────────────────────────────
 
@@ -353,46 +221,16 @@ export default function InspectionScreen({
       },
     }));
 
-  // ── Image pickers ───────────────────────────────────────────────────────────
+  // ── Image pickers (inspection questions) ────────────────────────────────────
 
   const pickImageForQuestion = async (questionId: string) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "We need camera roll permissions to add photos",
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      const persisted = await Promise.all(
-        result.assets.map((asset) => persistNewPhoto(asset.uri)),
-      );
-      addPhotosToQuestion(questionId, persisted);
-    }
+    const picked = await pickDamagePhotosFromLibrary();
+    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
   };
 
   const takePhotoForQuestion = async (questionId: string) => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "We need camera permissions to take photos",
-      );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      const photo = await persistNewPhoto(result.assets[0].uri);
-      addPhotosToQuestion(questionId, [photo]);
-    }
+    const picked = await pickDamagePhotosFromCamera();
+    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
   };
 
   // ── Validation ──────────────────────────────────────────────────────────────
@@ -416,8 +254,9 @@ export default function InspectionScreen({
     if (damageFound === null) return "Please indicate if damage was found";
 
     if (damageFound === true) {
-      if (!damageNote.trim()) return "Damage notes are required";
-      if (!damagePhotos.length) return "At least one damage photo is required";
+      if (!damageDetails.note.trim()) return "Damage notes are required";
+      if (!damageDetails.photos.length)
+        return "At least one damage photo is required";
     }
 
     return null;
@@ -439,55 +278,12 @@ export default function InspectionScreen({
     }
     const ext = photo.ext ?? "jpg";
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
-    // Read from disk only for this upload — do not keep base64 in component state.
     const base64 = await readAsBase64(photo.uri);
     const record = await inspectionPhotoAttachmentQueue.savePhoto(
       base64,
       filename,
     );
     return record.id;
-  };
-
-  /**
-   * Saves a damage photo locally, inserts DamageReportPhotos, then lets the
-   * attachment queue upload to damage-report-photos (same order as standalone
-   * Damage Report screen — avoids orphan files without DB rows).
-   */
-  const saveDamagePhoto = async (
-    photo: DocumentPhoto,
-    damageReportId: string,
-    photoIndex: number,
-  ): Promise<void> => {
-    if (!photo.isNew || !photo.uri) return;
-    if (!damageReportPhotoAttachmentQueue) {
-      console.warn("damageReportPhotoAttachmentQueue not initialized");
-      return;
-    }
-
-    const ext = photo.ext ?? "jpg";
-    const filename = `${damageReportId}/photo_${photoIndex}_${Date.now()}.${ext}`;
-
-    const base64 = await readAsBase64(photo.uri);
-    await damageReportPhotoAttachmentQueue.savePhotoToDisk(base64, filename);
-
-    let thumb: string | null = null;
-    try {
-      thumb = await generateThumbnail(photo.uri);
-    } catch (e) {
-      console.warn("[inspection] thumbnail failed:", e);
-    }
-
-    await executeTypedMutation(
-      db
-        .insertInto("DamageReportPhotos")
-        .values({
-          id: randomUUID(),
-          damage_report_uuid: damageReportId,
-          photo_path: filename,
-          thumbnail: thumb,
-        })
-        .compile(),
-    );
   };
 
   // ── Submit ──────────────────────────────────────────────────────────────────
@@ -505,7 +301,6 @@ export default function InspectionScreen({
       const inspectionId = randomUUID();
       const now = new Date().toISOString();
 
-      // 1️⃣ Build answers JSON — inspection-question photos go to inspection-photos bucket
       const answersPayload: Record<
         string,
         {
@@ -558,7 +353,6 @@ export default function InspectionScreen({
         }
       }
 
-      // 2️⃣ Insert inspection record
       await executeTypedMutation(
         db
           .insertInto("WorkTrackerInspections")
@@ -573,40 +367,17 @@ export default function InspectionScreen({
           .compile(),
       );
 
-      // 3️⃣ Insert damage report + photos if damage was found
       if (damageFound) {
-        const damageId = randomUUID();
-
-        // Insert DamageReports first so photos can reference it by UUID.
-        // seat_damage / haul_damage are the canonical severity enums (admin UI).
-        // is_safe_to_* is boolean-ish: 1 = safe (no damage), 0 = not safe.
-        await executeTypedMutation(
-          db
-            .insertInto("DamageReports")
-            .values({
-              id: damageId,
-              inspection_uuid: inspectionId,
-              bleacher_uuid: bleacherUuid,
-              seat_damage: severityValueToEnum(seatingDamage),
-              haul_damage: severityValueToEnum(haulingDamage),
-              is_safe_to_sit: seatingDamage === null ? 1 : 0,
-              is_safe_to_haul: haulingDamage === null ? 1 : 0,
-              note: damageNote,
-              created_at: now,
-              resolved_at: null,
-              maintenance_event_uuid: null,
-            })
-            .compile(),
-        );
-
-        // Persist each damage photo locally + DamageReportPhotos row;
-        // attachment queue uploads to damage-report-photos in the background.
-        for (let i = 0; i < damagePhotos.length; i++) {
-          await saveDamagePhoto(damagePhotos[i], damageId, i);
-        }
+        await createDamageReport({
+          bleacherUuid,
+          inspectionUuid: inspectionId,
+          seatDamage: damageDetails.seatDamage,
+          haulDamage: damageDetails.haulDamage,
+          note: damageDetails.note,
+          photos: damageDetails.photos,
+        });
       }
 
-      // 4️⃣ Link inspection UUID to the WorkTracker
       const inspectionField =
         inspectionType === "pickup"
           ? { pre_inspection_uuid: inspectionId }
@@ -641,7 +412,6 @@ export default function InspectionScreen({
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>
             {inspectionType === "pickup" ? "Pickup" : "Dropoff"} Inspection
@@ -651,7 +421,6 @@ export default function InspectionScreen({
           </Text>
         </View>
 
-        {/* Check All button */}
         {checkboxQuestions.length > 0 && (
           <TouchableOpacity
             style={[
@@ -680,7 +449,6 @@ export default function InspectionScreen({
           </TouchableOpacity>
         )}
 
-        {/* Dynamic questions */}
         {questions.map((question) => {
           if (question.question_type === "text") {
             return (
@@ -719,7 +487,6 @@ export default function InspectionScreen({
           return null;
         })}
 
-        {/* Damage found toggle */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Was damage found?</Text>
           <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
@@ -769,94 +536,15 @@ export default function InspectionScreen({
           </View>
         </View>
 
-        {/* Damage detail */}
         {damageFound === true && (
-          <>
-            <DamageSeveritySelector
-              label="Seating Configuration Damage"
-              value={seatingDamage}
-              onChange={setSeatingDamage}
-            />
-
-            <DamageSeveritySelector
-              label="Hauling Configuration Damage"
-              value={haulingDamage}
-              onChange={setHaulingDamage}
-            />
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Damage Notes</Text>
-                <View style={styles.requiredBadge}>
-                  <Text style={styles.requiredText}>REQUIRED</Text>
-                </View>
-              </View>
-              <TextInput
-                style={styles.textInput}
-                value={damageNote}
-                onChangeText={setDamageNote}
-                placeholder="Describe the damage..."
-                multiline
-              />
-            </View>
-
-            <PhotoQuestion
-              question={
-                {
-                  id: "damage_photos",
-                  question_text: "Damage Photos",
-                  required: true,
-                } as any
-              }
-              photos={damagePhotos}
-              onAddFromCamera={async () => {
-                const { status } =
-                  await ImagePicker.requestCameraPermissionsAsync();
-                if (status !== "granted") {
-                  Alert.alert(
-                    "Permission needed",
-                    "We need camera permissions to take photos",
-                  );
-                  return;
-                }
-                const result = await ImagePicker.launchCameraAsync({
-                  quality: 0.8,
-                });
-                if (!result.canceled && result.assets?.length) {
-                  const photo = await persistNewPhoto(result.assets[0].uri);
-                  setDamagePhotos((prev) => [...prev, photo]);
-                }
-              }}
-              onAddFromLibrary={async () => {
-                const { status } =
-                  await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== "granted") {
-                  Alert.alert(
-                    "Permission needed",
-                    "We need camera roll permissions to add photos",
-                  );
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ["images"],
-                  allowsMultipleSelection: true,
-                  quality: 0.8,
-                });
-                if (!result.canceled && result.assets?.length) {
-                  const persisted = await Promise.all(
-                    result.assets.map((asset) => persistNewPhoto(asset.uri)),
-                  );
-                  setDamagePhotos((prev) => [...prev, ...persisted]);
-                }
-              }}
-              onRemove={(index) =>
-                setDamagePhotos((prev) => prev.filter((_, i) => i !== index))
-              }
-            />
-          </>
+          <DamageDetailsForm
+            values={damageDetails}
+            onChange={(patch) =>
+              setDamageDetails((prev) => ({ ...prev, ...patch }))
+            }
+          />
         )}
 
-        {/* Submit / Cancel */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -949,39 +637,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  photoButtons: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  photoButton: {
-    flex: 1,
-    backgroundColor: "#0A84FF",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  photoButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  photoContainer: { position: "relative", width: 100, height: 100 },
-  iconContainer: {
-    width: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-    marginLeft: 8,
-  },
-  photo: { width: "100%", height: "100%", borderRadius: 8 },
-  removePhotoButton: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    backgroundColor: "#FF3B30",
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   buttonContainer: {
     flexDirection: "row",
     gap: 12,
@@ -1020,18 +675,4 @@ const styles = StyleSheet.create({
   damageToggleYes: { borderColor: "#FF3B30", backgroundColor: "#FFEBEA" },
   damageToggleNo: { borderColor: "#34C759", backgroundColor: "#E8F9ED" },
   damageToggleText: { fontSize: 15, fontWeight: "600", color: "#8E8E93" },
-});
-
-const severityStyles = StyleSheet.create({
-  row: { flexDirection: "row", gap: 10, marginTop: 12 },
-  option: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-  },
-  optionLabel: { fontSize: 13, fontWeight: "600" },
 });
