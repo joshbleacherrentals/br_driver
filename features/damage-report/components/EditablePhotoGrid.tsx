@@ -83,12 +83,20 @@ export function EditablePhotoGrid({
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 8,
     marginBottom: 8,
   },
-  title: { fontSize: 18, fontWeight: "600", color: "#000" },
+  title: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
   requiredBadge: {
+    flexShrink: 0,
     backgroundColor: DANGER_RED,
     paddingHorizontal: 8,
     paddingVertical: 4,
