@@ -77,6 +77,7 @@ function ViewOnlyPhotoGrid({
             id: p.id,
             uri,
             thumbnail: p.thumbnail ?? undefined,
+            storagePath: p.photo_path ?? undefined,
           };
         }),
       );
@@ -128,6 +129,7 @@ function ViewOnlyPhotoGrid({
           images={fullSizeItems}
           initialIndex={viewerIndex}
           visible
+          title="Damage Photos"
           onClose={() => setViewerIndex(null)}
         />
       )}

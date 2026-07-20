@@ -1,5 +1,5 @@
 import { useColorScheme } from "@/hooks/useColorScheme";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   Dimensions,
   Modal,
@@ -25,6 +25,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface BottomSheetModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Hardware back. Defaults to `onClose`. Use to dismiss an inner overlay first. */
+  onRequestClose?: () => void;
+  /**
+   * When set, drag-handle swipe/tap calls this instead of closing the sheet.
+   * Use while an inner overlay (e.g. photo gallery) is open.
+   */
+  onDragDismiss?: () => void;
   children: React.ReactNode;
 }
 
@@ -36,10 +43,13 @@ const DISMISS_VELOCITY = 800;
 export default function BottomSheetModal({
   visible,
   onClose,
+  onRequestClose,
+  onDragDismiss,
   children,
 }: BottomSheetModalProps) {
   const colorScheme = useColorScheme();
   const bg = colorScheme === "dark" ? "#1C1C1E" : BG;
+  const handleRequestClose = onRequestClose ?? onClose;
 
   // iOS: native pageSheet already supports drag-to-dismiss.
   if (Platform.OS === "ios") {
@@ -48,7 +58,7 @@ export default function BottomSheetModal({
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
+        onRequestClose={handleRequestClose}
       >
         <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
           <View style={styles.dragHandleBar}>
@@ -61,7 +71,13 @@ export default function BottomSheetModal({
   }
 
   return (
-    <AndroidSheet visible={visible} onClose={onClose} backgroundColor={bg}>
+    <AndroidSheet
+      visible={visible}
+      onClose={onClose}
+      onRequestClose={handleRequestClose}
+      onDragDismiss={onDragDismiss}
+      backgroundColor={bg}
+    >
       {children}
     </AndroidSheet>
   );
@@ -70,11 +86,15 @@ export default function BottomSheetModal({
 function AndroidSheet({
   visible,
   onClose,
+  onRequestClose,
+  onDragDismiss,
   backgroundColor,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
+  onRequestClose: () => void;
+  onDragDismiss?: () => void;
   backgroundColor: string;
   children: React.ReactNode;
 }) {
@@ -104,37 +124,58 @@ function AndroidSheet({
   }, [visible, animateOpen, translateY]);
 
   const requestClose = useCallback(() => {
+    if (onDragDismiss) {
+      onDragDismiss();
+      return;
+    }
     animateClose(onClose);
-  }, [animateClose, onClose]);
+  }, [animateClose, onClose, onDragDismiss]);
 
-  const pan = Gesture.Pan()
-    .activeOffsetY(8)
-    .failOffsetX([-24, 24])
-    .onUpdate((e) => {
-      translateY.value = Math.max(0, e.translationY);
-    })
-    .onEnd((e) => {
-      const shouldDismiss =
-        e.translationY > DISMISS_DISTANCE || e.velocityY > DISMISS_VELOCITY;
-      if (shouldDismiss) {
-        translateY.value = withTiming(
-          SCREEN_H,
-          { duration: 200 },
-          (finished) => {
-            if (finished) runOnJS(onClose)();
-          },
-        );
-        backdrop.value = withTiming(0, { duration: 200 });
-      } else {
-        translateY.value = withSpring(0, { damping: 22, stiffness: 220 });
-      }
-    });
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-24, 24])
+        .onUpdate((e) => {
+          // While an overlay handles dismiss, keep the sheet pinned.
+          if (onDragDismiss) return;
+          translateY.value = Math.max(0, e.translationY);
+        })
+        .onEnd((e) => {
+          const shouldDismiss =
+            e.translationY > DISMISS_DISTANCE || e.velocityY > DISMISS_VELOCITY;
+          if (!shouldDismiss) {
+            translateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+            return;
+          }
+          if (onDragDismiss) {
+            runOnJS(onDragDismiss)();
+            return;
+          }
+          translateY.value = withTiming(
+            SCREEN_H,
+            { duration: 200 },
+            (finished) => {
+              if (finished) runOnJS(onClose)();
+            },
+          );
+          backdrop.value = withTiming(0, { duration: 200 });
+        }),
+    [translateY, backdrop, onClose, onDragDismiss],
+  );
 
-  const tapHandle = Gesture.Tap().onEnd(() => {
-    runOnJS(requestClose)();
-  });
+  const tapHandle = useMemo(
+    () =>
+      Gesture.Tap().onEnd(() => {
+        runOnJS(requestClose)();
+      }),
+    [requestClose],
+  );
 
-  const handleGesture = Gesture.Exclusive(pan, tapHandle);
+  const handleGesture = useMemo(
+    () => Gesture.Exclusive(pan, tapHandle),
+    [pan, tapHandle],
+  );
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -149,7 +190,9 @@ function AndroidSheet({
       visible={visible}
       animationType="none"
       transparent
-      onRequestClose={requestClose}
+      // Hardware back should not run the dismiss animation first — parent may
+      // only close an inner overlay (e.g. photo gallery) and keep the sheet open.
+      onRequestClose={onRequestClose}
       statusBarTranslucent
     >
       {/* Modal is a separate native root — needs its own GestureHandlerRootView */}

@@ -3,8 +3,6 @@ import InspectionScreen from "@/components/widgets/inspection";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import TripItem from "@/components/widgets/trip_item";
 import { BRAND_BLUE } from "@/constants/Colors";
-import { useAllBleachers } from "@/hooks/db/useBleacher";
-import { useResolvedBleacherAddresses } from "@/hooks/db/useResolveAddress";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
@@ -112,32 +110,7 @@ export default function TripsScreen() {
   const workTrackers = useWorkTrackers().workTrackers;
   const { isProfileComplete } = useProfileCompletion();
 
-  const { bleachers: allBleachersFleet } = useAllBleachers();
-
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
-  const resolvedAddresses = useResolvedBleacherAddresses(
-    allBleachersFleet,
-    today,
-  );
-
-  const bleacherOptions = useMemo(
-    () =>
-      allBleachersFleet
-        .map((b) => ({
-          uuid: b.id,
-          bleacher_number: b.bleacher_number ?? "—",
-          bleacher_rows: b.bleacher_rows ?? null,
-          resolved_address: resolvedAddresses[b.id] ?? null,
-          label: b.bleacher_rows ? `${b.bleacher_rows} rows` : undefined,
-        }))
-        .sort(
-          (a, b) =>
-            parseInt(String(a.bleacher_number)) -
-            parseInt(String(b.bleacher_number)),
-        ),
-    [allBleachersFleet, resolvedAddresses],
-  );
 
   // ── Handlers (stable refs so memoized TripItem can skip re-renders) ──────
 
@@ -228,45 +201,11 @@ export default function TripsScreen() {
     );
   }, [workTrackers]);
 
-  const [pendingBleacherUuids, setPendingBleacherUuids] = React.useState<
-    Record<string, string>
-  >({});
-
-  const handleBleacherChange = useCallback((
-    workTrackerId: string,
-    newBleacherUuid: string,
-  ) => {
-    setPendingBleacherUuids((prev) => ({
-      ...prev,
-      [workTrackerId]: newBleacherUuid,
-    }));
-  }, []);
-
-  const handleStartInspection = useCallback(async (
+  const handleStartInspection = useCallback((
     workTrackerId: string,
     bleacherUuid: string | null,
     type: "pickup" | "dropoff",
   ) => {
-    if (bleacherUuid) {
-      try {
-        await executeTypedMutationVoid(
-          db
-            .updateTable("WorkTrackers")
-            .set({
-              bleacher_uuid: bleacherUuid,
-              updated_at: new Date().toISOString(),
-            })
-            .where("id", "=", workTrackerId)
-            .compile(),
-        );
-      } catch {
-        Alert.alert(
-          "Error",
-          "Failed to save bleacher selection. Please try again.",
-        );
-        return;
-      }
-    }
     setInspectionData({ workTrackerId, bleacherUuid, type });
   }, []);
 
@@ -454,13 +393,11 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
-              bleacherOptions={bleacherOptions}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
               onArrived={handleArrived}
               onStartInspection={handleStartInspection}
-              onBleacherChange={handleBleacherChange}
             />
           )}
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -495,13 +432,11 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
-              bleacherOptions={bleacherOptions}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
               onArrived={handleArrived}
               onStartInspection={handleStartInspection}
-              onBleacherChange={handleBleacherChange}
             />
           )}
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}

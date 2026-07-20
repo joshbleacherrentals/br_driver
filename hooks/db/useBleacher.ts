@@ -132,7 +132,6 @@ export function useBatchBleachers(
 
 /**
  * Fetch every bleacher in the fleet, sorted by bleacher_number ascending.
- * Use this to populate the BleacherDropdown options.
  */
 export function useAllBleachers(): { bleachers: BleacherData[] } {
   const compiled = useMemo(

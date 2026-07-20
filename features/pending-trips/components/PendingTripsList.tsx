@@ -1,7 +1,5 @@
 import { db } from "@/components/providers/SystemProvider";
 import TripItem from "@/components/widgets/trip_item";
-import { useAllBleachers } from "@/hooks/db/useBleacher";
-import { useResolvedBleacherAddresses } from "@/hooks/db/useResolveAddress";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
@@ -25,31 +23,6 @@ export default function PendingTripsList() {
 
   const workTrackers = useWorkTrackers().workTrackers;
   const { isProfileComplete } = useProfileCompletion();
-  const { bleachers: allBleachersFleet } = useAllBleachers();
-
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const resolvedAddresses = useResolvedBleacherAddresses(
-    allBleachersFleet,
-    today,
-  );
-
-  const bleacherOptions = useMemo(
-    () =>
-      allBleachersFleet
-        .map((b) => ({
-          uuid: b.id,
-          bleacher_number: b.bleacher_number ?? "—",
-          bleacher_rows: b.bleacher_rows ?? null,
-          resolved_address: resolvedAddresses[b.id] ?? null,
-          label: b.bleacher_rows ? `${b.bleacher_rows} rows` : undefined,
-        }))
-        .sort(
-          (a, b) =>
-            parseInt(String(a.bleacher_number)) -
-            parseInt(String(b.bleacher_number)),
-        ),
-    [allBleachersFleet, resolvedAddresses],
-  );
 
   const pendingTrips = useMemo(
     () => (workTrackers ?? []).filter((wt) => wt.status === "released"),
@@ -116,13 +89,11 @@ export default function PendingTripsList() {
       renderItem={({ item }) => (
         <TripItem
           workTracker={item}
-          bleacherOptions={bleacherOptions}
           onAccept={handleAccept}
           onStartTrip={noop}
           onSkip={handleSkip}
           onArrived={noop}
           onStartInspection={noop}
-          onBleacherChange={noopBleacherChange}
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -146,7 +117,6 @@ export default function PendingTripsList() {
 }
 
 const noop = async () => {};
-const noopBleacherChange = (_workTrackerId: string, _uuid: string) => {};
 
 const styles = StyleSheet.create({
   listContent: {

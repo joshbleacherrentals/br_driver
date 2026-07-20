@@ -1,31 +1,53 @@
+import BottomSheetModal from '@/components/ui/BottomSheetModal';
 import {
   damageReportPhotoAttachmentQueue,
   inspectionPhotoAttachmentQueue,
 } from '@/components/providers/SystemProvider';
+import ZoomableImage from '@/components/widgets/ZoomableImage';
 import { DamageReportData } from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
+import { shareImage, supabasePublicObjectUrl } from '@/utils/shareImage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePowerSyncQuery } from '@powersync/react-native';
-import React, { useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ViewToken,
 } from 'react-native';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   SafeAreaProvider,
   SafeAreaView,
-  initialWindowMetrics,
 } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const DISMISS_DISTANCE = 100;
+const DISMISS_VELOCITY = 800;
+const GALLERY_IMAGE_HEIGHT = SCREEN_HEIGHT * 0.65;
 
 interface InspectionSummaryWidgetProps {
   inspection: InspectionData | null;
@@ -37,15 +59,46 @@ interface InspectionSummaryWidgetProps {
 // ─── URI resolvers ────────────────────────────────────────────────────────────
 
 function getInspectionPhotoUri(storagePath: string): string | null {
-  if (!storagePath || !inspectionPhotoAttachmentQueue) return null;
-  const localPath = inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-  return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
+  if (!storagePath) return null;
+  if (inspectionPhotoAttachmentQueue) {
+    const localPath =
+      inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
+    return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
+  }
+  return supabasePublicObjectUrl('inspection-photos', storagePath) || null;
 }
 
 function getDamagePhotoUri(storagePath: string): string | null {
-  if (!storagePath || !damageReportPhotoAttachmentQueue) return null;
-  const localPath = damageReportPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-  return damageReportPhotoAttachmentQueue.getLocalUri(localPath);
+  if (!storagePath) return null;
+  if (damageReportPhotoAttachmentQueue) {
+    const localPath =
+      damageReportPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
+    return damageReportPhotoAttachmentQueue.getLocalUri(localPath);
+  }
+  return supabasePublicObjectUrl('damage-report-photos', storagePath) || null;
+}
+
+async function resolveShareablePhotoUri(
+  storagePath: string,
+  localUri: string | null,
+  bucket: 'inspection-photos' | 'damage-report-photos',
+): Promise<string | null> {
+  const fallback = supabasePublicObjectUrl(bucket, storagePath) || null;
+
+  if (localUri) {
+    try {
+      const normalized = localUri.replace(
+        /(file:\/\/|https?:\/\/)|\/\/+/g,
+        (match, protocol) => (protocol ? protocol : '/'),
+      );
+      const { exists } = await FileSystem.getInfoAsync(normalized);
+      if (exists) return normalized;
+    } catch {
+      // fall through to remote
+    }
+  }
+
+  return fallback;
 }
 
 // ─── Damage photo hook ────────────────────────────────────────────────────────
@@ -173,99 +226,252 @@ function DamageCard({
 
 // ─── Photo gallery modal ──────────────────────────────────────────────────────
 
-function PhotoGalleryModal({
-  visible,
+/**
+ * Fullscreen photo viewer rendered as an overlay (not a nested Modal).
+ * iOS cannot reliably present a second Modal on top of presentationStyle="pageSheet".
+ * Swipe down to dismiss (matches iOS pageSheet / Android sheet behavior).
+ * Pinch / double-tap zoom via ZoomableImage.
+ */
+type GalleryItem = {
+  id: string;
+  uri: string;
+  storagePath: string;
+};
+
+function PhotoGalleryOverlay({
   photos,
   initialIndex,
   questionText,
   resolveUri,
+  bucket,
   onClose,
 }: {
-  visible: boolean;
   photos: { storage_path: string }[];
   initialIndex: number;
   questionText: string;
   resolveUri: (storagePath: string) => string | null;
+  bucket: 'inspection-photos' | 'damage-report-photos';
   onClose: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [items, setItems] = useState<GalleryItem[]>([]);
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const viewabilityConfig = useRef({
+    viewAreaCoveragePercentThreshold: 50,
+  }).current;
 
-  const uris = photos
-    .map((p) => resolveUri(p.storage_path))
-    .filter(Boolean) as string[];
+  // Prefer local file; if missing (synced from another device), use Supabase URL
+  // so the image still renders and share can download it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const resolved = await Promise.all(
+        photos.map(async (p, i) => {
+          const localUri = resolveUri(p.storage_path);
+          const uri = await resolveShareablePhotoUri(
+            p.storage_path,
+            localUri,
+            bucket,
+          );
+          if (!uri) return null;
+          return {
+            id: `${p.storage_path}-${i}`,
+            uri,
+            storagePath: p.storage_path,
+          } satisfies GalleryItem;
+        }),
+      );
+      if (!cancelled) {
+        setItems(resolved.filter(Boolean) as GalleryItem[]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photos, resolveUri, bucket]);
+
+  const dismiss = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  const handleShare = useCallback(async () => {
+    const current = items[currentIndex];
+    if (!current?.uri || isSharing) return;
+    setIsSharing(true);
+    try {
+      await shareImage(current.uri, {
+        filenamePrefix:
+          bucket === 'damage-report-photos'
+            ? 'damage-photo'
+            : 'inspection-photo',
+        fallbackUrl:
+          supabasePublicObjectUrl(bucket, current.storagePath) || undefined,
+      });
+    } catch (error) {
+      Alert.alert(
+        'Share failed',
+        error instanceof Error ? error.message : 'Could not share this photo.',
+      );
+    } finally {
+      setIsSharing(false);
+    }
+  }, [items, currentIndex, isSharing, bucket]);
+
+  const createDismissPan = useCallback(
+    (enabled: boolean) =>
+      Gesture.Pan()
+        .enabled(enabled)
+        .activeOffsetY(12)
+        .failOffsetX([-30, 30])
+        .onUpdate((e) => {
+          const y = Math.max(0, e.translationY);
+          translateY.value = y;
+          opacity.value = Math.max(0.45, 1 - y / 350);
+        })
+        .onEnd((e) => {
+          const shouldDismiss =
+            e.translationY > DISMISS_DISTANCE ||
+            e.velocityY > DISMISS_VELOCITY;
+          if (shouldDismiss) {
+            translateY.value = withTiming(
+              SCREEN_HEIGHT,
+              { duration: 200 },
+              (finished) => {
+                if (finished) runOnJS(dismiss)();
+              },
+            );
+            opacity.value = withTiming(0, { duration: 180 });
+          } else {
+            translateY.value = withSpring(0, { damping: 22, stiffness: 220 });
+            opacity.value = withTiming(1, { duration: 150 });
+          }
+        }),
+    [dismiss, translateY, opacity],
+  );
+
+  // Header dismiss always works; list dismiss only when not zoomed.
+  const headerPan = useMemo(() => createDismissPan(true), [createDismissPan]);
+  const listPan = useMemo(
+    () => createDismissPan(!isZoomed),
+    [createDismissPan, isZoomed],
+  );
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        setCurrentIndex(viewableItems[0].index);
+        setIsZoomed(false);
+      }
+    },
+    [],
+  );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      {/* Modal is a separate native root — needs its own SafeAreaProvider */}
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <SafeAreaView style={gallery.container} edges={['top', 'bottom']}>
-          <StatusBar barStyle="light-content" backgroundColor="#000" />
+    <GestureHandlerRootView style={gallery.overlay} accessibilityViewIsModal>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <Animated.View style={[gallery.container, animatedStyle]}>
+        <SafeAreaView style={gallery.safeArea} edges={['top', 'bottom']}>
+          <GestureDetector gesture={headerPan}>
+            <Animated.View style={gallery.header}>
+              <TouchableOpacity
+                style={gallery.closeButton}
+                onPress={onClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color="#FFF" />
+              </TouchableOpacity>
+              <View style={gallery.headerCenter}>
+                <Text style={gallery.headerTitle} numberOfLines={1}>
+                  {questionText}
+                </Text>
+                <Text style={gallery.headerSubtitle}>
+                  {currentIndex + 1} / {items.length}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={gallery.shareButton}
+                onPress={handleShare}
+                disabled={isSharing || items.length === 0}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel="Share photo"
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Ionicons name="share-outline" size={24} color="#FFF" />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </GestureDetector>
 
-          {/* Header */}
-          <View style={gallery.header}>
-            <TouchableOpacity
-              style={gallery.closeButton}
-              onPress={onClose}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="close" size={26} color="#FFF" />
-            </TouchableOpacity>
-            <View style={gallery.headerCenter}>
-              <Text style={gallery.headerTitle} numberOfLines={1}>{questionText}</Text>
-              <Text style={gallery.headerSubtitle}>
-                {currentIndex + 1} / {uris.length}
-              </Text>
-            </View>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {uris.length === 0 ? (
+          {items.length === 0 ? (
             <View style={gallery.emptyContainer}>
               <Ionicons name="image-outline" size={64} color="#555" />
               <Text style={gallery.emptyText}>Photos not yet downloaded</Text>
-              <Text style={gallery.emptySubtext}>They will appear once synced</Text>
+              <Text style={gallery.emptySubtext}>
+                They will appear once synced
+              </Text>
             </View>
           ) : (
             <>
-              <FlatList
-                data={uris}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                initialScrollIndex={initialIndex}
-                getItemLayout={(_, index) => ({
-                  length: SCREEN_WIDTH,
-                  offset: SCREEN_WIDTH * index,
-                  index,
-                })}
-                onMomentumScrollEnd={(e) => {
-                  const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                  setCurrentIndex(newIndex);
-                }}
-                keyExtractor={(_, i) => String(i)}
-                renderItem={({ item: uri }) => (
-                  <View style={gallery.imageContainer}>
-                    <Image source={{ uri }} style={gallery.image} resizeMode="contain" />
-                  </View>
-                )}
-              />
-              {uris.length > 1 && (
+              <GestureDetector gesture={listPan}>
+                <Animated.View style={gallery.listWrap}>
+                  <FlatList
+                    data={items}
+                    horizontal
+                    pagingEnabled
+                    scrollEnabled={!isZoomed}
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={Math.min(
+                      initialIndex,
+                      Math.max(items.length - 1, 0),
+                    )}
+                    getItemLayout={(_, index) => ({
+                      length: SCREEN_WIDTH,
+                      offset: SCREEN_WIDTH * index,
+                      index,
+                    })}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    viewabilityConfig={viewabilityConfig}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <ZoomableImage
+                        item={item}
+                        width={SCREEN_WIDTH}
+                        height={GALLERY_IMAGE_HEIGHT}
+                        slideHeight={GALLERY_IMAGE_HEIGHT}
+                        onZoomChange={setIsZoomed}
+                      />
+                    )}
+                  />
+                </Animated.View>
+              </GestureDetector>
+              {items.length > 1 && (
                 <View style={gallery.dots}>
-                  {uris.map((_, i) => (
-                    <View key={i} style={[gallery.dot, i === currentIndex && gallery.dotActive]} />
+                  {items.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        gallery.dot,
+                        i === currentIndex && gallery.dotActive,
+                      ]}
+                    />
                   ))}
                 </View>
               )}
             </>
           )}
         </SafeAreaView>
-      </SafeAreaProvider>
-    </Modal>
+      </Animated.View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -304,141 +510,180 @@ export function InspectionDetailModal({
     try { return new Date(iso).toLocaleString(); } catch { return iso ?? ''; }
   };
 
-  return (
-    <>
+  const handleRequestClose = useCallback(() => {
+    if (galleryState) {
+      setGalleryState(null);
+      return;
+    }
+    onClose();
+  }, [galleryState, onClose]);
+
+  const handleSheetDismiss = useCallback(() => {
+    setGalleryState(null);
+    onClose();
+  }, [onClose]);
+
+  const body = (
+    <SafeAreaProvider>
+      <View style={detail.container}>
+        <SafeAreaView style={detail.safeArea} edges={['top', 'bottom']}>
+          {/* Header */}
+          <View style={detail.header}>
+            <Text style={detail.headerTitle}>{title}</Text>
+            <TouchableOpacity style={detail.closeBtn} onPress={onClose}>
+              <Ionicons name="close-circle" size={28} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={detail.scrollContent}>
+            <Text style={detail.timestamp}>
+              Completed: {formatDateTime(inspection.created_at)}
+            </Text>
+
+            {/* Dynamic inspection answers */}
+            {answers.map((answer, index) => (
+              <View key={index} style={detail.answerCard}>
+                <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
+
+                {answer.question_type === 'checkbox' && (
+                  <View style={detail.answerCardValue}>
+                    {answer.answer_boolean ? (
+                      <>
+                        <Ionicons name="checkmark-circle" size={20} color="#34C759" />
+                        <Text style={[detail.answerValueText, { color: '#34C759' }]}>Yes</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                        <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>No</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+
+                {answer.question_type === 'text' && (
+                  <Text style={detail.answerTextValue}>
+                    {answer.answer_text?.trim() || '—'}
+                  </Text>
+                )}
+
+                {answer.question_type === 'photo' && (
+                  <>
+                    {(!answer.photos || answer.photos.length === 0) ? (
+                      <Text style={detail.noPhotosText}>No photos taken</Text>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={detail.photoRow}
+                      >
+                        {answer.photos.map((photo, photoIndex) => {
+                          const uri = getInspectionPhotoUri(photo.storage_path);
+                          return (
+                            <TouchableOpacity
+                              key={photoIndex}
+                              style={detail.photoThumb}
+                              onPress={() =>
+                                setGalleryState({
+                                  photos: answer.photos!,
+                                  questionText: answer.question_text,
+                                  initialIndex: photoIndex,
+                                  isDamage: false,
+                                })
+                              }
+                              activeOpacity={0.8}
+                            >
+                              {uri ? (
+                                <>
+                                  <Image
+                                    source={{ uri }}
+                                    style={detail.photoThumbImage}
+                                    resizeMode="cover"
+                                  />
+                                  <View style={detail.photoExpandIcon}>
+                                    <Ionicons name="expand-outline" size={14} color="#FFF" />
+                                  </View>
+                                </>
+                              ) : (
+                                <View style={detail.photoThumbPlaceholder}>
+                                  <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
+                                  <Text style={detail.photoThumbPlaceholderText}>Syncing...</Text>
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+                  </>
+                )}
+              </View>
+            ))}
+
+            {/* Damage card — includes photos fetched from DamageReportPhotos */}
+            {hasDamage && (
+              <DamageCard
+                damage={damage!}
+                onPhotoPress={(photos, index) =>
+                  setGalleryState({
+                    photos,
+                    questionText: 'Damage Photos',
+                    initialIndex: index,
+                    isDamage: true,
+                  })
+                }
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+
+        {/* Overlay inside sheet — nested Modal does not present on iOS */}
+          {galleryState && (
+            <PhotoGalleryOverlay
+              photos={galleryState.photos}
+              initialIndex={galleryState.initialIndex}
+              questionText={galleryState.questionText}
+              resolveUri={
+                galleryState.isDamage ? getDamagePhotoUri : getInspectionPhotoUri
+              }
+              bucket={
+                galleryState.isDamage
+                  ? 'damage-report-photos'
+                  : 'inspection-photos'
+              }
+              onClose={() => setGalleryState(null)}
+            />
+          )}
+      </View>
+    </SafeAreaProvider>
+  );
+
+  // iOS: native pageSheet already supports swipe-to-dismiss.
+  if (Platform.OS === 'ios') {
+    return (
       <Modal
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
+        onRequestClose={handleRequestClose}
       >
-        {/* pageSheet has its own window insets — measure them, don't force window metrics */}
-        <SafeAreaProvider>
-          <SafeAreaView style={detail.container} edges={['top', 'bottom']}>
-            {/* Header */}
-            <View style={detail.header}>
-              <Text style={detail.headerTitle}>{title}</Text>
-              <TouchableOpacity style={detail.closeBtn} onPress={onClose}>
-                <Ionicons name="close-circle" size={28} color="#8E8E93" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={detail.scrollContent}>
-              <Text style={detail.timestamp}>
-                Completed: {formatDateTime(inspection.created_at)}
-              </Text>
-
-              {/* Dynamic inspection answers */}
-              {answers.map((answer, index) => (
-                <View key={index} style={detail.answerCard}>
-                  <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
-
-                  {answer.question_type === 'checkbox' && (
-                    <View style={detail.answerCardValue}>
-                      {answer.answer_boolean ? (
-                        <>
-                          <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-                          <Text style={[detail.answerValueText, { color: '#34C759' }]}>Yes</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="close-circle" size={20} color="#FF3B30" />
-                          <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>No</Text>
-                        </>
-                      )}
-                    </View>
-                  )}
-
-                  {answer.question_type === 'text' && (
-                    <Text style={detail.answerTextValue}>
-                      {answer.answer_text?.trim() || '—'}
-                    </Text>
-                  )}
-
-                  {answer.question_type === 'photo' && (
-                    <>
-                      {(!answer.photos || answer.photos.length === 0) ? (
-                        <Text style={detail.noPhotosText}>No photos taken</Text>
-                      ) : (
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          style={detail.photoRow}
-                        >
-                          {answer.photos.map((photo, photoIndex) => {
-                            const uri = getInspectionPhotoUri(photo.storage_path);
-                            return (
-                              <TouchableOpacity
-                                key={photoIndex}
-                                style={detail.photoThumb}
-                                onPress={() =>
-                                  setGalleryState({
-                                    photos: answer.photos!,
-                                    questionText: answer.question_text,
-                                    initialIndex: photoIndex,
-                                    isDamage: false,
-                                  })
-                                }
-                                activeOpacity={0.8}
-                              >
-                                {uri ? (
-                                  <>
-                                    <Image
-                                      source={{ uri }}
-                                      style={detail.photoThumbImage}
-                                      resizeMode="cover"
-                                    />
-                                    <View style={detail.photoExpandIcon}>
-                                      <Ionicons name="expand-outline" size={14} color="#FFF" />
-                                    </View>
-                                  </>
-                                ) : (
-                                  <View style={detail.photoThumbPlaceholder}>
-                                    <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
-                                    <Text style={detail.photoThumbPlaceholderText}>Syncing...</Text>
-                                  </View>
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </ScrollView>
-                      )}
-                    </>
-                  )}
-                </View>
-              ))}
-
-              {/* Damage card — includes photos fetched from DamageReportPhotos */}
-              {hasDamage && (
-                <DamageCard
-                  damage={damage!}
-                  onPhotoPress={(photos, index) =>
-                    setGalleryState({
-                      photos,
-                      questionText: 'Damage Photos',
-                      initialIndex: index,
-                      isDamage: true,
-                    })
-                  }
-                />
-              )}
-            </ScrollView>
-          </SafeAreaView>
-        </SafeAreaProvider>
+        {body}
       </Modal>
+    );
+  }
 
-      {/* Gallery — uses the correct queue based on photo source */}
-      {galleryState && (
-        <PhotoGalleryModal
-          visible={!!galleryState}
-          photos={galleryState.photos}
-          initialIndex={galleryState.initialIndex}
-          questionText={galleryState.questionText}
-          resolveUri={galleryState.isDamage ? getDamagePhotoUri : getInspectionPhotoUri}
-          onClose={() => setGalleryState(null)}
-        />
-      )}
-    </>
+  // Android: reuse shared bottom-sheet with drag handle + swipe-to-dismiss.
+  return (
+    <BottomSheetModal
+      visible={visible}
+      onClose={handleSheetDismiss}
+      onRequestClose={handleRequestClose}
+      onDragDismiss={
+        galleryState ? () => setGalleryState(null) : undefined
+      }
+    >
+      {body}
+    </BottomSheetModal>
   );
 }
 
@@ -644,6 +889,7 @@ const styles = StyleSheet.create({
 
 const detail = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F2F2F7' },
+  safeArea: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#000' },
   closeBtn: { padding: 4 },
@@ -664,14 +910,27 @@ const detail = StyleSheet.create({
 });
 
 const gallery = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 100,
+  },
   container: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  safeArea: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 56,
+  },
   closeButton: { width: 40, alignItems: 'flex-start' },
+  shareButton: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
   headerSubtitle: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
-  imageContainer: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75, justifyContent: 'center', alignItems: 'center' },
-  image: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75 },
+  listWrap: { flex: 1 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 16 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#555' },
   dotActive: { backgroundColor: '#FFF', width: 18 },

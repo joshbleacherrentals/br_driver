@@ -20,7 +20,6 @@ import {
   View,
 } from "react-native";
 import BillOfLading, { BOLButton } from "./billOfLading";
-import BleacherDropdown, { BleacherOption } from "./bleacherDropdown";
 
 const themes = {
   light: {
@@ -55,7 +54,6 @@ const themes = {
 
 interface TripItemProps {
   workTracker: WorkTracker;
-  bleacherOptions?: BleacherOption[];
   onAccept?: (workTrackerId: string) => void;
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
@@ -65,18 +63,15 @@ interface TripItemProps {
     bleacherUuid: string | null,
     inspectionType: "pickup" | "dropoff",
   ) => void;
-  onBleacherChange?: (workTrackerId: string, newBleacherUuid: string) => void;
 }
 
 function TripItem({
   workTracker,
-  bleacherOptions = [],
   onAccept,
   onStartTrip,
   onSkip,
   onArrived,
   onStartInspection,
-  onBleacherChange,
 }: TripItemProps) {
   const colorScheme = useColorScheme();
   const t = themes[colorScheme === "dark" ? "dark" : "light"];
@@ -99,8 +94,6 @@ function TripItem({
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
-  const [selectedBleacherUuid, setSelectedBleacherUuid] =
-    React.useState<string>(bleacher_uuid ?? "");
   const [preInspectionVisible, setPreInspectionVisible] = React.useState(false);
   const [postInspectionVisible, setPostInspectionVisible] =
     React.useState(false);
@@ -126,30 +119,6 @@ function TripItem({
 
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
-
-  const pickupStreet = pickupAddressData.address?.street ?? null;
-
-  const eligibleBleacherOptions = React.useMemo(() => {
-    const currentRows = bleacher?.bleacher_rows ?? null;
-    const currentUuid = bleacher_uuid ?? "";
-
-    return bleacherOptions.filter((opt) => {
-      if (opt.uuid === currentUuid) return true;
-      if (
-        currentRows !== null &&
-        opt.bleacher_rows != null &&
-        opt.bleacher_rows !== currentRows
-      )
-        return false;
-      if (!opt.resolved_address || !pickupStreet) return false;
-      if (
-        opt.resolved_address.trim().toLowerCase() !==
-        pickupStreet.trim().toLowerCase()
-      )
-        return false;
-      return true;
-    });
-  }, [bleacherOptions, bleacher?.bleacher_rows, bleacher_uuid, pickupStreet]);
 
   if (status === "draft" || status === "completed") return null;
 
@@ -254,29 +223,6 @@ function TripItem({
   const badge = getStatusBadge();
   const showTeardown = teardown_required === 1;
   const showSetup = setup_required === 1;
-
-  const handleBleacherChange = (uuid: string) => {
-    const original = bleacher_uuid ?? "";
-    if (uuid !== original) {
-      Alert.alert(
-        "Change Bleacher?",
-        "This will update the bleacher assigned to this trip when you start the inspection. Are you sure?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Confirm",
-            onPress: () => {
-              setSelectedBleacherUuid(uuid);
-              onBleacherChange?.(workTracker.id, uuid);
-            },
-          },
-        ],
-      );
-    } else {
-      setSelectedBleacherUuid(uuid);
-      onBleacherChange?.(workTracker.id, uuid);
-    }
-  };
 
   const handleStartInspection = (
     id: string,
@@ -412,14 +358,6 @@ function TripItem({
       {/* Start Pickup Inspection */}
       {status === "pickup_inspection" && (
         <View style={styles.inspectionBlock}>
-          <View style={styles.bleacherSelectorBox}>
-            <Text style={styles.bleacherSelectorLabel}>Confirm Bleacher</Text>
-            <BleacherDropdown
-              options={eligibleBleacherOptions}
-              selectedUuid={selectedBleacherUuid || bleacher_uuid}
-              onChange={handleBleacherChange}
-            />
-          </View>
           <TouchableOpacity
             style={styles.inspectionButton}
             onPress={() =>
@@ -605,13 +543,11 @@ function tripItemPropsEqual(
 ): boolean {
   return (
     prev.workTracker === next.workTracker &&
-    prev.bleacherOptions === next.bleacherOptions &&
     prev.onAccept === next.onAccept &&
     prev.onStartTrip === next.onStartTrip &&
     prev.onSkip === next.onSkip &&
     prev.onArrived === next.onArrived &&
-    prev.onStartInspection === next.onStartInspection &&
-    prev.onBleacherChange === next.onBleacherChange
+    prev.onStartInspection === next.onStartInspection
   );
 }
 
@@ -710,14 +646,6 @@ const styles = StyleSheet.create({
   },
   acceptButtonText: { fontSize: 15, fontWeight: "600", color: "#FFFFFF" },
   inspectionBlock: { marginTop: 12, gap: 10 },
-  bleacherSelectorBox: { gap: 6 },
-  bleacherSelectorLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8E8E93",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
   inspectionButton: {
     backgroundColor: "#FF9500",
     paddingVertical: 12,

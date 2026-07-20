@@ -185,34 +185,3 @@ export function useReleasedTripsCount(): {
 
   return { count: released.data?.length ?? 0, isLoading: false };
 }
-
-// ---------------------------------------------------------------------------
-// Fleet-wide WorkTrackers for bleacher address resolution.
-// No status filter — we want the last known dropoff regardless of status.
-// ---------------------------------------------------------------------------
-
-export type DropoffRow = {
-  bleacher_uuid: string | null;
-  dropoff_address_uuid: string | null;
-  date: string | null;
-};
-
-export function useDropoffsByBleachers(
-  bleacherIds: string[],
-  targetDate: string,
-): { rows: DropoffRow[] } {
-  const compiled = useMemo(() => {
-    if (bleacherIds.length === 0) return null;
-    return db
-      .selectFrom("WorkTrackers")
-      .select(["bleacher_uuid", "dropoff_address_uuid", "date"])
-      .where("bleacher_uuid", "in", bleacherIds)
-      .where("date", "<=", targetDate)
-      .where("dropoff_address_uuid", "is not", null)
-      .orderBy("date", "desc")
-      .compile();
-  }, [bleacherIds, targetDate]);
-
-  const result = useTypedQuery(compiled, expect<DropoffRow>());
-  return { rows: result.data ?? [] };
-}
