@@ -12,7 +12,6 @@ import {
   FlatList,
   Image,
   Modal,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,6 +19,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -197,67 +201,70 @@ function PhotoGalleryModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <SafeAreaView style={gallery.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
+      {/* Modal is a separate native root — needs its own SafeAreaProvider */}
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <SafeAreaView style={gallery.container} edges={['top', 'bottom']}>
+          <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-        {/* Header */}
-        <View style={gallery.header}>
-          <TouchableOpacity
-            style={gallery.closeButton}
-            onPress={onClose}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={26} color="#FFF" />
-          </TouchableOpacity>
-          <View style={gallery.headerCenter}>
-            <Text style={gallery.headerTitle} numberOfLines={1}>{questionText}</Text>
-            <Text style={gallery.headerSubtitle}>
-              {currentIndex + 1} / {uris.length}
-            </Text>
+          {/* Header */}
+          <View style={gallery.header}>
+            <TouchableOpacity
+              style={gallery.closeButton}
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={26} color="#FFF" />
+            </TouchableOpacity>
+            <View style={gallery.headerCenter}>
+              <Text style={gallery.headerTitle} numberOfLines={1}>{questionText}</Text>
+              <Text style={gallery.headerSubtitle}>
+                {currentIndex + 1} / {uris.length}
+              </Text>
+            </View>
+            <View style={{ width: 40 }} />
           </View>
-          <View style={{ width: 40 }} />
-        </View>
 
-        {uris.length === 0 ? (
-          <View style={gallery.emptyContainer}>
-            <Ionicons name="image-outline" size={64} color="#555" />
-            <Text style={gallery.emptyText}>Photos not yet downloaded</Text>
-            <Text style={gallery.emptySubtext}>They will appear once synced</Text>
-          </View>
-        ) : (
-          <>
-            <FlatList
-              data={uris}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              initialScrollIndex={initialIndex}
-              getItemLayout={(_, index) => ({
-                length: SCREEN_WIDTH,
-                offset: SCREEN_WIDTH * index,
-                index,
-              })}
-              onMomentumScrollEnd={(e) => {
-                const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                setCurrentIndex(newIndex);
-              }}
-              keyExtractor={(_, i) => String(i)}
-              renderItem={({ item: uri }) => (
-                <View style={gallery.imageContainer}>
-                  <Image source={{ uri }} style={gallery.image} resizeMode="contain" />
+          {uris.length === 0 ? (
+            <View style={gallery.emptyContainer}>
+              <Ionicons name="image-outline" size={64} color="#555" />
+              <Text style={gallery.emptyText}>Photos not yet downloaded</Text>
+              <Text style={gallery.emptySubtext}>They will appear once synced</Text>
+            </View>
+          ) : (
+            <>
+              <FlatList
+                data={uris}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={initialIndex}
+                getItemLayout={(_, index) => ({
+                  length: SCREEN_WIDTH,
+                  offset: SCREEN_WIDTH * index,
+                  index,
+                })}
+                onMomentumScrollEnd={(e) => {
+                  const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                  setCurrentIndex(newIndex);
+                }}
+                keyExtractor={(_, i) => String(i)}
+                renderItem={({ item: uri }) => (
+                  <View style={gallery.imageContainer}>
+                    <Image source={{ uri }} style={gallery.image} resizeMode="contain" />
+                  </View>
+                )}
+              />
+              {uris.length > 1 && (
+                <View style={gallery.dots}>
+                  {uris.map((_, i) => (
+                    <View key={i} style={[gallery.dot, i === currentIndex && gallery.dotActive]} />
+                  ))}
                 </View>
               )}
-            />
-            {uris.length > 1 && (
-              <View style={gallery.dots}>
-                {uris.map((_, i) => (
-                  <View key={i} style={[gallery.dot, i === currentIndex && gallery.dotActive]} />
-                ))}
-              </View>
-            )}
-          </>
-        )}
-      </SafeAreaView>
+            </>
+          )}
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
@@ -305,116 +312,119 @@ export function InspectionDetailModal({
         presentationStyle="pageSheet"
         onRequestClose={onClose}
       >
-        <SafeAreaView style={detail.container}>
-          {/* Header */}
-          <View style={detail.header}>
-            <Text style={detail.headerTitle}>{title}</Text>
-            <TouchableOpacity style={detail.closeBtn} onPress={onClose}>
-              <Ionicons name="close-circle" size={28} color="#8E8E93" />
-            </TouchableOpacity>
-          </View>
+        {/* pageSheet has its own window insets — measure them, don't force window metrics */}
+        <SafeAreaProvider>
+          <SafeAreaView style={detail.container} edges={['top', 'bottom']}>
+            {/* Header */}
+            <View style={detail.header}>
+              <Text style={detail.headerTitle}>{title}</Text>
+              <TouchableOpacity style={detail.closeBtn} onPress={onClose}>
+                <Ionicons name="close-circle" size={28} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView contentContainerStyle={detail.scrollContent}>
-            <Text style={detail.timestamp}>
-              Completed: {formatDateTime(inspection.created_at)}
-            </Text>
+            <ScrollView contentContainerStyle={detail.scrollContent}>
+              <Text style={detail.timestamp}>
+                Completed: {formatDateTime(inspection.created_at)}
+              </Text>
 
-            {/* Dynamic inspection answers */}
-            {answers.map((answer, index) => (
-              <View key={index} style={detail.answerCard}>
-                <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
+              {/* Dynamic inspection answers */}
+              {answers.map((answer, index) => (
+                <View key={index} style={detail.answerCard}>
+                  <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
 
-                {answer.question_type === 'checkbox' && (
-                  <View style={detail.answerCardValue}>
-                    {answer.answer_boolean ? (
-                      <>
-                        <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-                        <Text style={[detail.answerValueText, { color: '#34C759' }]}>Yes</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons name="close-circle" size={20} color="#FF3B30" />
-                        <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>No</Text>
-                      </>
-                    )}
-                  </View>
-                )}
+                  {answer.question_type === 'checkbox' && (
+                    <View style={detail.answerCardValue}>
+                      {answer.answer_boolean ? (
+                        <>
+                          <Ionicons name="checkmark-circle" size={20} color="#34C759" />
+                          <Text style={[detail.answerValueText, { color: '#34C759' }]}>Yes</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                          <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>No</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
 
-                {answer.question_type === 'text' && (
-                  <Text style={detail.answerTextValue}>
-                    {answer.answer_text?.trim() || '—'}
-                  </Text>
-                )}
+                  {answer.question_type === 'text' && (
+                    <Text style={detail.answerTextValue}>
+                      {answer.answer_text?.trim() || '—'}
+                    </Text>
+                  )}
 
-                {answer.question_type === 'photo' && (
-                  <>
-                    {(!answer.photos || answer.photos.length === 0) ? (
-                      <Text style={detail.noPhotosText}>No photos taken</Text>
-                    ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={detail.photoRow}
-                      >
-                        {answer.photos.map((photo, photoIndex) => {
-                          const uri = getInspectionPhotoUri(photo.storage_path);
-                          return (
-                            <TouchableOpacity
-                              key={photoIndex}
-                              style={detail.photoThumb}
-                              onPress={() =>
-                                setGalleryState({
-                                  photos: answer.photos!,
-                                  questionText: answer.question_text,
-                                  initialIndex: photoIndex,
-                                  isDamage: false,
-                                })
-                              }
-                              activeOpacity={0.8}
-                            >
-                              {uri ? (
-                                <>
-                                  <Image
-                                    source={{ uri }}
-                                    style={detail.photoThumbImage}
-                                    resizeMode="cover"
-                                  />
-                                  <View style={detail.photoExpandIcon}>
-                                    <Ionicons name="expand-outline" size={14} color="#FFF" />
+                  {answer.question_type === 'photo' && (
+                    <>
+                      {(!answer.photos || answer.photos.length === 0) ? (
+                        <Text style={detail.noPhotosText}>No photos taken</Text>
+                      ) : (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={detail.photoRow}
+                        >
+                          {answer.photos.map((photo, photoIndex) => {
+                            const uri = getInspectionPhotoUri(photo.storage_path);
+                            return (
+                              <TouchableOpacity
+                                key={photoIndex}
+                                style={detail.photoThumb}
+                                onPress={() =>
+                                  setGalleryState({
+                                    photos: answer.photos!,
+                                    questionText: answer.question_text,
+                                    initialIndex: photoIndex,
+                                    isDamage: false,
+                                  })
+                                }
+                                activeOpacity={0.8}
+                              >
+                                {uri ? (
+                                  <>
+                                    <Image
+                                      source={{ uri }}
+                                      style={detail.photoThumbImage}
+                                      resizeMode="cover"
+                                    />
+                                    <View style={detail.photoExpandIcon}>
+                                      <Ionicons name="expand-outline" size={14} color="#FFF" />
+                                    </View>
+                                  </>
+                                ) : (
+                                  <View style={detail.photoThumbPlaceholder}>
+                                    <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
+                                    <Text style={detail.photoThumbPlaceholderText}>Syncing...</Text>
                                   </View>
-                                </>
-                              ) : (
-                                <View style={detail.photoThumbPlaceholder}>
-                                  <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
-                                  <Text style={detail.photoThumbPlaceholderText}>Syncing...</Text>
-                                </View>
-                              )}
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-                    )}
-                  </>
-                )}
-              </View>
-            ))}
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      )}
+                    </>
+                  )}
+                </View>
+              ))}
 
-            {/* Damage card — includes photos fetched from DamageReportPhotos */}
-            {hasDamage && (
-              <DamageCard
-                damage={damage!}
-                onPhotoPress={(photos, index) =>
-                  setGalleryState({
-                    photos,
-                    questionText: 'Damage Photos',
-                    initialIndex: index,
-                    isDamage: true,
-                  })
-                }
-              />
-            )}
-          </ScrollView>
-        </SafeAreaView>
+              {/* Damage card — includes photos fetched from DamageReportPhotos */}
+              {hasDamage && (
+                <DamageCard
+                  damage={damage!}
+                  onPhotoPress={(photos, index) =>
+                    setGalleryState({
+                      photos,
+                      questionText: 'Damage Photos',
+                      initialIndex: index,
+                      isDamage: true,
+                    })
+                  }
+                />
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
 
       {/* Gallery — uses the correct queue based on photo source */}
