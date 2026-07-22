@@ -3,6 +3,8 @@ import {
   photoAttachmentQueue,
 } from "@/components/providers/SystemProvider";
 import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
+import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
+import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
@@ -64,6 +66,15 @@ export default function EditProfileDocs({
     attachmentId: medicalCardPath,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const activePaths = [
+    licensePhoto.attachmentId ?? licensePath,
+    insurancePhoto.attachmentId ?? insurancePath,
+    medicalCardPhoto.attachmentId ?? medicalCardPath,
+  ];
+  const { hasPending, hasFailed, retryFailed, statuses } =
+    useDriverDocUploadStatuses(activePaths);
 
   const isDark = useColorScheme() === "dark";
   const theme = {
@@ -73,9 +84,6 @@ export default function EditProfileDocs({
     text: isDark ? "#FFFFFF" : "#000000",
     inputBg: isDark ? "#2C2C2E" : "#F8F8F8",
   };
-
-  console.log(licensePath);
-  console.log(insurancePath);
 
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
@@ -219,15 +227,41 @@ export default function EditProfileDocs({
 
       await executeTypedMutation(updateQuery);
 
-      Alert.alert("Success", "Documents updated successfully!", [
-        { text: "OK", onPress: onClose },
-      ]);
+      Alert.alert(
+        "Saved",
+        "Documents saved on this device. Upload to the cloud continues in the background — keep the app open until it finishes.",
+        [{ text: "OK", onPress: onClose }],
+      );
     } catch (error) {
       console.error("Error updating documents:", error);
       Alert.alert("Error", "Failed to update documents. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      const { needRepick } = await retryFailed();
+      if (needRepick.length > 0) {
+        Alert.alert(
+          "Re-add required",
+          "The local file for some documents is gone. Please choose the photo again and save.",
+        );
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const statusLabel = (attachmentId?: string | null) => {
+    if (!attachmentId) return null;
+    const status = statuses[attachmentId];
+    if (status === "pending") return "Uploading…";
+    if (status === "failed") return "Upload failed";
+    if (status === "uploaded") return "Uploaded";
+    return null;
   };
 
   const renderDocumentSection = (
@@ -249,6 +283,11 @@ export default function EditProfileDocs({
       {photo.uri ? (
         <View style={styles.photoContainer}>
           <Image source={{ uri: photo.uri }} style={styles.photo} />
+          {statusLabel(photo.attachmentId) ? (
+            <Text style={styles.statusText}>
+              {statusLabel(photo.attachmentId)}
+            </Text>
+          ) : null}
           <TouchableOpacity
             style={styles.removeButton}
             onPress={() => setter({ uri: null, attachmentId: null })}
@@ -317,6 +356,13 @@ export default function EditProfileDocs({
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <DocUploadStatusBanner
+            hasPending={hasPending}
+            hasFailed={hasFailed}
+            isRetrying={isRetrying}
+            onRetry={handleRetry}
+          />
+
           {renderDocumentSection(
             "Driver's License",
             "card",
@@ -359,15 +405,6 @@ export default function EditProfileDocs({
   );
 }
 
-function getExtFromUri(uri: string): string | undefined {
-  const match = uri.match(/\.(\w+)$/);
-  return match?.[1]?.toLowerCase();
-}
-
-/**
- * Resolve a local URI for an existing attachment path.
- * The attachment queue stores files at: {documentDirectory}/attachments/{filename}
- */
 function getLocalUriForAttachment(attachmentId: string): string | null {
   if (!attachmentId) return null;
   if (!photoAttachmentQueue) return null;
@@ -434,6 +471,12 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 200,
     borderRadius: 8,
+    marginBottom: 8,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#8E8E93",
     marginBottom: 8,
   },
   removeButton: {

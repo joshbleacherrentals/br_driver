@@ -7,6 +7,11 @@ import {
   SCREEN_BG_DARK,
   SCREEN_BG_LIGHT,
 } from "@/constants/Colors";
+import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
+import {
+  isDocPathReady,
+  useDriverDocUploadStatuses,
+} from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import {
   useAccountManager,
   UserContactData,
@@ -44,6 +49,7 @@ export default function ProfileScreen() {
   const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showEditDriver, setShowEditDriver] = useState(false);
+  const [isRetryingDocs, setIsRetryingDocs] = useState(false);
 
   const { driver } = useDriver();
   const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
@@ -54,6 +60,40 @@ export default function ProfileScreen() {
   );
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
+
+  const {
+    statuses: docStatuses,
+    hasPending: docsPending,
+    hasFailed: docsFailed,
+    retryFailed: retryDocs,
+  } = useDriverDocUploadStatuses([
+    driver?.license_photo_path,
+    driver?.insurance_photo_path,
+    driver?.medical_card_photo_path,
+  ]);
+
+  const handleRetryDocs = async () => {
+    setIsRetryingDocs(true);
+    try {
+      const { needRepick } = await retryDocs();
+      if (needRepick.length > 0) {
+        Alert.alert(
+          "Re-add required",
+          "The local file for some documents is gone. Open Edit Documents and choose the photo again.",
+        );
+      }
+    } finally {
+      setIsRetryingDocs(false);
+    }
+  };
+
+  const docStatusHint = (path: string | null | undefined) => {
+    if (!path) return null;
+    const status = docStatuses[path];
+    if (status === "pending") return "Uploading…";
+    if (status === "failed") return "Upload failed";
+    return null;
+  };
 
   const formatAddress = (address: AddressData | null) => {
     if (!address) return "Address not set";
@@ -264,7 +304,13 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.insurance_photo_path &&
                   driver?.license_photo_path &&
-                  ((isUSA && driver?.medical_card_photo_path) || !isUSA) && (
+                  ((isUSA && driver?.medical_card_photo_path) || !isUSA) &&
+                  isDocPathReady(docStatuses[driver.license_photo_path]) &&
+                  isDocPathReady(docStatuses[driver.insurance_photo_path]) &&
+                  (!isUSA ||
+                    isDocPathReady(
+                      docStatuses[driver.medical_card_photo_path!],
+                    )) && (
                     <View style={styles.documentBadge}>
                       <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                     </View>
@@ -278,6 +324,13 @@ export default function ProfileScreen() {
               </View>
             </View>
 
+            <DocUploadStatusBanner
+              hasPending={docsPending}
+              hasFailed={docsFailed}
+              isRetrying={isRetryingDocs}
+              onRetry={handleRetryDocs}
+            />
+
             <View style={styles.documentRow}>
               <View style={styles.documentIconContainer}>
                 <Ionicons name="card" size={20} color={BRAND_BLUE} />
@@ -287,12 +340,18 @@ export default function ProfileScreen() {
                 {!driver?.license_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}
+                {docStatusHint(driver?.license_photo_path) && (
+                  <Text style={styles.documentPending}>
+                    {docStatusHint(driver?.license_photo_path)}
+                  </Text>
+                )}
               </View>
-              {driver?.license_photo_path && (
-                <View style={styles.documentBadge}>
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                </View>
-              )}
+              {driver?.license_photo_path &&
+                isDocPathReady(docStatuses[driver.license_photo_path]) && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                )}
             </View>
 
             <View style={styles.documentRow}>
@@ -310,12 +369,18 @@ export default function ProfileScreen() {
                 {!driver?.insurance_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}
+                {docStatusHint(driver?.insurance_photo_path) && (
+                  <Text style={styles.documentPending}>
+                    {docStatusHint(driver?.insurance_photo_path)}
+                  </Text>
+                )}
               </View>
-              {driver?.insurance_photo_path && (
-                <View style={styles.documentBadge}>
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                </View>
-              )}
+              {driver?.insurance_photo_path &&
+                isDocPathReady(docStatuses[driver.insurance_photo_path]) && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  </View>
+                )}
             </View>
             {isUSA && (
               <View style={styles.documentRow}>
@@ -327,12 +392,20 @@ export default function ProfileScreen() {
                   {!driver?.medical_card_photo_path && (
                     <Text style={styles.documentMissing}>Not uploaded</Text>
                   )}
+                  {docStatusHint(driver?.medical_card_photo_path) && (
+                    <Text style={styles.documentPending}>
+                      {docStatusHint(driver?.medical_card_photo_path)}
+                    </Text>
+                  )}
                 </View>
-                {driver?.medical_card_photo_path && (
-                  <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </View>
-                )}
+                {driver?.medical_card_photo_path &&
+                  isDocPathReady(
+                    docStatuses[driver.medical_card_photo_path],
+                  ) && (
+                    <View style={styles.documentBadge}>
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </View>
+                  )}
               </View>
             )}
           </Card>
@@ -482,6 +555,12 @@ function makeStyles(isDark: boolean) {
     documentMissing: {
       fontSize: 13,
       color: "#FF3B30",
+      fontWeight: "500",
+      marginTop: 2,
+    },
+    documentPending: {
+      fontSize: 13,
+      color: "#FF9500",
       fontWeight: "500",
       marginTop: 2,
     },

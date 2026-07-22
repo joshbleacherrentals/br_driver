@@ -4,26 +4,9 @@ import {
   AttachmentState,
   EncodingType,
 } from "@powersync/attachments";
+import { isAlreadyInStorageError } from "@/utils/isAlreadyInStorageError";
 import { randomUUID } from "expo-crypto";
 import * as FileSystem from "expo-file-system/legacy";
-
-function isAlreadyInStorageError(e: unknown): boolean {
-  const msg =
-    e instanceof Error
-      ? `${e.name} ${e.message}`
-      : typeof e === "string"
-        ? e
-        : JSON.stringify(e);
-  return (
-    /duplicate/i.test(msg) ||
-    /already exists/i.test(msg) ||
-    /resource already exists/i.test(msg) ||
-    (typeof e === "object" &&
-      e !== null &&
-      "error" in e &&
-      String((e as { error?: unknown }).error).toLowerCase() === "duplicate")
-  );
-}
 
 /**
  * Attachment queue for damage-report photos.
