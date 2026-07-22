@@ -52,6 +52,9 @@ const AccountManagers = new Table(AccountManagerCols, {
 const DriversCols = {
   account_manager_uuid: column.text,
   address_uuid: column.text,
+  app_platform: column.text,
+  app_version: column.text,
+  app_version_reported_at: column.text,
   created_at: column.text,
   insurance_photo_path: column.text,
   is_active: column.integer,
@@ -251,6 +254,21 @@ const BlueBookCols = {
 } satisfies PowerSyncColsFor<"BlueBook">;
 const BlueBook = new Table(BlueBookCols, { indexes: { id: ["id"] } });
 
+// App store version gate policy (one row per environment)
+const AppVersionPolicyCols = {
+  environment: column.text,
+  recommended_version: column.text,
+  required_version: column.text,
+  soft_deadline: column.text,
+  ios_store_url: column.text,
+  android_store_url: column.text,
+  message: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"AppVersionPolicy">;
+const AppVersionPolicy = new Table(AppVersionPolicyCols, {
+  indexes: { environment: ["environment"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -266,6 +284,7 @@ export const AppSchema = new Schema({
   WorkTrackers,
   Vehicles,
   BlueBook,
+  AppVersionPolicy,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),

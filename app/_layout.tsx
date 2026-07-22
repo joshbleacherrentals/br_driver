@@ -1,4 +1,5 @@
 import SystemProvider, { db } from "@/components/providers/SystemProvider";
+import AppVersionGate from "@/features/app-version/AppVersionGate";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider, useUser } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
@@ -90,6 +91,7 @@ function RootLayoutContent() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
+      <AppVersionGate />
     </ThemeProvider>
   );
 }

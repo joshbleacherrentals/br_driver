@@ -104,6 +104,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      AppVersionPolicy: {
+        Row: {
+          android_store_url: string;
+          environment: string;
+          id: string;
+          ios_store_url: string;
+          message: string | null;
+          recommended_version: string;
+          required_version: string;
+          soft_deadline: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          android_store_url?: string;
+          environment: string;
+          id?: string;
+          ios_store_url?: string;
+          message?: string | null;
+          recommended_version: string;
+          required_version: string;
+          soft_deadline?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          android_store_url?: string;
+          environment?: string;
+          id?: string;
+          ios_store_url?: string;
+          message?: string | null;
+          recommended_version?: string;
+          required_version?: string;
+          soft_deadline?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       Alerts: {
         Row: {
           created_at: string;
@@ -904,6 +940,9 @@ export type Database = {
         Row: {
           account_manager_uuid: string | null;
           address_uuid: string | null;
+          app_platform: string | null;
+          app_version: string | null;
+          app_version_reported_at: string | null;
           created_at: string;
           id: string;
           insurance_photo_path: string | null;
@@ -922,6 +961,9 @@ export type Database = {
         Insert: {
           account_manager_uuid?: string | null;
           address_uuid?: string | null;
+          app_platform?: string | null;
+          app_version?: string | null;
+          app_version_reported_at?: string | null;
           created_at?: string;
           id?: string;
           insurance_photo_path?: string | null;
@@ -940,6 +982,9 @@ export type Database = {
         Update: {
           account_manager_uuid?: string | null;
           address_uuid?: string | null;
+          app_platform?: string | null;
+          app_version?: string | null;
+          app_version_reported_at?: string | null;
           created_at?: string;
           id?: string;
           insurance_photo_path?: string | null;
