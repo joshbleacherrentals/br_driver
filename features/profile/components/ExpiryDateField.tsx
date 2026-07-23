@@ -1,4 +1,5 @@
 import { BRAND_BLUE } from "@/constants/Colors";
+import { AndroidWheelDatePicker } from "@/features/profile/components/AndroidWheelDatePicker";
 import { formatExpiryDate, todayISODate } from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
@@ -7,6 +8,7 @@ import DateTimePicker, {
 import React, { useEffect, useState } from "react";
 import {
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -54,7 +56,7 @@ export function ExpiryDateField({
     }
   }, [open, value]);
 
-  const handleChange = (_event: DateTimePickerEvent, selected?: Date) => {
+  const handleIosChange = (_event: DateTimePickerEvent, selected?: Date) => {
     if (selected) setDraft(selected);
   };
 
@@ -118,13 +120,22 @@ export function ExpiryDateField({
                 <Text style={styles.doneText}>Done</Text>
               </TouchableOpacity>
             </View>
-            <DateTimePicker
-              value={draft}
-              mode="date"
-              display="spinner"
-              onChange={handleChange}
-              style={styles.picker}
-            />
+
+            {Platform.OS === "ios" ? (
+              <DateTimePicker
+                value={draft}
+                mode="date"
+                display="spinner"
+                onChange={handleIosChange}
+                style={styles.picker}
+              />
+            ) : (
+              <AndroidWheelDatePicker
+                value={draft}
+                onChange={setDraft}
+                textColor={theme.text}
+              />
+            )}
           </View>
         </View>
       </Modal>
