@@ -945,9 +945,12 @@ export type Database = {
           app_version_reported_at: string | null;
           created_at: string;
           id: string;
+          insurance_expires_on: string | null;
           insurance_photo_path: string | null;
           is_active: boolean;
+          license_expires_on: string | null;
           license_photo_path: string | null;
+          medical_card_expires_on: string | null;
           medical_card_photo_path: string | null;
           pay_currency: Database["public"]["Enums"]["pay_currency_type"];
           pay_per_unit: Database["public"]["Enums"]["pay_per_unit_type"];
@@ -966,9 +969,12 @@ export type Database = {
           app_version_reported_at?: string | null;
           created_at?: string;
           id?: string;
+          insurance_expires_on?: string | null;
           insurance_photo_path?: string | null;
           is_active?: boolean;
+          license_expires_on?: string | null;
           license_photo_path?: string | null;
+          medical_card_expires_on?: string | null;
           medical_card_photo_path?: string | null;
           pay_currency?: Database["public"]["Enums"]["pay_currency_type"];
           pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"];
@@ -987,9 +993,12 @@ export type Database = {
           app_version_reported_at?: string | null;
           created_at?: string;
           id?: string;
+          insurance_expires_on?: string | null;
           insurance_photo_path?: string | null;
           is_active?: boolean;
+          license_expires_on?: string | null;
           license_photo_path?: string | null;
+          medical_card_expires_on?: string | null;
           medical_card_photo_path?: string | null;
           pay_currency?: Database["public"]["Enums"]["pay_currency_type"];
           pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"];

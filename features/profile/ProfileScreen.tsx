@@ -1,12 +1,19 @@
 import Card from "@/components/ui/Card";
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import {
   BRAND_BLUE,
   DARK_BLUE,
+  DANGER_RED,
   GREEN_ACCENT,
   SCREEN_BG_DARK,
   SCREEN_BG_LIGHT,
+  WARNING_ORANGE,
 } from "@/constants/Colors";
+import {
+  expiryStatusLabel,
+  getDocExpiryStatus,
+} from "@/utils/documentExpiry";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import {
   isDocPathReady,
@@ -138,9 +145,25 @@ export default function ProfileScreen() {
     return `${accountManager?.first_name} ${accountManager?.last_name}`;
   };
 
+  const licenseExpiryStatus = getDocExpiryStatus(driver?.license_expires_on);
+  const insuranceExpiryStatus = getDocExpiryStatus(
+    driver?.insurance_expires_on,
+  );
+  const medicalExpiryStatus = getDocExpiryStatus(
+    driver?.medical_card_expires_on,
+  );
+
+  const expiryHintStyle = (status: ReturnType<typeof getDocExpiryStatus>) => {
+    if (status === "expired" || status === "missing")
+      return styles.documentExpired;
+    if (status === "expiring_soon") return styles.documentExpiring;
+    return styles.documentExpiryOk;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: screenBg }]}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
@@ -164,6 +187,9 @@ export default function ProfileScreen() {
             licensePath={driver?.license_photo_path ?? null}
             insurancePath={driver?.insurance_photo_path ?? null}
             medicalCardPath={driver?.medical_card_photo_path ?? null}
+            licenseExpiresOn={driver?.license_expires_on ?? null}
+            insuranceExpiresOn={driver?.insurance_expires_on ?? null}
+            medicalCardExpiresOn={driver?.medical_card_expires_on ?? null}
             onClose={() => setShowEditDocs(false)}
           />
         )}
@@ -304,7 +330,15 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.insurance_photo_path &&
                   driver?.license_photo_path &&
-                  ((isUSA && driver?.medical_card_photo_path) || !isUSA) &&
+                  driver?.license_expires_on &&
+                  driver?.insurance_expires_on &&
+                  licenseExpiryStatus === "ok" &&
+                  insuranceExpiryStatus === "ok" &&
+                  ((isUSA &&
+                    driver?.medical_card_photo_path &&
+                    driver?.medical_card_expires_on &&
+                    medicalExpiryStatus === "ok") ||
+                    !isUSA) &&
                   isDocPathReady(docStatuses[driver.license_photo_path]) &&
                   isDocPathReady(docStatuses[driver.insurance_photo_path]) &&
                   (!isUSA ||
@@ -345,8 +379,15 @@ export default function ProfileScreen() {
                     {docStatusHint(driver?.license_photo_path)}
                   </Text>
                 )}
+                <Text style={expiryHintStyle(licenseExpiryStatus)}>
+                  {expiryStatusLabel(
+                    licenseExpiryStatus,
+                    driver?.license_expires_on,
+                  )}
+                </Text>
               </View>
               {driver?.license_photo_path &&
+                licenseExpiryStatus === "ok" &&
                 isDocPathReady(docStatuses[driver.license_photo_path]) && (
                   <View style={styles.documentBadge}>
                     <Ionicons name="checkmark" size={16} color="#FFFFFF" />
@@ -374,8 +415,15 @@ export default function ProfileScreen() {
                     {docStatusHint(driver?.insurance_photo_path)}
                   </Text>
                 )}
+                <Text style={expiryHintStyle(insuranceExpiryStatus)}>
+                  {expiryStatusLabel(
+                    insuranceExpiryStatus,
+                    driver?.insurance_expires_on,
+                  )}
+                </Text>
               </View>
               {driver?.insurance_photo_path &&
+                insuranceExpiryStatus === "ok" &&
                 isDocPathReady(docStatuses[driver.insurance_photo_path]) && (
                   <View style={styles.documentBadge}>
                     <Ionicons name="checkmark" size={16} color="#FFFFFF" />
@@ -397,8 +445,15 @@ export default function ProfileScreen() {
                       {docStatusHint(driver?.medical_card_photo_path)}
                     </Text>
                   )}
+                  <Text style={expiryHintStyle(medicalExpiryStatus)}>
+                    {expiryStatusLabel(
+                      medicalExpiryStatus,
+                      driver?.medical_card_expires_on,
+                    )}
+                  </Text>
                 </View>
                 {driver?.medical_card_photo_path &&
+                  medicalExpiryStatus === "ok" &&
                   isDocPathReady(
                     docStatuses[driver.medical_card_photo_path],
                   ) && (
@@ -554,13 +609,31 @@ function makeStyles(isDark: boolean) {
     },
     documentMissing: {
       fontSize: 13,
-      color: "#FF3B30",
+      color: DANGER_RED,
       fontWeight: "500",
       marginTop: 2,
     },
     documentPending: {
       fontSize: 13,
-      color: "#FF9500",
+      color: WARNING_ORANGE,
+      fontWeight: "500",
+      marginTop: 2,
+    },
+    documentExpired: {
+      fontSize: 13,
+      color: DANGER_RED,
+      fontWeight: "500",
+      marginTop: 2,
+    },
+    documentExpiring: {
+      fontSize: 13,
+      color: WARNING_ORANGE,
+      fontWeight: "500",
+      marginTop: 2,
+    },
+    documentExpiryOk: {
+      fontSize: 13,
+      color: "#8E8E93",
       fontWeight: "500",
       marginTop: 2,
     },

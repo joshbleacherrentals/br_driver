@@ -4,6 +4,7 @@ import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { todayISODate } from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
@@ -22,7 +23,7 @@ export default function PendingTripsList() {
   const t = themes[colorScheme === "dark" ? "dark" : "light"];
 
   const workTrackers = useWorkTrackers().workTrackers;
-  const { isProfileComplete } = useProfileCompletion();
+  const { getAcceptBlockReason } = useProfileCompletion();
 
   const pendingTrips = useMemo(
     () => (workTrackers ?? []).filter((wt) => wt.status === "released"),
@@ -30,11 +31,10 @@ export default function PendingTripsList() {
   );
 
   const handleAccept = useCallback(async (workTrackerId: string) => {
-    if (!isProfileComplete) {
-      Alert.alert(
-        "Error",
-        "Complete your profile before you can accept any trips",
-      );
+    const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+    const blockReason = getAcceptBlockReason(trip?.date ?? todayISODate());
+    if (blockReason) {
+      Alert.alert("Cannot accept trip", blockReason);
       return;
     }
     try {
@@ -49,7 +49,7 @@ export default function PendingTripsList() {
     } catch {
       Alert.alert("Error", "Failed to accept trip.");
     }
-  }, [isProfileComplete]);
+  }, [getAcceptBlockReason, workTrackers]);
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Skip Trip", "Are you sure you want to skip this trip?", [

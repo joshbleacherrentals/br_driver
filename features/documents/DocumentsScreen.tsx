@@ -1,3 +1,4 @@
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import { DARK_BLUE } from "@/constants/Colors";
 import { useAddress } from "@/hooks/db/useAddress";
@@ -44,6 +45,7 @@ export default function BlueBookScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}

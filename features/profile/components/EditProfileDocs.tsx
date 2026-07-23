@@ -4,6 +4,7 @@ import {
 } from "@/components/providers/SystemProvider";
 import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
+import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
@@ -31,6 +32,9 @@ interface EditProfileDocsProps {
   licensePath: string | null;
   insurancePath: string | null;
   medicalCardPath: string | null;
+  licenseExpiresOn: string | null;
+  insuranceExpiresOn: string | null;
+  medicalCardExpiresOn: string | null;
   onClose: () => void;
 }
 
@@ -51,6 +55,9 @@ export default function EditProfileDocs({
   licensePath,
   insurancePath,
   medicalCardPath,
+  licenseExpiresOn,
+  insuranceExpiresOn,
+  medicalCardExpiresOn,
   onClose,
 }: EditProfileDocsProps) {
   const [licensePhoto, setLicensePhoto] = useState<DocumentPhoto>({
@@ -65,6 +72,15 @@ export default function EditProfileDocs({
     uri: medicalCardPath ? getLocalUriForAttachment(medicalCardPath) : null,
     attachmentId: medicalCardPath,
   });
+  const [licenseExpiry, setLicenseExpiry] = useState<string | null>(
+    licenseExpiresOn,
+  );
+  const [insuranceExpiry, setInsuranceExpiry] = useState<string | null>(
+    insuranceExpiresOn,
+  );
+  const [medicalCardExpiry, setMedicalCardExpiry] = useState<string | null>(
+    medicalCardExpiresOn,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -205,10 +221,22 @@ export default function EditProfileDocs({
       return;
     }
 
+    const missingExpiry: string[] = [];
+    if (!licenseExpiry) missingExpiry.push("Driver's License");
+    if (!insuranceExpiry) missingExpiry.push("Insurance");
+    if (showMedCard && !medicalCardExpiry) missingExpiry.push("Medical Card");
+
+    if (missingExpiry.length > 0) {
+      Alert.alert(
+        "Expiration dates required",
+        `Please set an expiration date for: ${missingExpiry.join(", ")}`,
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Queue new photos for upload via the attachment queue
       const [licenseId, insuranceId, medicalId] = await Promise.all([
         savePhotoToQueue(licensePhoto, "license"),
         savePhotoToQueue(insurancePhoto, "insurance"),
@@ -221,6 +249,9 @@ export default function EditProfileDocs({
           license_photo_path: licenseId,
           insurance_photo_path: insuranceId,
           medical_card_photo_path: medicalId,
+          license_expires_on: licenseExpiry,
+          insurance_expires_on: insuranceExpiry,
+          medical_card_expires_on: showMedCard ? medicalCardExpiry : null,
         })
         .where("id", "=", driverId)
         .compile();
@@ -269,6 +300,8 @@ export default function EditProfileDocs({
     iconName: string,
     photo: DocumentPhoto,
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+    expiry: string | null,
+    setExpiry: (date: string | null) => void,
   ) => (
     <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
       <View style={styles.documentHeader}>
@@ -329,6 +362,8 @@ export default function EditProfileDocs({
           <Text style={styles.photoButtonText}>Choose File</Text>
         </TouchableOpacity>
       </View>
+
+      <ExpiryDateField value={expiry} onChange={setExpiry} theme={theme} />
     </View>
   );
 
@@ -368,6 +403,8 @@ export default function EditProfileDocs({
             "card",
             licensePhoto,
             setLicensePhoto,
+            licenseExpiry,
+            setLicenseExpiry,
           )}
 
           {renderDocumentSection(
@@ -375,6 +412,8 @@ export default function EditProfileDocs({
             "shield-checkmark",
             insurancePhoto,
             setInsurancePhoto,
+            insuranceExpiry,
+            setInsuranceExpiry,
           )}
 
           {showMedCard &&
@@ -383,6 +422,8 @@ export default function EditProfileDocs({
               "medical",
               medicalCardPhoto,
               setMedicalCardPhoto,
+              medicalCardExpiry,
+              setMedicalCardExpiry,
             )}
 
           <TouchableOpacity

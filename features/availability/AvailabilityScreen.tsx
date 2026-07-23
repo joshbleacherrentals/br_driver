@@ -1,4 +1,5 @@
 import { db } from "@/components/providers/SystemProvider";
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import {
   BRAND_BLUE,
@@ -499,6 +500,7 @@ export default function AvailabilityCalendarScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}

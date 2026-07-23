@@ -1,5 +1,6 @@
 import { db } from "@/components/providers/SystemProvider";
 import InspectionScreen from "@/components/widgets/inspection";
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import TripItem from "@/components/widgets/trip_item";
 import { BRAND_BLUE } from "@/constants/Colors";
@@ -7,6 +8,7 @@ import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { todayISODate } from "@/utils/documentExpiry";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -108,18 +110,17 @@ export default function TripsScreen() {
   } | null>(null);
 
   const workTrackers = useWorkTrackers().workTrackers;
-  const { isProfileComplete } = useProfileCompletion();
+  const { getAcceptBlockReason } = useProfileCompletion();
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayISODate(), []);
 
   // ── Handlers (stable refs so memoized TripItem can skip re-renders) ──────
 
   const handleAccept = useCallback(async (workTrackerId: string) => {
-    if (!isProfileComplete) {
-      Alert.alert(
-        "Error",
-        "Complete your profile before you can accept any trips",
-      );
+    const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+    const blockReason = getAcceptBlockReason(trip?.date ?? today);
+    if (blockReason) {
+      Alert.alert("Cannot accept trip", blockReason);
       return;
     }
     try {
@@ -134,7 +135,7 @@ export default function TripsScreen() {
     } catch {
       Alert.alert("Error", "Failed to accept trip.");
     }
-  }, [isProfileComplete]);
+  }, [getAcceptBlockReason, today, workTrackers]);
 
   const handleStartTrip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Start Trip", "Ready to start this trip?", [
@@ -296,6 +297,7 @@ export default function TripsScreen() {
   return (
     <View style={[styles.safeArea, { backgroundColor: t.bg }]}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
 
       <ReleasedTripsBanner
         hasReleasedTrips={(workTrackers ?? []).some(

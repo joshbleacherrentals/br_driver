@@ -1,4 +1,5 @@
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import PendingTripsList from "./components/PendingTripsList";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import React from "react";
@@ -11,6 +12,7 @@ export default function PendingTripsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
       <PendingTripsList />
     </View>
   );
