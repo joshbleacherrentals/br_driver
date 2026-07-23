@@ -65,7 +65,7 @@ export default function AddressAutocomplete({
       const res = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
           text,
-        )}&key=${GOOGLE_PLACES_API_KEY}&types=address`,
+        )}&key=${GOOGLE_PLACES_API_KEY}&types=address&language=en`,
       );
       const json = await res.json();
       setResults(json.predictions ?? []);
@@ -90,7 +90,7 @@ export default function AddressAutocomplete({
 
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&key=${GOOGLE_PLACES_API_KEY}`,
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&key=${GOOGLE_PLACES_API_KEY}&language=en`,
       );
       const json = await res.json();
       const result = json.result;
@@ -99,8 +99,11 @@ export default function AddressAutocomplete({
         result.address_components.find((c: any) => c.types.includes(type))
           ?.long_name;
 
+      const englishAddress = result.formatted_address || prediction.description;
+      onChangeText(englishAddress);
+
       onAddressSelect({
-        address: prediction.description,
+        address: englishAddress,
         city: get("locality"),
         state: get("administrative_area_level_1"),
         postalCode: get("postal_code"),
