@@ -14,6 +14,7 @@ import {
   expiryStatusLabel,
   getDocExpiryStatus,
 } from "@/utils/documentExpiry";
+import DevResetDbButton from "@/features/profile/components/DevResetDbButton";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import {
   isDocPathReady,
@@ -465,6 +466,9 @@ export default function ProfileScreen() {
             )}
           </Card>
         )}
+
+        {/* DEV-only: reset local DB to reproduce a fresh first-sync */}
+        {__DEV__ && <DevResetDbButton />}
 
         {/* Logout Button */}
         <TouchableOpacity
