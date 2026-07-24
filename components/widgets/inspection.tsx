@@ -27,7 +27,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   db,
   inspectionPhotoAttachmentQueue,
@@ -410,7 +409,7 @@ export default function InspectionScreen({
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>
@@ -563,7 +562,7 @@ export default function InspectionScreen({
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

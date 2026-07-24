@@ -126,7 +126,7 @@ export default function CompletedTrips({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* ── Header ── */}
         <View style={styles.header}>
