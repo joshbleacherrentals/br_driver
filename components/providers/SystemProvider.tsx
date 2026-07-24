@@ -126,9 +126,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           return null;
         }
       },
-      getSupabaseToken: async () => {
+      getSupabaseToken: async (opts) => {
         try {
-          return await getToken();
+          return await getToken(
+            opts?.forceRefresh ? { skipCache: true } : undefined,
+          );
         } catch {
           return null;
         }

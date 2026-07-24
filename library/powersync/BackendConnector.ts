@@ -20,9 +20,12 @@ const FATAL_RESPONSE_CODES = [
 ];
 
 /**
- * Function that always returns a fresh JWT
+ * Function that returns a JWT. Pass `forceRefresh` to bypass any client-side
+ * token cache and mint a full-TTL token (used for slow storage uploads).
  */
-type TokenProvider = () => Promise<string | null>;
+type TokenProvider = (opts?: {
+  forceRefresh?: boolean;
+}) => Promise<string | null>;
 
 type BackendConnectorTokenProviders = {
   /** Token for the PowerSync service connection (must include `aud`). */
@@ -58,8 +61,19 @@ export class BackendConnector implements PowerSyncBackendConnector {
       },
       global: {
         fetch: async (url, options = {}) => {
-          // Always get a fresh Supabase token for each request
-          const token = await this.getSupabaseToken();
+          // Storage uploads can outlast the ~60s Clerk token TTL on slow
+          // connections. Supabase/Kong validates the JWT when the request is
+          // received (headers), so a full-TTL token lets a slow body upload
+          // finish without an "exp claim" failure. Force a fresh token for
+          // storage writes only; other requests keep the cached token to avoid
+          // hammering Clerk.
+          const urlStr = typeof url === "string" ? url : url.toString();
+          const method = (options.method ?? "GET").toUpperCase();
+          const isStorageUpload =
+            urlStr.includes("/storage/v1/object/") && method !== "GET";
+          const token = await this.getSupabaseToken(
+            isStorageUpload ? { forceRefresh: true } : undefined,
+          );
 
           // DebugLogger.debug(TAG, "Supabase fetch", {
           //   url: typeof url === "string" ? url : url.toString(),
