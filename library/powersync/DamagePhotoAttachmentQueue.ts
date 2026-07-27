@@ -75,20 +75,35 @@ export class DamageReportPhotoAttachmentQueue extends AbstractAttachmentQueue {
 
   /**
    * PowerSync watches this query and calls onUpdate whenever the set of
-   * photo_path values changes.  The queue uses the IDs to decide which
-   * local files need to be uploaded / downloaded.
+   * photo_path values changes. The queue uses the IDs to decide which local
+   * files need to be uploaded / downloaded.
+   *
+   * We only pre-cache (download) the working set of photos so old/resolved
+   * reports don't pull hundreds of files onto every device — the rest load
+   * lazily from the public bucket URL when a report is opened online:
+   *   • the driver's OWN unresolved reports (active work), and
+   *   • anything created in the last 2 weeks (recent context).
+   * "Own" is derived from the single local Drivers row (Drivers is scoped to
+   * this driver by the sync rules), so no user id needs to be injected. Newly
+   * captured photos always fall in the 2-week window, so uploads are never
+   * dropped.
    */
   onAttachmentIdsChange(onUpdate: (ids: string[]) => void): void {
     this.powersync.watch(
-      `SELECT photo_path AS id
-       FROM "DamageReportPhotos"
-       WHERE photo_path IS NOT NULL`,
+      `SELECT drp.photo_path AS id
+       FROM "DamageReportPhotos" drp
+       JOIN "DamageReports" dr ON dr.id = drp.damage_report_uuid
+       WHERE drp.photo_path IS NOT NULL AND (
+         (dr.created_by_user_uuid IN (SELECT user_uuid FROM "Drivers")
+           AND dr.resolved_at IS NULL)
+         OR dr.created_at >= datetime('now', '-14 days')
+       )`,
       [],
       {
         onResult: (result) => {
           const ids = result.rows?._array.map((r: any) => r.id) ?? [];
           console.log(
-            `[DmgQueue] onAttachmentIdsChange: ${ids.length} photo_paths`,
+            `[DmgQueue] onAttachmentIdsChange: ${ids.length} photo_paths (pre-cache set)`,
           );
           onUpdate(ids);
         },

@@ -101,6 +101,64 @@ async function resolveShareablePhotoUri(
   return fallback;
 }
 
+// ─── Lazy thumbnail: local file if present, else the public bucket URL ────────
+// Old/resolved damage photos are no longer pre-cached, so they may have no local
+// file. Try the local URI first (instant + offline); on error fall back to the
+// public bucket URL (loads over the network); if that also fails, show a
+// placeholder instead of a broken image.
+
+function LazyStoragePhoto({
+  storagePath,
+  bucket,
+  style,
+}: {
+  storagePath: string;
+  bucket: 'inspection-photos' | 'damage-report-photos';
+  style: any;
+}) {
+  const localUri =
+    bucket === 'damage-report-photos'
+      ? getDamagePhotoUri(storagePath)
+      : getInspectionPhotoUri(storagePath);
+  const publicUrl = supabasePublicObjectUrl(bucket, storagePath) || null;
+
+  const [uri, setUri] = useState<string | null>(localUri ?? publicUrl);
+  const [failed, setFailed] = useState(false);
+
+  const handleError = useCallback(() => {
+    if (uri && publicUrl && uri !== publicUrl) {
+      setUri(publicUrl);
+    } else {
+      setFailed(true);
+    }
+  }, [uri, publicUrl]);
+
+  if (!uri || failed) {
+    return (
+      <View style={[style, lazyPhotoStyles.placeholder]}>
+        <Ionicons name="cloud-offline-outline" size={22} color="#8E8E93" />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={style}
+      resizeMode="cover"
+      onError={handleError}
+    />
+  );
+}
+
+const lazyPhotoStyles = StyleSheet.create({
+  placeholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(142,142,147,0.12)',
+  },
+});
+
 // ─── Damage photo hook ────────────────────────────────────────────────────────
 
 function useDamageReportPhotos(damageReportId: string | null): { storage_path: string }[] {
@@ -188,35 +246,23 @@ function DamageCard({
             showsHorizontalScrollIndicator={false}
             style={damageCard.photoRow}
           >
-            {photos.map((photo, photoIndex) => {
-              const uri = getDamagePhotoUri(photo.storage_path);
-              return (
-                <TouchableOpacity
-                  key={photoIndex}
-                  style={damageCard.photoThumb}
-                  onPress={() => onPhotoPress(photos, photoIndex)}
-                  activeOpacity={0.8}
-                >
-                  {uri ? (
-                    <>
-                      <Image
-                        source={{ uri }}
-                        style={damageCard.photoThumbImage}
-                        resizeMode="cover"
-                      />
-                      <View style={damageCard.photoExpandIcon}>
-                        <Ionicons name="expand-outline" size={14} color="#FFF" />
-                      </View>
-                    </>
-                  ) : (
-                    <View style={damageCard.photoThumbPlaceholder}>
-                      <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
-                      <Text style={damageCard.photoThumbPlaceholderText}>Syncing...</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+            {photos.map((photo, photoIndex) => (
+              <TouchableOpacity
+                key={photoIndex}
+                style={damageCard.photoThumb}
+                onPress={() => onPhotoPress(photos, photoIndex)}
+                activeOpacity={0.8}
+              >
+                <LazyStoragePhoto
+                  storagePath={photo.storage_path}
+                  bucket="damage-report-photos"
+                  style={damageCard.photoThumbImage}
+                />
+                <View style={damageCard.photoExpandIcon}>
+                  <Ionicons name="expand-outline" size={14} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         </View>
       )}
@@ -577,42 +623,30 @@ export function InspectionDetailModal({
                         showsHorizontalScrollIndicator={false}
                         style={detail.photoRow}
                       >
-                        {answer.photos.map((photo, photoIndex) => {
-                          const uri = getInspectionPhotoUri(photo.storage_path);
-                          return (
-                            <TouchableOpacity
-                              key={photoIndex}
-                              style={detail.photoThumb}
-                              onPress={() =>
-                                setGalleryState({
-                                  photos: answer.photos!,
-                                  questionText: answer.question_text,
-                                  initialIndex: photoIndex,
-                                  isDamage: false,
-                                })
-                              }
-                              activeOpacity={0.8}
-                            >
-                              {uri ? (
-                                <>
-                                  <Image
-                                    source={{ uri }}
-                                    style={detail.photoThumbImage}
-                                    resizeMode="cover"
-                                  />
-                                  <View style={detail.photoExpandIcon}>
-                                    <Ionicons name="expand-outline" size={14} color="#FFF" />
-                                  </View>
-                                </>
-                              ) : (
-                                <View style={detail.photoThumbPlaceholder}>
-                                  <Ionicons name="cloud-download-outline" size={24} color="#8E8E93" />
-                                  <Text style={detail.photoThumbPlaceholderText}>Syncing...</Text>
-                                </View>
-                              )}
-                            </TouchableOpacity>
-                          );
-                        })}
+                        {answer.photos.map((photo, photoIndex) => (
+                          <TouchableOpacity
+                            key={photoIndex}
+                            style={detail.photoThumb}
+                            onPress={() =>
+                              setGalleryState({
+                                photos: answer.photos!,
+                                questionText: answer.question_text,
+                                initialIndex: photoIndex,
+                                isDamage: false,
+                              })
+                            }
+                            activeOpacity={0.8}
+                          >
+                            <LazyStoragePhoto
+                              storagePath={photo.storage_path}
+                              bucket="inspection-photos"
+                              style={detail.photoThumbImage}
+                            />
+                            <View style={detail.photoExpandIcon}>
+                              <Ionicons name="expand-outline" size={14} color="#FFF" />
+                            </View>
+                          </TouchableOpacity>
+                        ))}
                       </ScrollView>
                     )}
                   </>
