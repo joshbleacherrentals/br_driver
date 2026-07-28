@@ -1,6 +1,7 @@
 import ZoomableImage, {
   ZoomableImageSource,
 } from "@/components/widgets/ZoomableImage";
+import { themes, typeScale } from "@/constants/theme";
 import { shareImage, supabasePublicObjectUrl } from "@/utils/shareImage";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -53,6 +54,9 @@ const DISMISS_DISTANCE = 100;
 const DISMISS_VELOCITY = 800;
 const IMAGE_HEIGHT = SCREEN_H * 0.75;
 
+/** Full-screen photo chrome is always dark regardless of app theme. */
+const viewerTheme = themes.dark;
+
 export function ImageViewer({
   images,
   initialIndex,
@@ -60,6 +64,7 @@ export function ImageViewer({
   onClose,
   title = "Photos",
 }: Props) {
+  const styles = useMemo(() => makeStyles(viewerTheme), []);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
   const [errorSet, setErrorSet] = useState<Set<string>>(new Set());
@@ -196,7 +201,10 @@ export function ImageViewer({
     >
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureHandlerRootView style={styles.root} accessibilityViewIsModal>
-          <StatusBar barStyle="light-content" backgroundColor="#000" />
+          <StatusBar
+            barStyle="light-content"
+            backgroundColor={viewerTheme.background}
+          />
           <Animated.View style={[styles.container, animatedStyle]}>
             <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
               <GestureDetector gesture={headerPan}>
@@ -207,7 +215,11 @@ export function ImageViewer({
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     accessibilityLabel="Close"
                   >
-                    <Ionicons name="close" size={26} color="#FFF" />
+                    <Ionicons
+                      name="close"
+                      size={26}
+                      color={viewerTheme.onAccent}
+                    />
                   </TouchableOpacity>
 
                   <View style={styles.headerCenter}>
@@ -229,9 +241,16 @@ export function ImageViewer({
                     accessibilityLabel="Share photo"
                   >
                     {isSharing ? (
-                      <ActivityIndicator size="small" color="#FFF" />
+                      <ActivityIndicator
+                        size="small"
+                        color={viewerTheme.onAccent}
+                      />
                     ) : (
-                      <Ionicons name="share-outline" size={24} color="#FFF" />
+                      <Ionicons
+                        name="share-outline"
+                        size={24}
+                        color={viewerTheme.onAccent}
+                      />
                     )}
                   </TouchableOpacity>
                 </Animated.View>
@@ -239,7 +258,11 @@ export function ImageViewer({
 
               {images.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="image-outline" size={64} color="#555" />
+                  <Ionicons
+                    name="image-outline"
+                    size={64}
+                    color={viewerTheme.textTertiary}
+                  />
                   <Text style={styles.emptyText}>Photos not yet downloaded</Text>
                   <Text style={styles.emptySubtext}>
                     They will appear once synced
@@ -296,77 +319,79 @@ export function ImageViewer({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 56,
-  },
-  headerBtn: {
-    width: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "#8E8E93",
-    marginTop: 2,
-  },
-  listWrap: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#8E8E93",
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: "#555",
-  },
-  dots: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 16,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#555",
-  },
-  dotActive: {
-    backgroundColor: "#FFF",
-    width: 18,
-  },
-});
+function makeStyles(theme: typeof viewerTheme) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      minHeight: 56,
+    },
+    headerBtn: {
+      width: 40,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerCenter: {
+      flex: 1,
+      alignItems: "center",
+    },
+    headerTitle: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.onAccent,
+    },
+    headerSubtitle: {
+      ...typeScale.caption,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    listWrap: {
+      flex: 1,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+    },
+    emptyText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.textSecondary,
+    },
+    emptySubtext: {
+      ...typeScale.footnote,
+      color: theme.textTertiary,
+    },
+    dots: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 16,
+    },
+    dot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: theme.textTertiary,
+    },
+    dotActive: {
+      backgroundColor: theme.onAccent,
+      width: 18,
+    },
+  });
+}

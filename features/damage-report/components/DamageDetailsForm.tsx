@@ -1,4 +1,5 @@
-import { DANGER_RED } from "@/constants/Colors";
+import { ThemeColors, radius, typeScale } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 import React, { useCallback } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { DocumentPhoto } from "../types";
@@ -11,6 +12,7 @@ import DamageSeveritySelector, {
 } from "./DamageSeveritySelector";
 import { EditablePhotoGrid } from "./EditablePhotoGrid";
 
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 export type DamageDetailsFormValues = {
   seatDamage: DamageSeverityValue;
   haulDamage: DamageSeverityValue;
@@ -24,6 +26,9 @@ type Props = {
 };
 
 export function DamageDetailsForm({ values, onChange }: Props) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const addFromCamera = useCallback(async () => {
     const picked = await pickDamagePhotosFromCamera();
     if (picked.length === 0) return;
@@ -75,6 +80,7 @@ export function DamageDetailsForm({ values, onChange }: Props) {
           value={values.note}
           onChangeText={(note) => onChange({ note })}
           placeholder="Describe the damage..."
+          placeholderTextColor={theme.textTertiary}
           multiline
         />
       </View>
@@ -93,48 +99,53 @@ export function DamageDetailsForm({ values, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    flex: 1,
-    flexShrink: 1,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-  },
-  requiredBadge: {
-    flexShrink: 0,
-    backgroundColor: DANGER_RED,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  requiredText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  textInput: {
-    backgroundColor: "#F8F8F8",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    textAlignVertical: "top",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    section: {
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 8,
+      marginBottom: 8,
+    },
+    sectionTitle: {
+      flex: 1,
+      flexShrink: 1,
+      ...typeScale.title3,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    requiredBadge: {
+      flexShrink: 0,
+      backgroundColor: theme.danger,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+    },
+    requiredText: {
+      ...typeScale.caption2,
+      fontWeight: "700",
+      color: theme.onAccent,
+      letterSpacing: 0.5,
+    },
+    textInput: {
+      backgroundColor: theme.surfaceElevated,
+      borderRadius: radius.control,
+      padding: 12,
+      ...typeScale.callout,
+      minHeight: 100,
+      textAlignVertical: "top",
+      borderWidth: 1,
+      borderColor: theme.border,
+      color: theme.textPrimary,
+    },
+  });
+}

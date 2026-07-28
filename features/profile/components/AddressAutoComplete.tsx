@@ -1,4 +1,5 @@
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useFormTheme } from "@/hooks/useTheme";
+import { typeScale } from "@/constants/theme";
 import React, { useRef, useState } from "react";
 import {
   LayoutRectangle,
@@ -44,16 +45,7 @@ export default function AddressAutocomplete({
   const [inputLayout, setInputLayout] = useState<LayoutRectangle | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isDark = useColorScheme() === "dark";
-  const theme = {
-    inputBg: isDark ? "#2C2C2E" : "#FFFFFF",
-    inputBorder: isDark ? "rgba(255,255,255,0.15)" : "#ccc",
-    text: isDark ? "#FFFFFF" : "#000000",
-    placeholder: isDark ? "#8E8E93" : "#555",
-    dropdownBg: isDark ? "#1C1C1E" : "#FFFFFF",
-    dropdownBorder: isDark ? "rgba(255,255,255,0.1)" : "#ddd",
-    itemBorder: isDark ? "rgba(255,255,255,0.07)" : "#eee",
-  };
+  const { form: theme } = useFormTheme();
 
   const fetchSuggestions = async (text: string) => {
     if (!text.trim()) {
@@ -127,7 +119,7 @@ export default function AddressAutocomplete({
           styles.input,
           {
             backgroundColor: theme.inputBg,
-            borderColor: theme.inputBorder,
+            borderColor: theme.border,
             color: theme.text,
           },
         ]}
@@ -141,8 +133,8 @@ export default function AddressAutocomplete({
             {
               top: inputLayout.height + 4,
               width: inputLayout.width,
-              backgroundColor: theme.dropdownBg,
-              borderColor: theme.dropdownBorder,
+              backgroundColor: theme.card,
+              borderColor: theme.border,
             },
           ]}
         >
@@ -154,7 +146,7 @@ export default function AddressAutocomplete({
             {results.map((item) => (
               <TouchableOpacity
                 key={item.place_id}
-                style={[styles.item, { borderBottomColor: theme.itemBorder }]}
+                style={[styles.item, { borderBottomColor: theme.separator }]}
                 onPress={() => handleSelect(item)}
               >
                 <Text style={[styles.itemText, { color: theme.text }]}>
@@ -190,7 +182,6 @@ const styles = StyleSheet.create({
   item: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
-  itemText: { fontSize: 14 },
+  itemText: { ...typeScale.subhead },
 });

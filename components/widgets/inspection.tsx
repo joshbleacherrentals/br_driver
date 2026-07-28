@@ -1,3 +1,4 @@
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import {
   InspectionQuestion,
   useInspectionQuestions,
@@ -13,6 +14,8 @@ import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
 } from "@/features/damage-report/utils/pickDamagePhotos";
+import { type ThemeColors, typeScale } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { readAsBase64 } from "@/utils/readAsBase64";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,8 +34,6 @@ import {
   db,
   inspectionPhotoAttachmentQueue,
 } from "../providers/SystemProvider";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type AnswerMap = Record<
   string,
@@ -60,16 +61,20 @@ const INITIAL_DAMAGE_DETAILS: DamageDetailsFormValues = {
   photos: [],
 };
 
-// ─── Question renderers ───────────────────────────────────────────────────────
+type InspectionStyles = ReturnType<typeof makeStyles>;
 
 function TextQuestion({
   question,
   value,
   onChange,
+  styles,
+  theme,
 }: {
   question: InspectionQuestion;
   value: string;
   onChange: (v: string) => void;
+  styles: InspectionStyles;
+  theme: ThemeColors;
 }) {
   return (
     <View style={styles.section}>
@@ -85,6 +90,7 @@ function TextQuestion({
         style={styles.textInput}
         multiline
         placeholder="Enter your answer..."
+        placeholderTextColor={theme.textTertiary}
         value={value}
         onChangeText={onChange}
       />
@@ -96,10 +102,14 @@ function CheckboxQuestion({
   question,
   value,
   onChange,
+  styles,
+  theme,
 }: {
   question: InspectionQuestion;
   value: boolean;
   onChange: (v: boolean) => void;
+  styles: InspectionStyles;
+  theme: ThemeColors;
 }) {
   return (
     <View style={styles.section}>
@@ -112,12 +122,18 @@ function CheckboxQuestion({
         )}
       </View>
       <TouchableOpacity
-        style={[styles.checkbox, value && styles.checkboxChecked]}
+        style={[
+          styles.checkbox,
+          value && {
+            borderColor: theme.accent,
+            backgroundColor: theme.accentSoft,
+          },
+        ]}
         onPress={() => onChange(!value)}
       >
         <Text style={styles.checkboxLabel}>{question.question_text}</Text>
         {value && (
-          <Ionicons name="checkmark-circle" size={24} color="#0A84FF" />
+          <Ionicons name="checkmark-circle" size={24} color={theme.accent} />
         )}
       </TouchableOpacity>
     </View>
@@ -130,12 +146,14 @@ function PhotoQuestion({
   onAddFromCamera,
   onAddFromLibrary,
   onRemove,
+  styles,
 }: {
   question: InspectionQuestion;
   photos: DocumentPhoto[];
   onAddFromCamera: () => void;
   onAddFromLibrary: () => void;
   onRemove: (index: number) => void;
+  styles: InspectionStyles;
 }) {
   return (
     <View style={styles.section}>
@@ -151,8 +169,6 @@ function PhotoQuestion({
   );
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
-
 export default function InspectionScreen({
   workTrackerId,
   bleacherUuid,
@@ -160,6 +176,8 @@ export default function InspectionScreen({
   onComplete,
   onCancel,
 }: InspectionScreenProps) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { questions } = useInspectionQuestions();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const checkboxQuestions = questions.filter(
@@ -174,8 +192,6 @@ export default function InspectionScreen({
   const [damageFound, setDamageFound] = useState<boolean | null>(null);
   const [damageDetails, setDamageDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DAMAGE_DETAILS);
-
-  // ── Answer helpers ──────────────────────────────────────────────────────────
 
   const handleCheckAll = () => {
     const shouldCheckAll = !allChecked;
@@ -220,8 +236,6 @@ export default function InspectionScreen({
       },
     }));
 
-  // ── Image pickers (inspection questions) ────────────────────────────────────
-
   const pickImageForQuestion = async (questionId: string) => {
     const picked = await pickDamagePhotosFromLibrary();
     if (picked.length > 0) addPhotosToQuestion(questionId, picked);
@@ -231,8 +245,6 @@ export default function InspectionScreen({
     const picked = await pickDamagePhotosFromCamera();
     if (picked.length > 0) addPhotosToQuestion(questionId, picked);
   };
-
-  // ── Validation ──────────────────────────────────────────────────────────────
 
   const validate = (): string | null => {
     for (const q of questions) {
@@ -261,9 +273,6 @@ export default function InspectionScreen({
     return null;
   };
 
-  // ── Photo upload helpers ────────────────────────────────────────────────────
-
-  /** Saves an inspection-question photo → inspection-photos bucket. */
   const saveInspectionPhoto = async (
     photo: DocumentPhoto,
     inspectionId: string,
@@ -284,8 +293,6 @@ export default function InspectionScreen({
     );
     return record.id;
   };
-
-  // ── Submit ──────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     const validationError = validate();
@@ -406,8 +413,6 @@ export default function InspectionScreen({
     }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -424,7 +429,10 @@ export default function InspectionScreen({
           <TouchableOpacity
             style={[
               styles.checkAllButton,
-              allChecked && styles.checkAllButtonChecked,
+              allChecked && {
+                backgroundColor: theme.secondaryAccentSoft,
+                borderColor: theme.success,
+              },
             ]}
             onPress={handleCheckAll}
           >
@@ -435,12 +443,12 @@ export default function InspectionScreen({
                   : "checkmark-done-circle-outline"
               }
               size={20}
-              color={allChecked ? "#34C759" : "#0A84FF"}
+              color={allChecked ? theme.success : theme.accent}
             />
             <Text
               style={[
                 styles.checkAllText,
-                allChecked && styles.checkAllTextChecked,
+                allChecked && { color: theme.success },
               ]}
             >
               {allChecked ? "All Items Checked" : "Check All Items"}
@@ -456,6 +464,8 @@ export default function InspectionScreen({
                 question={question}
                 value={answers[question.id]?.text ?? ""}
                 onChange={(v) => setTextAnswer(question.id, v)}
+                styles={styles}
+                theme={theme}
               />
             );
           }
@@ -466,6 +476,8 @@ export default function InspectionScreen({
                 question={question}
                 value={answers[question.id]?.checked ?? false}
                 onChange={(v) => setCheckboxAnswer(question.id, v)}
+                styles={styles}
+                theme={theme}
               />
             );
           }
@@ -480,6 +492,7 @@ export default function InspectionScreen({
                 onRemove={(index) =>
                   removePhotoFromQuestion(question.id, index)
                 }
+                styles={styles}
               />
             );
           }
@@ -492,19 +505,24 @@ export default function InspectionScreen({
             <TouchableOpacity
               style={[
                 styles.damageToggle,
-                damageFound === true && styles.damageToggleYes,
+                damageFound === true && {
+                  borderColor: theme.danger,
+                  backgroundColor: theme.danger + "18",
+                },
               ]}
               onPress={() => setDamageFound(true)}
             >
               <Ionicons
                 name="warning"
                 size={18}
-                color={damageFound === true ? "#FF3B30" : "#8E8E93"}
+                color={
+                  damageFound === true ? theme.danger : theme.textTertiary
+                }
               />
               <Text
                 style={[
                   styles.damageToggleText,
-                  damageFound === true && { color: "#FF3B30" },
+                  damageFound === true && { color: theme.danger },
                 ]}
               >
                 Yes
@@ -514,19 +532,24 @@ export default function InspectionScreen({
             <TouchableOpacity
               style={[
                 styles.damageToggle,
-                damageFound === false && styles.damageToggleNo,
+                damageFound === false && {
+                  borderColor: theme.success,
+                  backgroundColor: theme.secondaryAccentSoft,
+                },
               ]}
               onPress={() => setDamageFound(false)}
             >
               <Ionicons
                 name="checkmark-circle"
                 size={18}
-                color={damageFound === false ? "#34C759" : "#8E8E93"}
+                color={
+                  damageFound === false ? theme.success : theme.textTertiary
+                }
               />
               <Text
                 style={[
                   styles.damageToggleText,
-                  damageFound === false && { color: "#34C759" },
+                  damageFound === false && { color: theme.success },
                 ]}
               >
                 No
@@ -566,120 +589,138 @@ export default function InspectionScreen({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F2F7" },
-  scrollContent: { padding: 16 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: "700", color: "#000", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#8E8E93" },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    flex: 1,
-    flexShrink: 1,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 8,
-  },
-  requiredBadge: {
-    flexShrink: 0,
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  requiredText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  checkAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#EBF5FF",
-    borderWidth: 1.5,
-    borderColor: "#0A84FF",
-    borderRadius: 10,
-    paddingVertical: 13,
-    marginBottom: 8,
-  },
-  checkAllButtonChecked: { backgroundColor: "#E8F9ED", borderColor: "#34C759" },
-  checkAllText: { fontSize: 15, fontWeight: "600", color: "#0A84FF" },
-  checkAllTextChecked: { color: "#34C759" },
-  checkbox: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-  },
-  checkboxChecked: { borderColor: "#0A84FF", backgroundColor: "#EBF5FF" },
-  checkboxLabel: { flex: 1, fontSize: 15, color: "#000", marginRight: 8 },
-  textInput: {
-    backgroundColor: "#F8F8F8",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    textAlignVertical: "top",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: "#F2F2F7",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: { fontSize: 16, fontWeight: "600", color: "#000" },
-  submitButton: {
-    flex: 2,
-    backgroundColor: "#34C759",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  submitButtonDisabled: { backgroundColor: "#A8E6B7" },
-  submitButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  damageToggle: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F8F8F8",
-  },
-  damageToggleYes: { borderColor: "#FF3B30", backgroundColor: "#FFEBEA" },
-  damageToggleNo: { borderColor: "#34C759", backgroundColor: "#E8F9ED" },
-  damageToggleText: { fontSize: 15, fontWeight: "600", color: "#8E8E93" },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    scrollContent: { padding: 16 },
+    header: { marginBottom: 24 },
+    title: {
+      ...typeScale.title1,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: { ...typeScale.callout, color: theme.textSecondary },
+    section: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      flex: 1,
+      flexShrink: 1,
+      ...typeScale.title3,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 8,
+      marginBottom: 8,
+    },
+    requiredBadge: {
+      flexShrink: 0,
+      backgroundColor: theme.danger,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+    },
+    requiredText: {
+      ...typeScale.caption2,
+      fontWeight: "700",
+      color: theme.onAccent,
+      letterSpacing: 0.5,
+    },
+    checkAllButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: theme.accentSoft,
+      borderWidth: 1.5,
+      borderColor: theme.accent,
+      borderRadius: 10,
+      paddingVertical: 13,
+      marginBottom: 8,
+    },
+    checkAllText: { ...typeScale.subhead, fontWeight: "600", color: theme.accent },
+    checkbox: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 16,
+      backgroundColor: theme.surfaceElevated,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: theme.border,
+    },
+    checkboxLabel: {
+      flex: 1,
+      ...typeScale.subhead,
+      color: theme.textPrimary,
+      marginRight: 8,
+    },
+    textInput: {
+      backgroundColor: theme.surfaceElevated,
+      borderRadius: 8,
+      padding: 12,
+      ...typeScale.callout,
+      minHeight: 100,
+      textAlignVertical: "top",
+      borderWidth: 1,
+      borderColor: theme.border,
+      color: theme.textPrimary,
+    },
+    buttonContainer: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 24,
+      marginBottom: 32,
+    },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: theme.surfaceElevated,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    cancelButtonText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    submitButton: {
+      flex: 2,
+      backgroundColor: theme.success,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    submitButtonDisabled: { opacity: 0.5 },
+    submitButtonText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.onSecondaryAccent,
+    },
+    damageToggle: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      padding: 14,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceElevated,
+    },
+    damageToggleText: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textTertiary,
+    },
+  });
+}

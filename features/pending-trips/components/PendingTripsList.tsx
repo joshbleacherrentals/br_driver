@@ -1,7 +1,9 @@
 import { db } from "@/components/providers/SystemProvider";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import TripItem from "@/components/widgets/trip_item";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
@@ -9,18 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 
-const themes = {
-  light: {
-    emptyText: "#8E8E93",
-  },
-  dark: {
-    emptyText: "#636366",
-  },
-};
-
 export default function PendingTripsList() {
-  const colorScheme = useColorScheme();
-  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const workTrackers = useWorkTrackers().workTrackers;
   const { getAcceptBlockReason } = useProfileCompletion();
@@ -102,12 +95,10 @@ export default function PendingTripsList() {
           <Ionicons
             name="checkmark-circle-outline"
             size={40}
-            color={t.emptyText}
+            color={theme.textTertiary}
           />
-          <Text style={[styles.emptyText, { color: t.emptyText }]}>
-            No pending trips
-          </Text>
-          <Text style={[styles.emptySubtext, { color: t.emptyText }]}>
+          <Text style={styles.emptyText}>No pending trips</Text>
+          <Text style={styles.emptySubtext}>
             New trip assignments will appear here
           </Text>
         </View>
@@ -118,22 +109,25 @@ export default function PendingTripsList() {
 
 const noop = async () => {};
 
-const styles = StyleSheet.create({
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  emptySubtext: {
-    fontSize: 14,
-  },
-});
+const makeStyles = (theme: ThemeColors) =>
+  StyleSheet.create({
+    listContent: {
+      paddingTop: 8,
+      paddingBottom: 32,
+    },
+    emptyContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 80,
+      gap: 8,
+    },
+    emptyText: {
+      ...typeScale.body,
+      fontWeight: "600",
+      color: theme.textTertiary,
+    },
+    emptySubtext: {
+      ...typeScale.subhead,
+      color: theme.textTertiary,
+    },
+  });

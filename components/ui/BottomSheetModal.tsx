@@ -1,4 +1,4 @@
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import React, { useCallback, useEffect, useMemo } from "react";
 import {
   Dimensions,
@@ -35,7 +35,6 @@ interface BottomSheetModalProps {
   children: React.ReactNode;
 }
 
-const BG = "#F2F2F7";
 const SCREEN_H = Dimensions.get("window").height;
 const DISMISS_DISTANCE = 100;
 const DISMISS_VELOCITY = 800;
@@ -47,8 +46,7 @@ export default function BottomSheetModal({
   onDragDismiss,
   children,
 }: BottomSheetModalProps) {
-  const colorScheme = useColorScheme();
-  const bg = colorScheme === "dark" ? "#1C1C1E" : BG;
+  const { theme } = useTheme();
   const handleRequestClose = onRequestClose ?? onClose;
 
   // iOS: native pageSheet already supports drag-to-dismiss.
@@ -60,9 +58,13 @@ export default function BottomSheetModal({
         presentationStyle="pageSheet"
         onRequestClose={handleRequestClose}
       >
-        <SafeAreaView style={[styles.safeArea, { backgroundColor: bg }]}>
+        <SafeAreaView
+          style={[styles.safeArea, { backgroundColor: theme.surface }]}
+        >
           <View style={styles.dragHandleBar}>
-            <View style={styles.dragHandle} />
+            <View
+              style={[styles.dragHandle, { backgroundColor: theme.textTertiary }]}
+            />
           </View>
           <View style={styles.content}>{children}</View>
         </SafeAreaView>
@@ -76,7 +78,9 @@ export default function BottomSheetModal({
       onClose={onClose}
       onRequestClose={handleRequestClose}
       onDragDismiss={onDragDismiss}
-      backgroundColor={bg}
+      backgroundColor={theme.surface}
+      overlayColor={theme.overlay}
+      handleColor={theme.textTertiary}
     >
       {children}
     </AndroidSheet>
@@ -89,6 +93,8 @@ function AndroidSheet({
   onRequestClose,
   onDragDismiss,
   backgroundColor,
+  overlayColor,
+  handleColor,
   children,
 }: {
   visible: boolean;
@@ -96,6 +102,8 @@ function AndroidSheet({
   onRequestClose: () => void;
   onDragDismiss?: () => void;
   backgroundColor: string;
+  overlayColor: string;
+  handleColor: string;
   children: React.ReactNode;
 }) {
   const translateY = useSharedValue(SCREEN_H);
@@ -182,7 +190,7 @@ function AndroidSheet({
   }));
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdrop.value * 0.45,
+    opacity: backdrop.value,
   }));
 
   return (
@@ -198,7 +206,9 @@ function AndroidSheet({
       {/* Modal is a separate native root — needs its own GestureHandlerRootView */}
       <GestureHandlerRootView style={styles.androidRoot}>
         <Pressable style={StyleSheet.absoluteFill} onPress={requestClose}>
-          <Animated.View style={[styles.backdrop, backdropStyle]} />
+          <Animated.View
+            style={[styles.backdrop, { backgroundColor: overlayColor }, backdropStyle]}
+          />
         </Pressable>
 
         <Animated.View
@@ -206,7 +216,7 @@ function AndroidSheet({
         >
           <GestureDetector gesture={handleGesture}>
             <Animated.View style={styles.dragHandleBar}>
-              <View style={styles.dragHandle} />
+              <View style={[styles.dragHandle, { backgroundColor: handleColor }]} />
             </Animated.View>
           </GestureDetector>
 
@@ -233,7 +243,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: "rgba(120,120,128,0.55)",
+    opacity: 0.55,
   },
   content: { flex: 1 },
   androidRoot: {
@@ -242,7 +252,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000",
   },
   androidSheet: {
     height: "92%",

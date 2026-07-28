@@ -2,6 +2,7 @@ import BleacherDropdown, {
   BleacherOption,
 } from "@/components/widgets/bleacherDropdown";
 import { damageReportPhotoAttachmentQueue } from "@/components/providers/SystemProvider";
+import { themes, type ThemeColors, typeScale } from "@/constants/theme";
 import { useAllBleachers } from "@/hooks/db/useBleacher";
 import { useDamageReportById } from "@/hooks/db/useDamageReport";
 import {
@@ -9,6 +10,7 @@ import {
   useDamageReportPhotos,
 } from "@/hooks/db/useDamageReportPhotos";
 import { useDriver } from "@/hooks/db/useDriver";
+import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -41,9 +43,9 @@ import { SubmitProgressModal } from "./components/SubmitProgressModal";
 import { createDamageReport } from "./utils/createDamageReport";
 import { resolvePhotoUri } from "./utils/resolvePhotoUri";
 
-// ━━━ Debug toggle ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 const DEBUG_PHOTO_UPLOAD = false;
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const debugTheme = themes.dark;
 
 interface DebugLogEntry {
   ts: string;
@@ -57,12 +59,16 @@ const INITIAL_DETAILS: DamageDetailsFormValues = {
   photos: [],
 };
 
-// ── View-only photo grid ────────────────────────────────────────────────────
+type ScreenStyles = ReturnType<typeof makeStyles>;
 
 function ViewOnlyPhotoGrid({
   photos,
+  styles,
+  theme,
 }: {
   photos: DamageReportPhotoWithStatus[];
+  styles: ScreenStyles;
+  theme: ThemeColors;
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [fullSizeItems, setFullSizeItems] = useState<ImageViewerItem[]>([]);
@@ -91,9 +97,7 @@ function ViewOnlyPhotoGrid({
 
   if (photos.length === 0) {
     return (
-      <Text style={{ color: "#8E8E93", fontSize: 14, fontStyle: "italic" }}>
-        No photos attached
-      </Text>
+      <Text style={styles.emptyPhotosText}>No photos attached</Text>
     );
   }
 
@@ -115,7 +119,11 @@ function ViewOnlyPhotoGrid({
                 <Image source={{ uri: thumbUri }} style={styles.photo} />
               ) : (
                 <View style={[styles.photo, styles.photoPlaceholder]}>
-                  <Ionicons name="image-outline" size={28} color="#C7C7CC" />
+                  <Ionicons
+                    name="image-outline"
+                    size={28}
+                    color={theme.textTertiary}
+                  />
                 </View>
               )}
               <PhotoUploadIndicator status={photo.uploadStatus} />
@@ -137,18 +145,24 @@ function ViewOnlyPhotoGrid({
   );
 }
 
-// ── Severity display (read-only) ────────────────────────────────────────────
-
 function SeverityDisplay({
   label,
   value,
+  styles,
+  theme,
 }: {
   label: string;
   value: string | null;
+  styles: ScreenStyles;
+  theme: ThemeColors;
 }) {
   const isNone = !value || value === "none";
   const isMajor = value === "major" || value === "1";
-  const color = isNone ? "#34C759" : isMajor ? "#FF3B30" : "#FF9500";
+  const color = isNone
+    ? theme.success
+    : isMajor
+      ? theme.danger
+      : theme.warning;
   const text = isNone ? "None" : isMajor ? "Major" : "Minor";
 
   return (
@@ -166,21 +180,89 @@ function SeverityDisplay({
   );
 }
 
-// ── Main screen ─────────────────────────────────────────────────────────────
+function DebugLogPanel({
+  debugLogs,
+  debugStyles,
+  theme,
+  onClear,
+}: {
+  debugLogs: DebugLogEntry[];
+  debugStyles: ReturnType<typeof makeDebugStyles>;
+  theme: ThemeColors;
+  onClear: () => void;
+}) {
+  const debugScrollRef = useRef<ScrollView>(null);
+
+  return (
+    <View style={debugStyles.container}>
+      <View style={debugStyles.header}>
+        <Text style={debugStyles.title}>Debug Log ({debugLogs.length})</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            style={debugStyles.copyBtn}
+            onPress={() => {
+              const text = debugLogs.map((l) => `${l.ts} ${l.msg}`).join("\n");
+              Clipboard.setStringAsync(text);
+              Alert.alert(
+                "Copied",
+                `${debugLogs.length} log entries copied to clipboard`,
+              );
+            }}
+          >
+            <Text style={debugStyles.copyBtnText}>Copy All</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[debugStyles.copyBtn, { backgroundColor: theme.danger }]}
+            onPress={onClear}
+          >
+            <Text style={debugStyles.copyBtnText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <ScrollView
+        ref={debugScrollRef}
+        style={debugStyles.logScroll}
+        onContentSizeChange={() =>
+          debugScrollRef.current?.scrollToEnd({ animated: false })
+        }
+      >
+        {debugLogs.map((entry, i) => (
+          <Text key={i} style={debugStyles.logLine} selectable>
+            <Text style={debugStyles.logTs}>{entry.ts} </Text>
+            <Text
+              style={
+                entry.msg.includes("ERROR") ||
+                entry.msg.includes("FAILED") ||
+                entry.msg.includes("MISSING")
+                  ? debugStyles.logError
+                  : entry.msg.includes("done") || entry.msg.includes("success")
+                    ? debugStyles.logSuccess
+                    : debugStyles.logMsg
+              }
+            >
+              {entry.msg}
+            </Text>
+          </Text>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
 
 export default function DamageReportScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
   const params = useLocalSearchParams<{ damageReportId?: string }>();
   const { bleachers } = useAllBleachers();
   const { driver } = useDriver();
 
-  // View-only state — set either from route param or after submit
   const [viewOnlyId, setViewOnlyId] = useState<string | null>(
     params.damageReportId ?? null,
   );
   const isViewOnly = !!viewOnlyId;
 
-  // Load existing report data when in view-only mode
   const { damageReport } = useDamageReportById(viewOnlyId);
   const {
     photos: reportPhotos,
@@ -208,7 +290,6 @@ export default function DamageReportScreen() {
     );
   }, [damageReport, bleacherOptions]);
 
-  // ── Create mode state ───────────────────────────────────────────────────
   const [selectedBleacher, setSelectedBleacher] = useState<string | null>(null);
   const [details, setDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
@@ -219,7 +300,6 @@ export default function DamageReportScreen() {
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>(
     [],
   );
-  const debugScrollRef = useRef<ScrollView>(null);
 
   const dlog = useCallback((msg: string) => {
     const entry: DebugLogEntry = {
@@ -354,13 +434,10 @@ export default function DamageReportScreen() {
     }
   };
 
-  // ── View-only render ────────────────────────────────────────────────────
-
   if (isViewOnly) {
     return (
       <SafeAreaView style={styles.container} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Bleacher */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bleacher</Text>
             <Text style={styles.viewOnlyValue}>
@@ -374,19 +451,21 @@ export default function DamageReportScreen() {
             </Text>
           </View>
 
-          {/* Severity */}
           <View style={styles.section}>
             <SeverityDisplay
               label="Seating Configuration"
               value={damageReport?.seat_damage ?? null}
+              styles={styles}
+              theme={theme}
             />
             <SeverityDisplay
               label="Hauling Configuration"
               value={damageReport?.haul_damage ?? null}
+              styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* Notes */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Damage Notes</Text>
             <Text style={styles.viewOnlyValue}>
@@ -394,7 +473,6 @@ export default function DamageReportScreen() {
             </Text>
           </View>
 
-          {/* Photos with upload status */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               Damage Photos ({reportPhotos.length})
@@ -406,11 +484,14 @@ export default function DamageReportScreen() {
                 isRetrying={isRetryingPhotos}
                 onRetry={handleRetryFailedPhotos}
               />
-              <ViewOnlyPhotoGrid photos={reportPhotos} />
+              <ViewOnlyPhotoGrid
+                photos={reportPhotos}
+                styles={styles}
+                theme={theme}
+              />
             </View>
           </View>
 
-          {/* Metadata */}
           <View style={styles.section}>
             <Text style={styles.metaText}>
               Created:{" "}
@@ -419,84 +500,28 @@ export default function DamageReportScreen() {
                 : "—"}
             </Text>
             {damageReport?.resolved_at && (
-              <Text style={[styles.metaText, { color: "#34C759" }]}>
+              <Text style={[styles.metaText, { color: theme.success }]}>
                 Resolved: {new Date(damageReport.resolved_at).toLocaleString()}
               </Text>
             )}
           </View>
 
-          {/* Back button */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: "#0A84FF" }]}
+              style={[styles.submitButton, { backgroundColor: theme.accent }]}
               onPress={() => router.back()}
             >
               <Text style={styles.submitButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Debug panel (only shown after submit with debug on) */}
           {DEBUG_PHOTO_UPLOAD && debugLogs.length > 0 && (
-            <View style={debugStyles.container}>
-              <View style={debugStyles.header}>
-                <Text style={debugStyles.title}>
-                  Debug Log ({debugLogs.length})
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <TouchableOpacity
-                    style={debugStyles.copyBtn}
-                    onPress={() => {
-                      const text = debugLogs
-                        .map((l) => `${l.ts} ${l.msg}`)
-                        .join("\n");
-                      Clipboard.setStringAsync(text);
-                      Alert.alert(
-                        "Copied",
-                        `${debugLogs.length} log entries copied to clipboard`,
-                      );
-                    }}
-                  >
-                    <Text style={debugStyles.copyBtnText}>Copy All</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      debugStyles.copyBtn,
-                      { backgroundColor: "#FF3B30" },
-                    ]}
-                    onPress={() => setDebugLogs([])}
-                  >
-                    <Text style={debugStyles.copyBtnText}>Clear</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <ScrollView
-                ref={debugScrollRef}
-                style={debugStyles.logScroll}
-                onContentSizeChange={() =>
-                  debugScrollRef.current?.scrollToEnd({ animated: false })
-                }
-              >
-                {debugLogs.map((entry, i) => (
-                  <Text key={i} style={debugStyles.logLine} selectable>
-                    <Text style={debugStyles.logTs}>{entry.ts} </Text>
-                    <Text
-                      style={
-                        entry.msg.includes("ERROR") ||
-                        entry.msg.includes("FAILED") ||
-                        entry.msg.includes("MISSING")
-                          ? debugStyles.logError
-                          : entry.msg.includes("done") ||
-                              entry.msg.includes("success")
-                            ? debugStyles.logSuccess
-                            : debugStyles.logMsg
-                      }
-                    >
-                      {entry.msg}
-                    </Text>
-                  </Text>
-                ))}
-              </ScrollView>
-            </View>
+            <DebugLogPanel
+              debugLogs={debugLogs}
+              debugStyles={debugStyles}
+              theme={debugTheme}
+              onClear={() => setDebugLogs([])}
+            />
           )}
 
           {DEBUG_PHOTO_UPLOAD && trackedAttachmentIds.length > 0 && (
@@ -507,12 +532,9 @@ export default function DamageReportScreen() {
     );
   }
 
-  // ── Create mode render ──────────────────────────────────────────────────
-
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Bleacher select */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Bleacher</Text>
           <View style={styles.requiredBadge}>
@@ -535,7 +557,6 @@ export default function DamageReportScreen() {
           }
         />
 
-        {/* Submit */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.cancelButton}
@@ -557,64 +578,13 @@ export default function DamageReportScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Debug panel */}
         {DEBUG_PHOTO_UPLOAD && debugLogs.length > 0 && (
-          <View style={debugStyles.container}>
-            <View style={debugStyles.header}>
-              <Text style={debugStyles.title}>
-                Debug Log ({debugLogs.length})
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TouchableOpacity
-                  style={debugStyles.copyBtn}
-                  onPress={() => {
-                    const text = debugLogs
-                      .map((l) => `${l.ts} ${l.msg}`)
-                      .join("\n");
-                    Clipboard.setStringAsync(text);
-                    Alert.alert(
-                      "Copied",
-                      `${debugLogs.length} log entries copied to clipboard`,
-                    );
-                  }}
-                >
-                  <Text style={debugStyles.copyBtnText}>Copy All</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[debugStyles.copyBtn, { backgroundColor: "#FF3B30" }]}
-                  onPress={() => setDebugLogs([])}
-                >
-                  <Text style={debugStyles.copyBtnText}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            <ScrollView
-              ref={debugScrollRef}
-              style={debugStyles.logScroll}
-              onContentSizeChange={() =>
-                debugScrollRef.current?.scrollToEnd({ animated: false })
-              }
-            >
-              {debugLogs.map((entry, i) => (
-                <Text key={i} style={debugStyles.logLine} selectable>
-                  <Text style={debugStyles.logTs}>{entry.ts} </Text>
-                  <Text
-                    style={
-                      entry.msg.includes("ERROR") ||
-                      entry.msg.includes("FAILED") ||
-                      entry.msg.includes("MISSING")
-                        ? debugStyles.logError
-                        : entry.msg.includes("done")
-                          ? debugStyles.logSuccess
-                          : debugStyles.logMsg
-                    }
-                  >
-                    {entry.msg}
-                  </Text>
-                </Text>
-              ))}
-            </ScrollView>
-          </View>
+          <DebugLogPanel
+            debugLogs={debugLogs}
+            debugStyles={debugStyles}
+            theme={debugTheme}
+            onClear={() => setDebugLogs([])}
+          />
         )}
 
         {DEBUG_PHOTO_UPLOAD && (
@@ -632,142 +602,170 @@ export default function DamageReportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F2F7" },
-  scrollContent: { padding: 16 },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-  },
-  requiredBadge: {
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: "flex-start",
-    marginTop: 6,
-  },
-  requiredText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  photoContainer: { position: "relative", width: 100, height: 100 },
-  photo: { width: "100%", height: "100%", borderRadius: 8 },
-  photoPlaceholder: {
-    backgroundColor: "#F2F2F7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 24,
-    marginBottom: 32,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: "#F2F2F7",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: { fontSize: 16, fontWeight: "600", color: "#000" },
-  submitButton: {
-    flex: 2,
-    backgroundColor: "#34C759",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  submitButtonDisabled: { backgroundColor: "#A8E6B7" },
-  submitButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  // View-only styles
-  viewOnlyValue: {
-    fontSize: 16,
-    color: "#3C3C43",
-    marginTop: 6,
-    lineHeight: 22,
-  },
-  severityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-  },
-  severityLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1C1C1E",
-  },
-  severityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  severityBadgeText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  metaText: {
-    fontSize: 13,
-    color: "#8E8E93",
-    marginBottom: 4,
-  },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    scrollContent: { padding: 16 },
+    section: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      ...typeScale.title3,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    requiredBadge: {
+      backgroundColor: theme.danger,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+      alignSelf: "flex-start",
+      marginTop: 6,
+    },
+    requiredText: {
+      ...typeScale.caption2,
+      fontWeight: "700",
+      color: theme.onAccent,
+      letterSpacing: 0.5,
+    },
+    photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    photoContainer: { position: "relative", width: 100, height: 100 },
+    photo: { width: "100%", height: "100%", borderRadius: 8 },
+    photoPlaceholder: {
+      backgroundColor: theme.surfaceElevated,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyPhotosText: {
+      color: theme.textSecondary,
+      ...typeScale.subhead,
+      fontStyle: "italic",
+    },
+    buttonContainer: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 24,
+      marginBottom: 32,
+    },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: theme.surfaceElevated,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    cancelButtonText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    submitButton: {
+      flex: 2,
+      backgroundColor: theme.success,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    submitButtonDisabled: { opacity: 0.5 },
+    submitButtonText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.onSecondaryAccent,
+    },
+    viewOnlyValue: {
+      ...typeScale.callout,
+      color: theme.textSecondary,
+      marginTop: 6,
+      lineHeight: 22,
+    },
+    severityRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 8,
+    },
+    severityLabel: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    severityBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    severityBadgeText: {
+      ...typeScale.footnote,
+      fontWeight: "700",
+    },
+    metaText: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+  });
+}
 
-const debugStyles = StyleSheet.create({
-  container: {
-    backgroundColor: "#1E1E1E",
-    borderRadius: 8,
-    marginTop: 16,
-    marginBottom: 32,
-    overflow: "hidden",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 10,
-    backgroundColor: "#2D2D2D",
-  },
-  title: {
-    color: "#00FF00",
-    fontSize: 13,
-    fontWeight: "700",
-    fontFamily: "Courier",
-  },
-  copyBtn: {
-    backgroundColor: "#0A84FF",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 4,
-  },
-  copyBtnText: { color: "#FFF", fontSize: 11, fontWeight: "600" },
-  logScroll: { maxHeight: 300, padding: 10 },
-  logLine: { marginBottom: 2 },
-  logTs: { color: "#888", fontSize: 10, fontFamily: "Courier" },
-  logMsg: { color: "#DDD", fontSize: 10, fontFamily: "Courier" },
-  logError: {
-    color: "#FF6B6B",
-    fontSize: 10,
-    fontFamily: "Courier",
-    fontWeight: "700",
-  },
-  logSuccess: {
-    color: "#00FF00",
-    fontSize: 10,
-    fontFamily: "Courier",
-    fontWeight: "700",
-  },
-});
+function makeDebugStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginTop: 16,
+      marginBottom: 32,
+      overflow: "hidden",
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 10,
+      backgroundColor: theme.surfaceElevated,
+    },
+    title: {
+      color: theme.success,
+      ...typeScale.footnote,
+      fontWeight: "700",
+      fontFamily: "Courier",
+    },
+    copyBtn: {
+      backgroundColor: theme.accent,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 4,
+    },
+    copyBtnText: {
+      color: theme.onAccent,
+      ...typeScale.caption2,
+      fontWeight: "600",
+    },
+    logScroll: { maxHeight: 300, padding: 10 },
+    logLine: { marginBottom: 2 },
+    logTs: {
+      color: theme.textTertiary,
+      ...typeScale.caption2,
+      fontFamily: "Courier",
+    },
+    logMsg: {
+      color: theme.textSecondary,
+      ...typeScale.caption2,
+      fontFamily: "Courier",
+    },
+    logError: {
+      color: theme.danger,
+      ...typeScale.caption2,
+      fontFamily: "Courier",
+      fontWeight: "700",
+    },
+    logSuccess: {
+      color: theme.success,
+      ...typeScale.caption2,
+      fontFamily: "Courier",
+      fontWeight: "700",
+    },
+  });
+}

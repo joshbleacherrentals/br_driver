@@ -1,7 +1,7 @@
 import { powerSyncDb } from "@/components/providers/SystemProvider";
-import { WARNING_ORANGE } from "@/constants/Colors";
+import { useTheme } from "@/hooks/useTheme";
 import { DatabaseZap } from "lucide-react-native";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   DevSettings,
@@ -9,7 +9,9 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
+import { type ThemeColors, typeScale } from "@/constants/theme";
 
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 /**
  * DEV-only helper: wipes the local PowerSync database and reloads the app, so
  * the next launch runs a fresh first-sync against an empty SQLite (the exact
@@ -19,6 +21,8 @@ import {
  * site. Do not ship references to this in a PR beyond local testing.
  */
 export default function DevResetDbButton() {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState(false);
 
   if (!__DEV__) return null;
@@ -52,7 +56,7 @@ export default function DevResetDbButton() {
       disabled={busy}
       activeOpacity={0.7}
     >
-      <DatabaseZap size={16} color={WARNING_ORANGE} strokeWidth={2} />
+      <DatabaseZap size={16} color={theme.warning} strokeWidth={2} />
       <Text style={styles.text}>
         {busy ? "Resetting…" : "DEV: Reset local DB"}
       </Text>
@@ -60,17 +64,19 @@ export default function DevResetDbButton() {
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-  },
-  text: {
-    color: WARNING_ORANGE,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    button: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+    },
+    text: {
+      color: theme.warning,
+      fontWeight: "600",
+      ...typeScale.subhead,
+    },
+  });
+}

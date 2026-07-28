@@ -1,13 +1,14 @@
 import { getAuthStyles } from "@/constants/AuthStyles";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useUser } from "@clerk/clerk-expo";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
+import { useMemo } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 export default function NotFoundScreen() {
-  const colorScheme = useColorScheme();
-  const styles = getAuthStyles(colorScheme);
+  const { scheme } = useTheme();
+  const styles = useMemo(() => getAuthStyles(scheme), [scheme]);
   const router = useRouter();
   const { user } = useUser();
 
@@ -33,7 +34,8 @@ export default function NotFoundScreen() {
           />
           <Text style={styles.title}>Welcome, {firstName}!</Text>
           <Text style={styles.subtitle}>
-            You&apos;re signed in and ready to go. Check out your upcoming trips to get started.
+            You&apos;re signed in and ready to go. Check out your upcoming trips
+            to get started.
           </Text>
         </View>
 

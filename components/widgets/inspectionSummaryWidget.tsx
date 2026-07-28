@@ -1,11 +1,14 @@
+import Badge from '@/components/ui/Badge';
 import BottomSheetModal from '@/components/ui/BottomSheetModal';
 import {
   damageReportPhotoAttachmentQueue,
   inspectionPhotoAttachmentQueue,
 } from '@/components/providers/SystemProvider';
 import ZoomableImage from '@/components/widgets/ZoomableImage';
+import { ThemeColors, radius, themes, typeScale } from "@/constants/theme";
 import { DamageReportData } from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
+import { useTheme } from '@/hooks/useTheme';
 import { shareImage, supabasePublicObjectUrl } from '@/utils/shareImage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePowerSyncQuery } from '@powersync/react-native';
@@ -54,9 +57,9 @@ interface InspectionSummaryWidgetProps {
   damages: DamageReportData[];
   title: string;
   defaultExpanded?: boolean;
+  /** When true, removes extra top margin (e.g. nested under a location card). */
+  embedded?: boolean;
 }
-
-// ─── URI resolvers ────────────────────────────────────────────────────────────
 
 function getInspectionPhotoUri(storagePath: string): string | null {
   if (!storagePath) return null;
@@ -101,12 +104,6 @@ async function resolveShareablePhotoUri(
   return fallback;
 }
 
-// ─── Lazy thumbnail: local file if present, else the public bucket URL ────────
-// Old/resolved damage photos are no longer pre-cached, so they may have no local
-// file. Try the local URI first (instant + offline); on error fall back to the
-// public bucket URL (loads over the network); if that also fails, show a
-// placeholder instead of a broken image.
-
 function LazyStoragePhoto({
   storagePath,
   bucket,
@@ -114,8 +111,9 @@ function LazyStoragePhoto({
 }: {
   storagePath: string;
   bucket: 'inspection-photos' | 'damage-report-photos';
-  style: any;
+  style: object;
 }) {
+  const { theme } = useTheme();
   const localUri =
     bucket === 'damage-report-photos'
       ? getDamagePhotoUri(storagePath)
@@ -135,8 +133,17 @@ function LazyStoragePhoto({
 
   if (!uri || failed) {
     return (
-      <View style={[style, lazyPhotoStyles.placeholder]}>
-        <Ionicons name="cloud-offline-outline" size={22} color="#8E8E93" />
+      <View
+        style={[
+          style,
+          {
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.textTertiary + '1F',
+          },
+        ]}
+      >
+        <Ionicons name="cloud-offline-outline" size={22} color={theme.textTertiary} />
       </View>
     );
   }
@@ -151,16 +158,6 @@ function LazyStoragePhoto({
   );
 }
 
-const lazyPhotoStyles = StyleSheet.create({
-  placeholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(142,142,147,0.12)',
-  },
-});
-
-// ─── Damage photo hook ────────────────────────────────────────────────────────
-
 function useDamageReportPhotos(damageReportId: string | null): { storage_path: string }[] {
   const rows = usePowerSyncQuery<{ photo_path: string }>(
     `SELECT photo_path FROM "DamageReportPhotos" WHERE damage_report_uuid = ? AND photo_path IS NOT NULL`,
@@ -169,25 +166,39 @@ function useDamageReportPhotos(damageReportId: string | null): { storage_path: s
   return (rows ?? []).map((r) => ({ storage_path: r.photo_path }));
 }
 
-// ─── Severity helpers ─────────────────────────────────────────────────────────
-
-function severityConfig(value: string | null): {
+function severityConfig(theme: ThemeColors, value: string | null): {
   label: string;
   color: string;
   bg: string;
   icon: 'checkmark-circle' | 'warning-outline' | 'warning';
 } {
   if (value === 'minor') {
-    return { label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline' };
+    return {
+      label: 'Minor',
+      color: theme.warning,
+      bg: theme.warning + '18',
+      icon: 'warning-outline',
+    };
   }
   if (value === 'major') {
-    return { label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning' };
+    return {
+      label: 'Major',
+      color: theme.danger,
+      bg: theme.danger + '18',
+      icon: 'warning',
+    };
   }
-  return { label: 'None', color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' };
+  return {
+    label: 'None',
+    color: theme.success,
+    bg: theme.secondaryAccentSoft,
+    icon: 'checkmark-circle',
+  };
 }
 
 function SeverityBadge({ value }: { value: string | null }) {
-  const cfg = severityConfig(value);
+  const { theme } = useTheme();
+  const cfg = severityConfig(theme, value);
   return (
     <View style={[severityBadge.pill, { backgroundColor: cfg.bg }]}>
       <Ionicons name={cfg.icon} size={13} color={cfg.color} />
@@ -196,8 +207,6 @@ function SeverityBadge({ value }: { value: string | null }) {
   );
 }
 
-// ─── Damage summary card ──────────────────────────────────────────────────────
-
 function DamageCard({
   damage,
   onPhotoPress,
@@ -205,29 +214,27 @@ function DamageCard({
   damage: DamageReportData;
   onPhotoPress: (photos: { storage_path: string }[], index: number) => void;
 }) {
+  const { theme } = useTheme();
+  const damageCard = makeDamageCardStyles(theme);
   const photos = useDamageReportPhotos(damage.id);
 
   return (
     <View style={damageCard.container}>
-      {/* Title row */}
       <View style={damageCard.titleRow}>
-        <Ionicons name="warning" size={15} color="#FF3B30" />
+        <Ionicons name="warning" size={15} color={theme.danger} />
         <Text style={damageCard.title}>Damage Found</Text>
       </View>
 
-      {/* Seating configuration */}
       <View style={damageCard.row}>
         <Text style={damageCard.label}>Seating Configuration</Text>
         <SeverityBadge value={damage.seat_damage} />
       </View>
 
-      {/* Hauling configuration */}
       <View style={[damageCard.row, { borderBottomWidth: photos.length > 0 || !!damage.note ? 1 : 0 }]}>
         <Text style={damageCard.label}>Hauling Configuration</Text>
         <SeverityBadge value={damage.haul_damage} />
       </View>
 
-      {/* Notes */}
       {!!damage.note && (
         <View style={damageCard.notes}>
           <Text style={damageCard.notesLabel}>Notes</Text>
@@ -235,7 +242,6 @@ function DamageCard({
         </View>
       )}
 
-      {/* Damage photos */}
       {photos.length > 0 && (
         <View style={damageCard.photosSection}>
           <Text style={damageCard.photosLabel}>
@@ -259,7 +265,7 @@ function DamageCard({
                   style={damageCard.photoThumbImage}
                 />
                 <View style={damageCard.photoExpandIcon}>
-                  <Ionicons name="expand-outline" size={14} color="#FFF" />
+                  <Ionicons name="expand-outline" size={14} color={theme.onAccent} />
                 </View>
               </TouchableOpacity>
             ))}
@@ -270,14 +276,6 @@ function DamageCard({
   );
 }
 
-// ─── Photo gallery modal ──────────────────────────────────────────────────────
-
-/**
- * Fullscreen photo viewer rendered as an overlay (not a nested Modal).
- * iOS cannot reliably present a second Modal on top of presentationStyle="pageSheet".
- * Swipe down to dismiss (matches iOS pageSheet / Android sheet behavior).
- * Pinch / double-tap zoom via ZoomableImage.
- */
 type GalleryItem = {
   id: string;
   uri: string;
@@ -299,6 +297,7 @@ function PhotoGalleryOverlay({
   bucket: 'inspection-photos' | 'damage-report-photos';
   onClose: () => void;
 }) {
+  const viewerTheme = themes.dark;
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isZoomed, setIsZoomed] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -309,8 +308,6 @@ function PhotoGalleryOverlay({
     viewAreaCoveragePercentThreshold: 50,
   }).current;
 
-  // Prefer local file; if missing (synced from another device), use Supabase URL
-  // so the image still renders and share can download it.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -398,7 +395,6 @@ function PhotoGalleryOverlay({
     [dismiss, translateY, opacity],
   );
 
-  // Header dismiss always works; list dismiss only when not zoomed.
   const headerPan = useMemo(() => createDismissPan(true), [createDismissPan]);
   const listPan = useMemo(
     () => createDismissPan(!isZoomed),
@@ -422,7 +418,10 @@ function PhotoGalleryOverlay({
 
   return (
     <GestureHandlerRootView style={gallery.overlay} accessibilityViewIsModal>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={viewerTheme.background}
+      />
       <Animated.View style={[gallery.container, animatedStyle]}>
         <SafeAreaView style={gallery.safeArea} edges={['top', 'bottom']}>
           <GestureDetector gesture={headerPan}>
@@ -432,13 +431,13 @@ function PhotoGalleryOverlay({
                 onPress={onClose}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Ionicons name="close" size={26} color="#FFF" />
+                <Ionicons name="close" size={26} color={viewerTheme.onAccent} />
               </TouchableOpacity>
               <View style={gallery.headerCenter}>
-                <Text style={gallery.headerTitle} numberOfLines={1}>
+                <Text style={[gallery.headerTitle, { color: viewerTheme.onAccent }]} numberOfLines={1}>
                   {questionText}
                 </Text>
-                <Text style={gallery.headerSubtitle}>
+                <Text style={[gallery.headerSubtitle, { color: viewerTheme.textTertiary }]}>
                   {currentIndex + 1} / {items.length}
                 </Text>
               </View>
@@ -450,9 +449,9 @@ function PhotoGalleryOverlay({
                 accessibilityLabel="Share photo"
               >
                 {isSharing ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator size="small" color={viewerTheme.onAccent} />
                 ) : (
-                  <Ionicons name="share-outline" size={24} color="#FFF" />
+                  <Ionicons name="share-outline" size={24} color={viewerTheme.onAccent} />
                 )}
               </TouchableOpacity>
             </Animated.View>
@@ -460,9 +459,11 @@ function PhotoGalleryOverlay({
 
           {items.length === 0 ? (
             <View style={gallery.emptyContainer}>
-              <Ionicons name="image-outline" size={64} color="#555" />
-              <Text style={gallery.emptyText}>Photos not yet downloaded</Text>
-              <Text style={gallery.emptySubtext}>
+              <Ionicons name="image-outline" size={64} color={viewerTheme.textTertiary} />
+              <Text style={[gallery.emptyText, { color: viewerTheme.textTertiary }]}>
+                Photos not yet downloaded
+              </Text>
+              <Text style={[gallery.emptySubtext, { color: viewerTheme.textTertiary }]}>
                 They will appear once synced
               </Text>
             </View>
@@ -507,7 +508,10 @@ function PhotoGalleryOverlay({
                       key={i}
                       style={[
                         gallery.dot,
-                        i === currentIndex && gallery.dotActive,
+                        i === currentIndex && [
+                          gallery.dotActive,
+                          { backgroundColor: viewerTheme.onAccent },
+                        ],
                       ]}
                     />
                   ))}
@@ -521,16 +525,12 @@ function PhotoGalleryOverlay({
   );
 }
 
-// ─── Gallery state type ───────────────────────────────────────────────────────
-
 type GalleryState = {
   photos: { storage_path: string }[];
   questionText: string;
   initialIndex: number;
   isDamage: boolean;
 };
-
-// ─── Full inspection detail modal ─────────────────────────────────────────────
 
 export function InspectionDetailModal({
   visible,
@@ -545,6 +545,8 @@ export function InspectionDetailModal({
   title: string;
   onClose: () => void;
 }) {
+  const { theme } = useTheme();
+  const detail = makeDetailStyles(theme);
   const [galleryState, setGalleryState] = useState<GalleryState | null>(null);
 
   const answers = parseInspectionAnswers(inspection.answers_json);
@@ -573,11 +575,10 @@ export function InspectionDetailModal({
     <SafeAreaProvider>
       <View style={detail.container}>
         <SafeAreaView style={detail.safeArea} edges={['top', 'bottom']}>
-          {/* Header */}
           <View style={detail.header}>
             <Text style={detail.headerTitle}>{title}</Text>
             <TouchableOpacity style={detail.closeBtn} onPress={onClose}>
-              <Ionicons name="close-circle" size={28} color="#8E8E93" />
+              <Ionicons name="close-circle" size={28} color={theme.textTertiary} />
             </TouchableOpacity>
           </View>
 
@@ -586,7 +587,6 @@ export function InspectionDetailModal({
               Completed: {formatDateTime(inspection.created_at)}
             </Text>
 
-            {/* Dynamic inspection answers */}
             {answers.map((answer, index) => (
               <View key={index} style={detail.answerCard}>
                 <Text style={detail.answerCardLabel}>{answer.question_text}</Text>
@@ -595,13 +595,13 @@ export function InspectionDetailModal({
                   <View style={detail.answerCardValue}>
                     {answer.answer_boolean ? (
                       <>
-                        <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-                        <Text style={[detail.answerValueText, { color: '#34C759' }]}>Yes</Text>
+                        <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                        <Text style={[detail.answerValueText, { color: theme.success }]}>Yes</Text>
                       </>
                     ) : (
                       <>
-                        <Ionicons name="close-circle" size={20} color="#FF3B30" />
-                        <Text style={[detail.answerValueText, { color: '#FF3B30' }]}>No</Text>
+                        <Ionicons name="close-circle" size={20} color={theme.danger} />
+                        <Text style={[detail.answerValueText, { color: theme.danger }]}>No</Text>
                       </>
                     )}
                   </View>
@@ -643,7 +643,7 @@ export function InspectionDetailModal({
                               style={detail.photoThumbImage}
                             />
                             <View style={detail.photoExpandIcon}>
-                              <Ionicons name="expand-outline" size={14} color="#FFF" />
+                              <Ionicons name="expand-outline" size={14} color={theme.onAccent} />
                             </View>
                           </TouchableOpacity>
                         ))}
@@ -654,7 +654,6 @@ export function InspectionDetailModal({
               </View>
             ))}
 
-            {/* Damage card — includes photos fetched from DamageReportPhotos */}
             {hasDamage && (
               <DamageCard
                 damage={damage!}
@@ -671,28 +670,26 @@ export function InspectionDetailModal({
           </ScrollView>
         </SafeAreaView>
 
-        {/* Overlay inside sheet — nested Modal does not present on iOS */}
-          {galleryState && (
-            <PhotoGalleryOverlay
-              photos={galleryState.photos}
-              initialIndex={galleryState.initialIndex}
-              questionText={galleryState.questionText}
-              resolveUri={
-                galleryState.isDamage ? getDamagePhotoUri : getInspectionPhotoUri
-              }
-              bucket={
-                galleryState.isDamage
-                  ? 'damage-report-photos'
-                  : 'inspection-photos'
-              }
-              onClose={() => setGalleryState(null)}
-            />
-          )}
+        {galleryState && (
+          <PhotoGalleryOverlay
+            photos={galleryState.photos}
+            initialIndex={galleryState.initialIndex}
+            questionText={galleryState.questionText}
+            resolveUri={
+              galleryState.isDamage ? getDamagePhotoUri : getInspectionPhotoUri
+            }
+            bucket={
+              galleryState.isDamage
+                ? 'damage-report-photos'
+                : 'inspection-photos'
+            }
+            onClose={() => setGalleryState(null)}
+          />
+        )}
       </View>
     </SafeAreaProvider>
   );
 
-  // iOS: native pageSheet already supports swipe-to-dismiss.
   if (Platform.OS === 'ios') {
     return (
       <Modal
@@ -706,7 +703,6 @@ export function InspectionDetailModal({
     );
   }
 
-  // Android: reuse shared bottom-sheet with drag handle + swipe-to-dismiss.
   return (
     <BottomSheetModal
       visible={visible}
@@ -721,20 +717,20 @@ export function InspectionDetailModal({
   );
 }
 
-// ─── Main widget ──────────────────────────────────────────────────────────────
-
 export default function InspectionSummaryWidget({
   inspection,
   damages,
   title,
   defaultExpanded = false,
+  embedded = false,
 }: InspectionSummaryWidgetProps) {
+  const { theme } = useTheme();
+  const styles = makeSummaryStyles(theme, embedded);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [detailVisible, setDetailVisible] = useState(false);
 
   if (!inspection) return null;
 
-  // Derive the damage report that belongs to this specific inspection
   const damage = damages.find((d) => d.inspection_uuid === inspection.id) ?? null;
 
   const answers = parseInspectionAnswers(inspection.answers_json);
@@ -752,14 +748,13 @@ export default function InspectionSummaryWidget({
   return (
     <>
       <View style={styles.container}>
-        {/* Collapsible header */}
         <TouchableOpacity
           style={styles.header}
           onPress={() => setExpanded((v) => !v)}
           activeOpacity={0.7}
         >
           <View style={styles.headerLeft}>
-            <Ionicons name="clipboard-outline" size={18} color="#34C759" />
+            <Ionicons name="clipboard-outline" size={18} color={theme.success} />
             <View style={styles.headerText}>
               <Text style={styles.title}>{title}</Text>
               <Text style={styles.subtitle}>{formatDateTime(inspection.created_at)}</Text>
@@ -767,24 +762,21 @@ export default function InspectionSummaryWidget({
           </View>
           <View style={styles.headerRight}>
             {hasDamage && (
-              <View style={styles.damagePill}>
-                <Ionicons name="warning" size={12} color="#FF3B30" />
-                <Text style={styles.damagePillText}>Damage</Text>
-              </View>
+              <Badge label="Damage" color={theme.danger} icon="warning" />
             )}
-            <View style={styles.completedPill}>
-              <Ionicons name="checkmark-circle" size={13} color="#34C759" />
-              <Text style={styles.completedPillText}>Completed</Text>
-            </View>
+            <Badge
+              label="Completed"
+              color={theme.success}
+              icon="checkmark-circle"
+            />
             <Ionicons
               name={expanded ? 'chevron-up' : 'chevron-down'}
               size={18}
-              color="#8E8E93"
+              color={theme.textTertiary}
             />
           </View>
         </TouchableOpacity>
 
-        {/* Expanded summary */}
         {expanded && (
           <View style={styles.body}>
             {answers.map((answer, index) => (
@@ -800,13 +792,13 @@ export default function InspectionSummaryWidget({
                   {answer.question_type === 'checkbox' && (
                     answer.answer_boolean ? (
                       <>
-                        <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                        <Text style={[styles.answerValueText, { color: '#34C759' }]}>Yes</Text>
+                        <Ionicons name="checkmark-circle" size={16} color={theme.success} />
+                        <Text style={[styles.answerValueText, { color: theme.success }]}>Yes</Text>
                       </>
                     ) : (
                       <>
-                        <Ionicons name="close-circle" size={16} color="#FF3B30" />
-                        <Text style={[styles.answerValueText, { color: '#FF3B30' }]}>No</Text>
+                        <Ionicons name="close-circle" size={16} color={theme.danger} />
+                        <Text style={[styles.answerValueText, { color: theme.danger }]}>No</Text>
                       </>
                     )
                   )}
@@ -816,22 +808,20 @@ export default function InspectionSummaryWidget({
                     </Text>
                   )}
                   {answer.question_type === 'photo' && (
-                    <View style={styles.photoPill}>
-                      <Ionicons name="images-outline" size={13} color="#0A84FF" />
-                      <Text style={styles.photoPillText}>
-                        {answer.photos?.length ?? 0} photo{(answer.photos?.length ?? 0) !== 1 ? 's' : ''}
-                      </Text>
-                    </View>
+                    <Badge
+                      label={`${answer.photos?.length ?? 0} photo${(answer.photos?.length ?? 0) !== 1 ? 's' : ''}`}
+                      color={theme.accent}
+                      icon="images-outline"
+                    />
                   )}
                 </View>
               </View>
             ))}
 
-            {/* Inline damage summary (collapsed view) */}
             {hasDamage && (
               <View style={styles.damageSummaryBlock}>
                 <View style={styles.damageSummaryTitle}>
-                  <Ionicons name="warning" size={14} color="#FF3B30" />
+                  <Ionicons name="warning" size={14} color={theme.danger} />
                   <Text style={styles.damageSummaryTitleText}>Damage Found</Text>
                 </View>
 
@@ -851,24 +841,28 @@ export default function InspectionSummaryWidget({
               style={styles.viewFullButton}
               onPress={() => setDetailVisible(true)}
             >
-              <Ionicons name="document-text-outline" size={16} color="#0A84FF" />
+              <Ionicons name="document-text-outline" size={16} color={theme.accent} />
               <Text style={styles.viewFullText}>
                 View Full Inspection{totalPhotos > 0 ? ` · ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}` : ''}
               </Text>
-              <Ionicons name="chevron-forward" size={16} color="#0A84FF" />
+              <Ionicons name="chevron-forward" size={16} color={theme.accent} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Collapsed quick-access */}
         {!expanded && (totalPhotos > 0 || hasDamage) && (
           <TouchableOpacity
             style={styles.collapsedPhotoButton}
             onPress={() => setDetailVisible(true)}
           >
-            {hasDamage && <Ionicons name="warning" size={14} color="#FF3B30" />}
-            {totalPhotos > 0 && <Ionicons name="images-outline" size={14} color="#0A84FF" />}
-            <Text style={[styles.collapsedPhotoText, hasDamage && { color: '#FF3B30' }]}>
+            {hasDamage && <Ionicons name="warning" size={14} color={theme.danger} />}
+            {totalPhotos > 0 && <Ionicons name="images-outline" size={14} color={theme.accent} />}
+            <Text
+              style={[
+                styles.collapsedPhotoText,
+                hasDamage ? { color: theme.danger } : null,
+              ]}
+            >
               {hasDamage
                 ? `Damage report${totalPhotos > 0 ? ` · ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}` : ''}`
                 : `View ${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''}`}
@@ -888,68 +882,235 @@ export default function InspectionSummaryWidget({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+function makeSummaryStyles(theme: ThemeColors, embedded = false) {
+  const fill = embedded ? theme.surfaceElevated : theme.surface;
+  return StyleSheet.create({
+    container: {
+      backgroundColor: fill,
+      borderRadius: embedded ? 0 : 10,
+      borderBottomLeftRadius: embedded ? radius.card : 10,
+      borderBottomRightRadius: embedded ? radius.card : 10,
+      marginTop: embedded ? 0 : 10,
+      borderWidth: embedded ? StyleSheet.hairlineWidth : 1,
+      borderColor: theme.border,
+      borderTopWidth: embedded ? 0 : 1,
+      overflow: 'hidden',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: theme.secondaryAccentSoft,
+    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+    headerText: { flex: 1 },
+    title: { ...typeScale.subhead, fontWeight: '600', color: theme.textPrimary },
+    subtitle: { ...typeScale.caption2, color: theme.textTertiary, marginTop: 1 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    body: {
+      paddingHorizontal: 14,
+      paddingBottom: 4,
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+    },
+    answerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.separator,
+    },
+    answerRowLast: { borderBottomWidth: 0 },
+    answerLabel: { ...typeScale.footnote, color: theme.textSecondary, flex: 1, marginRight: 12 },
+    answerValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    answerValueText: { ...typeScale.footnote, fontWeight: "400", color: theme.textPrimary },
+    damageSummaryBlock: {
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+      paddingTop: 10,
+      marginBottom: 4,
+    },
+    damageSummaryTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    damageSummaryTitleText: { ...typeScale.footnote, fontWeight: '700', color: theme.danger },
+    damageSummaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.separator,
+    },
+    damageSummaryLabel: { ...typeScale.footnote, color: theme.textSecondary },
+    viewFullButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 12,
+      justifyContent: 'center',
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+      marginTop: 4,
+    },
+    viewFullText: { ...typeScale.subhead, fontWeight: '600', color: theme.accent },
+    collapsedPhotoButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      justifyContent: 'center',
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+    },
+    collapsedPhotoText: { ...typeScale.footnote, fontWeight: '600', color: theme.accent },
+  });
+}
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: '#FFFFFF', borderRadius: 10, marginTop: 10, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#F8FFF9' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  headerText: { flex: 1 },
-  title: { fontSize: 14, fontWeight: '600', color: '#000' },
-  subtitle: { fontSize: 11, color: '#8E8E93', marginTop: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  completedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E8F9ED', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  completedPillText: { fontSize: 11, fontWeight: '600', color: '#34C759' },
-  damagePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFEBEA', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  damagePillText: { fontSize: 11, fontWeight: '600', color: '#FF3B30' },
-  body: { paddingHorizontal: 14, paddingBottom: 4, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
-  answerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
-  answerRowLast: { borderBottomWidth: 0 },
-  answerLabel: { fontSize: 13, color: '#3C3C3C', flex: 1, marginRight: 12 },
-  answerValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  answerValueText: { fontSize: 13, fontWeight: '500', color: '#000' },
-  photoPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EBF5FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  photoPillText: { fontSize: 11, fontWeight: '600', color: '#0A84FF' },
-  damageSummaryBlock: { borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 10, marginBottom: 4 },
-  damageSummaryTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  damageSummaryTitleText: { fontSize: 13, fontWeight: '700', color: '#FF3B30' },
-  damageSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
-  damageSummaryLabel: { fontSize: 13, color: '#3C3C3C' },
-  viewFullButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', marginTop: 4 },
-  viewFullText: { fontSize: 14, fontWeight: '600', color: '#0A84FF' },
-  collapsedPhotoButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, justifyContent: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7' },
-  collapsedPhotoText: { fontSize: 13, fontWeight: '600', color: '#0A84FF' },
-});
+function makeDetailStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    safeArea: { flex: 1 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      backgroundColor: theme.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    headerTitle: { ...typeScale.title3, fontWeight: '700', color: theme.textPrimary },
+    closeBtn: { padding: 4 },
+    scrollContent: { padding: 16, paddingBottom: 40 },
+    timestamp: { ...typeScale.caption, color: theme.textTertiary, marginBottom: 16 },
+    answerCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 10,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    answerCardLabel: {
+      ...typeScale.footnote,
+      fontWeight: '600',
+      color: theme.textTertiary,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    answerCardValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    answerValueText: { ...typeScale.callout, fontWeight: '600' },
+    answerTextValue: { ...typeScale.subhead, color: theme.textPrimary, lineHeight: 22 },
+    photoRow: { marginTop: 4 },
+    photoThumb: {
+      width: 100,
+      height: 100,
+      borderRadius: 8,
+      marginRight: 8,
+      overflow: 'hidden',
+      backgroundColor: theme.background,
+    },
+    photoThumbImage: { width: '100%', height: '100%' },
+    photoExpandIcon: {
+      position: 'absolute',
+      bottom: 6,
+      right: 6,
+      backgroundColor: theme.overlay,
+      borderRadius: 4,
+      padding: 3,
+    },
+    noPhotosText: { ...typeScale.footnote, color: theme.textTertiary, fontStyle: 'italic' },
+  });
+}
 
-const detail = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
-  safeArea: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#000' },
-  closeBtn: { padding: 4 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  timestamp: { fontSize: 12, color: '#8E8E93', marginBottom: 16 },
-  answerCard: { backgroundColor: '#FFF', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  answerCardLabel: { fontSize: 13, fontWeight: '600', color: '#8E8E93', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  answerCardValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  answerValueText: { fontSize: 16, fontWeight: '600' },
-  answerTextValue: { fontSize: 15, color: '#000', lineHeight: 22 },
-  photoRow: { marginTop: 4 },
-  photoThumb: { width: 100, height: 100, borderRadius: 8, marginRight: 8, overflow: 'hidden', backgroundColor: '#F2F2F7' },
-  photoThumbImage: { width: '100%', height: '100%' },
-  photoExpandIcon: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: 3 },
-  photoThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  photoThumbPlaceholderText: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
-  noPhotosText: { fontSize: 13, color: '#8E8E93', fontStyle: 'italic' },
+function makeDamageCardStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      backgroundColor: theme.surface,
+      borderRadius: 10,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: theme.danger + '40',
+    },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    title: { ...typeScale.subhead, fontWeight: '700', color: theme.danger },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.separator,
+    },
+    label: { ...typeScale.subhead, color: theme.textSecondary, fontWeight: "400" },
+    notes: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+    },
+    notesLabel: {
+      ...typeScale.caption2,
+      fontWeight: '600',
+      color: theme.textTertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      marginBottom: 4,
+    },
+    notesText: { ...typeScale.subhead, color: theme.textPrimary },
+    photosSection: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.separator,
+    },
+    photosLabel: {
+      ...typeScale.caption2,
+      fontWeight: '600',
+      color: theme.textTertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      marginBottom: 8,
+    },
+    photoRow: { flexDirection: 'row' },
+    photoThumb: {
+      width: 100,
+      height: 100,
+      borderRadius: 8,
+      marginRight: 8,
+      overflow: 'hidden',
+      backgroundColor: theme.background,
+    },
+    photoThumbImage: { width: '100%', height: '100%' },
+    photoExpandIcon: {
+      position: 'absolute',
+      bottom: 6,
+      right: 6,
+      backgroundColor: theme.overlay,
+      borderRadius: 4,
+      padding: 3,
+    },
+  });
+}
+
+const severityBadge = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  text: { ...typeScale.caption, fontWeight: '600' },
 });
 
 const gallery = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
+    backgroundColor: themes.dark.background,
     zIndex: 100,
   },
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: themes.dark.background },
   safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -962,37 +1123,18 @@ const gallery = StyleSheet.create({
   closeButton: { width: 40, alignItems: 'flex-start' },
   shareButton: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
-  headerSubtitle: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
+  headerTitle: { ...typeScale.subhead, fontWeight: '600' },
+  headerSubtitle: { ...typeScale.caption, marginTop: 2 },
   listWrap: { flex: 1 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 16 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#555' },
-  dotActive: { backgroundColor: '#FFF', width: 18 },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: themes.dark.onAccent + "59",
+  },
+  dotActive: { width: 18 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyText: { fontSize: 16, fontWeight: '600', color: '#8E8E93' },
-  emptySubtext: { fontSize: 13, color: '#555' },
-});
-
-const damageCard = StyleSheet.create({
-  container: { backgroundColor: '#FFF', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#FFCDD2' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  title: { fontSize: 14, fontWeight: '700', color: '#FF3B30' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
-  label: { fontSize: 14, color: '#3C3C3C', fontWeight: '500' },
-  notes: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
-  notesLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
-  notesText: { fontSize: 14, color: '#000', lineHeight: 20 },
-  photosSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
-  photosLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 },
-  photoRow: { flexDirection: 'row' },
-  photoThumb: { width: 100, height: 100, borderRadius: 8, marginRight: 8, overflow: 'hidden', backgroundColor: '#F2F2F7' },
-  photoThumbImage: { width: '100%', height: '100%' },
-  photoExpandIcon: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: 3 },
-  photoThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  photoThumbPlaceholderText: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
-});
-
-const severityBadge = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  text: { fontSize: 12, fontWeight: '600' },
+  emptyText: { ...typeScale.callout, fontWeight: '600' },
+  emptySubtext: { ...typeScale.footnote },
 });

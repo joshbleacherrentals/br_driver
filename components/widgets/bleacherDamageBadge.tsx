@@ -1,16 +1,13 @@
 import { DamageReportData } from "@/hooks/db/useDamageReport";
+import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Alert, StyleSheet, TouchableOpacity } from "react-native";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface BleacherDamageBadgeProps {
   damageReport: DamageReportData;
   bleacherNumber?: number | string | null;
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function severityLabel(value: string | number | null): string {
   if (value === "major" || value === 1) return "Major";
@@ -29,16 +26,24 @@ function worstSeverity(
   return "none";
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function BleacherDamageBadge({
   damageReport,
   bleacherNumber,
 }: BleacherDamageBadgeProps) {
+  const { theme } = useTheme();
   const severity = worstSeverity(
     damageReport.seat_damage ?? damageReport.is_safe_to_sit,
     damageReport.haul_damage ?? damageReport.is_safe_to_haul,
   );
+
+  const iconColor =
+    severity === "major"
+      ? theme.danger
+      : severity === "minor"
+        ? theme.warning
+        : theme.success;
+
+  const borderColor = iconColor;
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return "—";
@@ -76,34 +81,15 @@ export default function BleacherDamageBadge({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.pill,
-        severity === "major"
-          ? styles.pillMajor
-          : severity === "minor"
-            ? styles.pillMinor
-            : styles.pillNone,
-      ]}
+      style={[styles.pill, { borderColor }]}
       onPress={handlePress}
       activeOpacity={0.75}
       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
-      <Ionicons
-        name="warning"
-        size={13}
-        color={
-          severity === "major"
-            ? "#FF3B30"
-            : severity === "minor"
-              ? "#FF9500"
-              : "#34C759"
-        }
-      />
+      <Ionicons name="warning" size={13} color={iconColor} />
     </TouchableOpacity>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   pill: {
@@ -114,17 +100,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1,
-  },
-  pillMajor: {
     backgroundColor: "transparent",
-    borderColor: "#FF3B30",
-  },
-  pillMinor: {
-    backgroundColor: "transparent",
-    borderColor: "#FF9500",
-  },
-  pillNone: {
-    backgroundColor: "transparent",
-    borderColor: "#34C759",
   },
 });

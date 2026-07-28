@@ -1,3 +1,5 @@
+import { useTheme } from "@/hooks/useTheme";
+import { typeScale } from "@/constants/theme";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
   NativeScrollEvent,
@@ -111,6 +113,7 @@ export function AndroidWheelDatePicker({
   onChange,
   textColor,
 }: AndroidWheelDatePickerProps) {
+  const { theme } = useTheme();
   const currentYear = new Date().getFullYear();
   const years = useMemo(
     () => Array.from({ length: 41 }, (_, i) => String(currentYear - 10 + i)),
@@ -130,7 +133,10 @@ export function AndroidWheelDatePicker({
 
   return (
     <View style={styles.wheelRow}>
-      <View pointerEvents="none" style={styles.wheelHighlight} />
+      <View
+        pointerEvents="none"
+        style={[styles.wheelHighlight, { borderColor: theme.separator }]}
+      />
       <WheelColumn
         data={MONTHS}
         selectedIndex={monthIndex}
@@ -176,7 +182,6 @@ const styles = StyleSheet.create({
     height: ITEM_HEIGHT,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(60,60,67,0.29)",
     zIndex: 1,
   },
   wheelColumn: {
@@ -189,6 +194,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   wheelItemText: {
-    fontSize: 20,
+    ...typeScale.title3,
   },
 });

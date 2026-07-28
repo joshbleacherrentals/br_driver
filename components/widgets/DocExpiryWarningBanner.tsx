@@ -1,5 +1,8 @@
-import { WARNING_ORANGE } from "@/constants/Colors";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
+import { useTheme } from "@/hooks/useTheme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -10,6 +13,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
  */
 export default function DocExpiryWarningBanner() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const {
     isProfileComplete,
     hasDriver,
@@ -20,7 +25,6 @@ export default function DocExpiryWarningBanner() {
   const [dismissed, setDismissed] = useState(false);
   const dismissKey = expiringSoonDocumentNames.join("|");
 
-  // Re-show if the set of expiring docs changes (e.g. after sync / edit)
   useEffect(() => {
     setDismissed(false);
   }, [dismissKey]);
@@ -41,8 +45,8 @@ export default function DocExpiryWarningBanner() {
         onPress={() => router.push("/(tabs)/profile")}
         activeOpacity={0.8}
       >
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>⏳</Text>
+        <View style={styles.iconCircle}>
+          <Ionicons name="time-outline" size={20} color={theme.onAccent} />
         </View>
         <View style={styles.textContainer}>
           <Text style={styles.title}>Documents Expiring Soon</Text>
@@ -57,55 +61,60 @@ export default function DocExpiryWarningBanner() {
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         accessibilityLabel="Dismiss warning"
       >
-        <Text style={styles.dismissText}>✕</Text>
+        <Ionicons
+          name="close-outline"
+          size={22}
+          color={theme.onAccent + "E6"}
+        />
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  banner: {
-    backgroundColor: WARNING_ORANGE,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#CC7700",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  content: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  iconContainer: {
-    marginRight: 12,
-  },
-  icon: {
-    fontSize: 24,
-  },
-  textContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: "#FFFFFF",
-    opacity: 0.95,
-  },
-  dismissButton: {
-    marginLeft: 8,
-    padding: 4,
-  },
-  dismissText: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    opacity: 0.9,
-  },
-});
+const makeStyles = (theme: ThemeColors) =>
+  StyleSheet.create({
+    banner: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.warning,
+      borderBottomColor: theme.onAccent + "33",
+    },
+    content: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    iconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+      backgroundColor: theme.onAccent + "26",
+    },
+    textContainer: {
+      flex: 1,
+    },
+    title: {
+      ...typeScale.subhead,
+      fontWeight: "700",
+      marginBottom: 2,
+      color: theme.onAccent,
+    },
+    subtitle: {
+      ...typeScale.footnote,
+      color: theme.onAccent + "F2",
+    },
+    dismissButton: {
+      marginLeft: 8,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+  });

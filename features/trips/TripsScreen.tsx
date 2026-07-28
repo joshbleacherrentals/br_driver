@@ -1,11 +1,11 @@
 import { db } from "@/components/providers/SystemProvider";
+import { typeScale } from "@/constants/theme";
 import InspectionScreen from "@/components/widgets/inspection";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import TripItem from "@/components/widgets/trip_item";
-import { BRAND_BLUE } from "@/constants/Colors";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
@@ -20,60 +20,6 @@ import {
   View,
 } from "react-native";
 import ReleasedTripsBanner from "./components/ReleasedTripsBanner";
-
-// ── Brand palette ──────────────────────────────────────────────────────────
-const themes = {
-  light: {
-    bg: "#F2F2F7",
-    headerBg: "#FFFFFF",
-    headerText: "#111827",
-    headerBorder: "#E5E7EB",
-    card: "#FFFFFF",
-    cardText: "#111827",
-    cardSecondary: "#6B7280",
-    toggleBg: "#E5E7EB",
-    toggleActive: BRAND_BLUE,
-    toggleText: "#6B7280",
-    toggleTextActive: "#FFFFFF",
-    badgeBg: "#1D4E89",
-    badgeText: "#FFFFFF",
-    weekHeaderBg: BRAND_BLUE,
-    weekHeaderCurrent: "#1B548E",
-    weekHeaderText: "#FFFFFF",
-    weekSubText: "#BFDBFE",
-    weekBodyBg: "#F0F4F8",
-    emptyText: "#8E8E93",
-    accentText: "#0A84FF",
-    separator: "#F2F2F7",
-    pickupLabel: "#8E8E93",
-    currentBadgeBg: "#34C759",
-  },
-  dark: {
-    bg: "#000000",
-    headerBg: "#1C1C1E",
-    headerText: "#FFFFFF",
-    headerBorder: "#38383A",
-    card: "#1C1C1E",
-    cardText: "#FFFFFF",
-    cardSecondary: "#8E8E93",
-    toggleBg: "#2C2C2E",
-    toggleActive: BRAND_BLUE,
-    toggleText: "#8E8E93",
-    toggleTextActive: "#FFFFFF",
-    badgeBg: "#0A84FF",
-    badgeText: "#FFFFFF",
-    weekHeaderBg: "#1C1C1E",
-    weekHeaderCurrent: "#1A3A5C",
-    weekHeaderText: "#FFFFFF",
-    weekSubText: "#93C5FD",
-    weekBodyBg: "#111111",
-    emptyText: "#636366",
-    accentText: "#0A84FF",
-    separator: "#2C2C2E",
-    pickupLabel: "#8E8E93",
-    currentBadgeBg: "#30D158",
-  },
-};
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -99,8 +45,8 @@ function formatDate(dateISO?: string | null) {
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export default function TripsScreen() {
-  const colorScheme = useColorScheme();
-  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+  const { theme, scheme } = useTheme();
+  const toggleTrackBg = theme.trackFill;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("today");
   const [inspectionData, setInspectionData] = useState<{
@@ -295,7 +241,7 @@ export default function TripsScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <View style={[styles.safeArea, { backgroundColor: t.bg }]}>
+    <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
       <DocExpiryWarningBanner />
 
@@ -306,11 +252,11 @@ export default function TripsScreen() {
       />
 
       {/* Toggle */}
-      <View style={[styles.toggleContainer, { backgroundColor: t.toggleBg }]}>
+      <View style={[styles.toggleContainer, { backgroundColor: toggleTrackBg }]}>
         <TouchableOpacity
           style={[
             styles.toggleBtn,
-            activeTab === "today" && { backgroundColor: t.toggleActive },
+            activeTab === "today" && { backgroundColor: theme.accent },
           ]}
           onPress={() => setActiveTab("today")}
           activeOpacity={0.8}
@@ -318,22 +264,24 @@ export default function TripsScreen() {
           <Ionicons
             name="today-outline"
             size={14}
-            color={activeTab === "today" ? t.toggleTextActive : t.toggleText}
+            color={
+              activeTab === "today" ? theme.onAccent : theme.textTertiary
+            }
           />
           <Text
             style={[
               styles.toggleText,
               {
                 color:
-                  activeTab === "today" ? t.toggleTextActive : t.toggleText,
+                  activeTab === "today" ? theme.onAccent : theme.textTertiary,
               },
             ]}
           >
             Today
           </Text>
           {todayCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: t.badgeBg }]}>
-              <Text style={[styles.badgeText, { color: t.badgeText }]}>
+            <View style={[styles.badge, { backgroundColor: theme.header }]}>
+              <Text style={[styles.badgeText, { color: theme.onAccent }]}>
                 {todayCount}
               </Text>
             </View>
@@ -343,7 +291,7 @@ export default function TripsScreen() {
         <TouchableOpacity
           style={[
             styles.toggleBtn,
-            activeTab === "upcoming" && { backgroundColor: t.toggleActive },
+            activeTab === "upcoming" && { backgroundColor: theme.accent },
           ]}
           onPress={() => setActiveTab("upcoming")}
           activeOpacity={0.8}
@@ -351,22 +299,26 @@ export default function TripsScreen() {
           <MaterialCommunityIcons
             name="truck"
             size={14}
-            color={activeTab === "upcoming" ? t.toggleTextActive : t.toggleText}
+            color={
+              activeTab === "upcoming" ? theme.onAccent : theme.textTertiary
+            }
           />
           <Text
             style={[
               styles.toggleText,
               {
                 color:
-                  activeTab === "upcoming" ? t.toggleTextActive : t.toggleText,
+                  activeTab === "upcoming"
+                    ? theme.onAccent
+                    : theme.textTertiary,
               },
             ]}
           >
             Upcoming
           </Text>
           {upcomingCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: t.badgeBg }]}>
-              <Text style={[styles.badgeText, { color: t.badgeText }]}>
+            <View style={[styles.badge, { backgroundColor: theme.header }]}>
+              <Text style={[styles.badgeText, { color: theme.onAccent }]}>
                 {upcomingCount}
               </Text>
             </View>
@@ -405,8 +357,12 @@ export default function TripsScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Ionicons name="today-outline" size={40} color={t.emptyText} />
-              <Text style={[styles.emptyText, { color: t.emptyText }]}>
+              <Ionicons
+                name="today-outline"
+                size={40}
+                color={theme.textTertiary}
+              />
+              <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
                 No trips for today
               </Text>
             </View>
@@ -444,8 +400,12 @@ export default function TripsScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={40} color={t.emptyText} />
-              <Text style={[styles.emptyText, { color: t.emptyText }]}>
+              <Ionicons
+                name="calendar-outline"
+                size={40}
+                color={theme.textTertiary}
+              />
+              <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
                 No upcoming trips
               </Text>
             </View>
@@ -480,7 +440,7 @@ const styles = StyleSheet.create({
     height: 45,
   },
   headerTitle: {
-    fontSize: 24,
+    ...typeScale.title2,
     fontWeight: "700",
     letterSpacing: 0.3,
     position: "absolute",
@@ -506,7 +466,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   toggleText: {
-    fontSize: 14,
+    ...typeScale.subhead,
     fontWeight: "600",
   },
   badge: {
@@ -518,7 +478,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   badgeText: {
-    fontSize: 11,
+    ...typeScale.caption2,
     fontWeight: "700",
   },
   listContent: {
@@ -537,105 +497,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontSize: 14,
+    ...typeScale.subhead,
     textAlign: "center",
-  },
-  weekGroup: {
-    marginBottom: 12,
-  },
-  weekHeader: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  weekHeaderContent: {
-    flex: 1,
-  },
-  weekHeaderTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  weekSubText: {
-    fontSize: 12,
-  },
-  currentBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    marginRight: 10,
-  },
-  currentBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: 0.4,
-  },
-  weekBody: {
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    overflow: "hidden",
-    paddingTop: 2,
-  },
-  tripCard: {
-    marginHorizontal: 10,
-    marginTop: 8,
-    borderRadius: 10,
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  tripCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  tripCardHeaderLeft: {
-    flex: 1,
-  },
-  tripCardTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  tripCardDate: {
-    fontSize: 13,
-  },
-  addressBlock: {
-    marginBottom: 10,
-  },
-  addressLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 2,
-  },
-  addressLabelText: {
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  addressText: {
-    fontSize: 13,
-    marginLeft: 18,
-  },
-  tripCardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderTopWidth: 1,
-    paddingTop: 10,
-  },
-  tripCardFooterText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
 });

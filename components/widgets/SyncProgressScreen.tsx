@@ -1,7 +1,8 @@
+import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { type ThemeColors } from "@/constants/theme";
 import { getAuthStyles } from "@/constants/AuthStyles";
-import { BRAND_BLUE } from "@/constants/Colors";
 import { useInitialSyncStatus } from "@/hooks/db/useInitialSyncStatus";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { Image } from "expo-image";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
@@ -18,10 +19,9 @@ import Animated, {
  * the download starts (connecting / applying) it falls back to a spinner.
  */
 export default function SyncProgressScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const styles = getAuthStyles(colorScheme);
-  const local = makeStyles(isDark);
+  const { theme, scheme } = useTheme();
+  const styles = getAuthStyles(scheme);
+  const local = useThemedStyles(makeStyles);
   const { progress } = useInitialSyncStatus();
 
   const width = useSharedValue(0);
@@ -66,7 +66,7 @@ export default function SyncProgressScreen() {
           </>
         ) : (
           <>
-            <ActivityIndicator size="large" color={BRAND_BLUE} />
+            <ActivityIndicator size="large" color={theme.accent} />
             <Text style={[styles.subtitle, { marginTop: 16 }]}>Connecting…</Text>
           </>
         )}
@@ -75,7 +75,7 @@ export default function SyncProgressScreen() {
   );
 }
 
-function makeStyles(isDark: boolean) {
+function makeStyles(theme: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -94,13 +94,13 @@ function makeStyles(isDark: boolean) {
       height: 8,
       borderRadius: 4,
       overflow: "hidden",
-      backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "#E5E7EB",
+      backgroundColor: theme.trackFill,
       marginBottom: 16,
     },
     fill: {
       height: "100%",
       borderRadius: 4,
-      backgroundColor: BRAND_BLUE,
+      backgroundColor: theme.accent,
     },
   });
 }

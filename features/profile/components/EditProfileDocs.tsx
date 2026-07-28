@@ -2,11 +2,11 @@ import {
   db,
   photoAttachmentQueue,
 } from "@/components/providers/SystemProvider";
-import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
+import { typeScale } from "@/constants/theme";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
 import { Ionicons } from "@expo/vector-icons";
@@ -92,14 +92,7 @@ export default function EditProfileDocs({
   const { hasPending, hasFailed, retryFailed, statuses } =
     useDriverDocUploadStatuses(activePaths);
 
-  const isDark = useColorScheme() === "dark";
-  const theme = {
-    bg: isDark ? "#000000" : "#F2F2F7",
-    card: isDark ? "#1C1C1E" : "#FFFFFF",
-    border: isDark ? "rgba(255,255,255,0.1)" : "#E5E7EB",
-    text: isDark ? "#FFFFFF" : "#000000",
-    inputBg: isDark ? "#2C2C2E" : "#F8F8F8",
-  };
+  const { form: theme } = useFormTheme();
 
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
@@ -306,7 +299,7 @@ export default function EditProfileDocs({
     <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
       <View style={styles.documentHeader}>
         <View style={styles.documentIconContainer}>
-          <Ionicons name={iconName as any} size={24} color="#0A84FF" />
+          <Ionicons name={iconName as any} size={24} color={theme.accent} />
         </View>
         <Text style={[styles.documentTitle, { color: theme.text }]}>
           {title}
@@ -317,15 +310,17 @@ export default function EditProfileDocs({
         <View style={styles.photoContainer}>
           <Image source={{ uri: photo.uri }} style={styles.photo} />
           {statusLabel(photo.attachmentId) ? (
-            <Text style={styles.statusText}>
+            <Text style={[styles.statusText, { color: theme.textTertiary }]}>
               {statusLabel(photo.attachmentId)}
             </Text>
           ) : null}
           <TouchableOpacity
-            style={styles.removeButton}
+            style={[styles.removeButton, { backgroundColor: theme.danger }]}
             onPress={() => setter({ uri: null, attachmentId: null })}
           >
-            <Text style={styles.removeButtonText}>Remove</Text>
+            <Text style={[styles.removeButtonText, { color: theme.onAccent }]}>
+              Remove
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -335,35 +330,43 @@ export default function EditProfileDocs({
             { backgroundColor: theme.inputBg, borderColor: theme.border },
           ]}
         >
-          <Text style={styles.emptyPhotoText}>No photo uploaded</Text>
+          <Text style={[styles.emptyPhotoText, { color: theme.textTertiary }]}>
+            No photo uploaded
+          </Text>
         </View>
       )}
 
       <View style={styles.buttonRow}>
         <TouchableOpacity
-          style={styles.photoButton}
+          style={[styles.photoButton, { backgroundColor: theme.accent }]}
           onPress={() => takePhoto(setter)}
         >
-          <Ionicons name="camera" size={16} color="#FFFFFF" />
-          <Text style={styles.photoButtonText}>Take Photo</Text>
+          <Ionicons name="camera" size={16} color={theme.onAccent} />
+          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
+            Take Photo
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.photoButton}
+          style={[styles.photoButton, { backgroundColor: theme.accent }]}
           onPress={() => pickImageFromLibrary(setter)}
         >
-          <Ionicons name="images" size={16} color="#FFFFFF" />
-          <Text style={styles.photoButtonText}>Choose Photo</Text>
+          <Ionicons name="images" size={16} color={theme.onAccent} />
+          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
+            Choose Photo
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.photoButton}
+          style={[styles.photoButton, { backgroundColor: theme.accent }]}
           onPress={() => pickFile(setter)}
         >
-          <Ionicons name="document-attach" size={16} color="#FFFFFF" />
-          <Text style={styles.photoButtonText}>Choose File</Text>
+          <Ionicons name="document-attach" size={16} color={theme.onAccent} />
+          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
+            Choose File
+          </Text>
         </TouchableOpacity>
       </View>
 
-      <ExpiryDateField value={expiry} onChange={setExpiry} theme={theme} />
+      <ExpiryDateField value={expiry} onChange={setExpiry} />
     </View>
   );
 
@@ -382,7 +385,9 @@ export default function EditProfileDocs({
           ]}
         >
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelButton}>Cancel</Text>
+            <Text style={[styles.cancelButton, { color: theme.accent }]}>
+              Cancel
+            </Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
             Edit Documents
@@ -429,15 +434,25 @@ export default function EditProfileDocs({
           <TouchableOpacity
             style={[
               styles.submitButton,
-              isSubmitting && styles.submitButtonDisabled,
+              { backgroundColor: theme.secondaryAccent },
+              isSubmitting && {
+                backgroundColor: theme.secondaryAccent + "66",
+              },
             ]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={theme.onSecondaryAccent} />
             ) : (
-              <Text style={styles.submitButtonText}>Save Changes</Text>
+              <Text
+                style={[
+                  styles.submitButtonText,
+                  { color: theme.onSecondaryAccent },
+                ]}
+              >
+                Save Changes
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -457,7 +472,6 @@ function getLocalUriForAttachment(attachmentId: string): string | null {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
   },
   header: {
     flexDirection: "row",
@@ -465,25 +479,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
   },
   cancelButton: {
-    fontSize: 16,
-    color: BRAND_BLUE,
+    ...typeScale.callout,
     fontWeight: "600",
   },
   headerTitle: {
-    fontSize: 18,
+    ...typeScale.title3,
     fontWeight: "700",
-    color: "#000",
   },
   scrollContent: {
     padding: 16,
   },
   documentSection: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -501,9 +510,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   documentTitle: {
-    fontSize: 18,
+    ...typeScale.title3,
     fontWeight: "700",
-    color: "#000",
   },
   photoContainer: {
     marginBottom: 12,
@@ -515,37 +523,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statusText: {
-    fontSize: 13,
+    ...typeScale.footnote,
     fontWeight: "600",
-    color: "#8E8E93",
     marginBottom: 8,
   },
   removeButton: {
-    backgroundColor: "#FF3B30",
     paddingVertical: 8,
     borderRadius: 6,
     alignItems: "center",
   },
   removeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+    ...typeScale.subhead,
     fontWeight: "600",
   },
   emptyPhotoContainer: {
     height: 200,
-    backgroundColor: "#F8F8F8",
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: "#E5E7EB",
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
   },
   emptyPhotoText: {
-    fontSize: 15,
-    color: "#8E8E93",
-    fontWeight: "500",
+    ...typeScale.subhead,
+    fontWeight: "400",
   },
   buttonRow: {
     flexDirection: "row",
@@ -553,7 +555,6 @@ const styles = StyleSheet.create({
   },
   photoButton: {
     flex: 1,
-    backgroundColor: "#0A84FF",
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
@@ -562,24 +563,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   photoButtonText: {
-    color: "#FFFFFF",
-    fontSize: 10,
+    ...typeScale.caption2,
     fontWeight: "600",
   },
   submitButton: {
-    backgroundColor: GREEN_ACCENT,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8,
     marginBottom: 32,
   },
-  submitButtonDisabled: {
-    backgroundColor: "#A8E6B7",
-  },
   submitButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
+    ...typeScale.callout,
     fontWeight: "600",
   },
 });

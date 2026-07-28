@@ -1,17 +1,14 @@
 import { db } from "@/components/providers/SystemProvider";
+import Badge from "@/components/ui/Badge";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import {
-  BRAND_BLUE,
-  SCREEN_BG_DARK,
-  SCREEN_BG_LIGHT,
-} from "@/constants/Colors";
+import { type ThemeColors, elevation, typeScale } from "@/constants/theme";
 import AvailabilityIntroStrip from "@/features/availability/components/AvailabilityIntroStrip";
 import UpcomingTripCard from "@/features/availability/components/UpcomingTripCard";
 import { useDriver } from "@/hooks/db/useDriver";
 import { useDriverUnavailability } from "@/hooks/db/useDriverUnavailability";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -35,53 +32,7 @@ import {
 } from "react-native";
 import { Calendar, DateData } from "react-native-calendars";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const MID_BLUE = "#164d82";
-
-// ─── Themes ───────────────────────────────────────────────────────────────────
-
-const themes = {
-  light: {
-    bg: SCREEN_BG_LIGHT,
-    calendarBg: "#F8F9FA",
-    calendarBorder: "#E5E7EB",
-    legendText: "#6B7280",
-    sectionCount: "#6B7280",
-    saveBtnCleanBg: "#e5e7eb",
-    saveBtnCleanText: "#6b7280",
-    discardBtnBg: "#f3f4f6",
-    discardBtnIcon: "#6b7280",
-    menuIcon: "#111827",
-    statusAvailText: "#14532d",
-    statusUnavailText: "#991b1b",
-    clearText: "#dc2626",
-  },
-  dark: {
-    bg: SCREEN_BG_DARK,
-    calendarBg: "#1C1C1E",
-    calendarBorder: "#2C2C2E",
-    legendText: "#7fb3d3",
-    sectionCount: "#4a6f96",
-    saveBtnCleanBg: "#374151",
-    saveBtnCleanText: "#9ca3af",
-    discardBtnBg: "#374151",
-    discardBtnIcon: "#9ca3af",
-    menuIcon: "#FFFFFF",
-    statusAvailText: "#86efac",
-    statusUnavailText: "#fca5a5",
-    clearText: "#fca5a5",
-  },
-};
-
-const SAVED_RED = "#EF4444";
-const PENDING_COLOR = "#F97316";
-
-const TODAY_BLUE = "#3B82F6";
-const SUCCESS_GREEN = "#34C759";
-const DOT_UPCOMING = "#FBBF24";
-const DOT_COMPLETED = "#34C759";
-
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 const TODAY = new Date().toISOString().split("T")[0];
 
 const UPCOMING_STATUSES = new Set([
@@ -93,8 +44,6 @@ const UPCOMING_STATUSES = new Set([
   "dropoff_inspection",
 ]);
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type DotEntry = { key: string; color: string };
 type MarkedDate = {
   selected?: boolean;
@@ -103,8 +52,6 @@ type MarkedDate = {
   dots?: DotEntry[];
 };
 type MarkedDates = { [date: string]: MarkedDate };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatMonthName(yyyyMM: string): string {
   const [year, month] = yyyyMM.split("-").map(Number);
@@ -118,31 +65,15 @@ function isPastDate(dateStr: string): boolean {
   return dateStr < TODAY;
 }
 
-function formatStatus(status: string | null): string {
-  if (!status) return "Pending";
-  const map: Record<string, string> = {
-    released: "Released",
-    accepted: "Accepted",
-    dest_pickup: "En Route",
-    pickup_inspection: "At Pickup",
-    dest_dropoff: "To Dropoff",
-    dropoff_inspection: "At Dropoff",
-  };
-  return map[status] ?? status;
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function AvailabilityCalendarScreen() {
   const navigation = useNavigation<any>();
   const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
-  const colorScheme = useColorScheme();
-  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+  const { theme, scheme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [currentMonth, setCurrentMonth] = useState(TODAY.substring(0, 7));
   const [isSaving, setIsSaving] = useState(false);
 
-  // ── Undo stack — snapshots of localUnavailable before destructive ops ────────
   const [undoStack, setUndoStack] = useState<Set<string>[]>([]);
   const [undoToast, setUndoToast] = useState<string | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,12 +100,10 @@ export default function AvailabilityCalendarScreen() {
     undoTimerRef.current = setTimeout(() => setUndoToast(null), 4000);
   }, []);
 
-  // ── DB data ──────────────────────────────────────────────────────────────────
   const { driver } = useDriver();
   const { workTrackers } = useWorkTrackers();
   const { unavailableDates: dbUnavailableDates } = useDriverUnavailability();
 
-  // ── Local state ───────────────────────────────────────────────────────────────
   const [localUnavailable, setLocalUnavailable] = useState<Set<string>>(
     new Set(),
   );
@@ -221,7 +150,6 @@ export default function AvailabilityCalendarScreen() {
     [localUnavailable, dbSavedSet],
   );
 
-  // ── Trip data ─────────────────────────────────────────────────────────────────
   const tripDotsByDate = useMemo(() => {
     const map: Record<string, { upcoming: boolean; completed: boolean }> = {};
     for (const t of workTrackers ?? []) {
@@ -242,7 +170,6 @@ export default function AvailabilityCalendarScreen() {
     [workTrackers],
   );
 
-  // ── markedDates ───────────────────────────────────────────────────────────────
   const markedDates = useMemo<MarkedDates>(() => {
     const result: MarkedDates = {};
     const ensure = (d: string) => {
@@ -250,15 +177,15 @@ export default function AvailabilityCalendarScreen() {
     };
 
     ensure(TODAY);
-    (result[TODAY].dots ??= []).push({ key: "today", color: TODAY_BLUE });
+    (result[TODAY].dots ??= []).push({ key: "today", color: theme.accent });
 
     for (const [date, { upcoming, completed }] of Object.entries(
       tripDotsByDate,
     )) {
       ensure(date);
       const dots = (result[date].dots ??= []);
-      if (upcoming) dots.push({ key: "trip", color: DOT_UPCOMING });
-      else if (completed) dots.push({ key: "trip", color: DOT_COMPLETED });
+      if (upcoming) dots.push({ key: "trip", color: theme.warning });
+      else if (completed) dots.push({ key: "trip", color: theme.success });
     }
 
     localUnavailable.forEach((date) => {
@@ -267,15 +194,14 @@ export default function AvailabilityCalendarScreen() {
       result[date] = {
         ...result[date],
         selected: true,
-        selectedColor: isSaved ? SAVED_RED : PENDING_COLOR,
-        selectedTextColor: "#FFFFFF",
+        selectedColor: isSaved ? theme.danger : theme.warning,
+        selectedTextColor: theme.onAccent,
       };
     });
 
     return result;
-  }, [tripDotsByDate, localUnavailable, dbSavedSet]);
+  }, [tripDotsByDate, localUnavailable, dbSavedSet, theme]);
 
-  // ── Month-scoped helpers ──────────────────────────────────────────────────────
   const datesInCurrentMonth = useCallback(
     (set: Set<string>) =>
       Array.from(set).filter(
@@ -288,7 +214,6 @@ export default function AvailabilityCalendarScreen() {
   const futureCountThisMonth = unavailableThisMonth.length;
   const pendingAddThisMonth = datesInCurrentMonth(pendingAdd).length;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDayPress = useCallback((day: DateData) => {
     if (isPastDate(day.dateString)) {
       Alert.alert(
@@ -318,7 +243,7 @@ export default function AvailabilityCalendarScreen() {
           text: "Clear",
           style: "destructive",
           onPress: () => {
-            pushUndo(localUnavailable); // snapshot before clearing
+            pushUndo(localUnavailable);
             setLocalUnavailable((prev) => {
               const next = new Set(prev);
               toRemove.forEach((d) => next.delete(d));
@@ -339,7 +264,6 @@ export default function AvailabilityCalendarScreen() {
     showUndoToast,
   ]);
 
-  // ── Discard all local changes, revert to last saved DB state ─────────────────
   const handleDiscard = useCallback(() => {
     if (!hasPendingChanges) return;
     Alert.alert(
@@ -351,7 +275,7 @@ export default function AvailabilityCalendarScreen() {
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            pushUndo(localUnavailable); // allow undo of the discard too
+            pushUndo(localUnavailable);
             setLocalUnavailable(new Set(dbSavedSet));
             showUndoToast("Changes discarded — tap Undo to restore");
           },
@@ -366,7 +290,6 @@ export default function AvailabilityCalendarScreen() {
     showUndoToast,
   ]);
 
-  // ── Save to DB ────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     if (!hasPendingChanges) return;
 
@@ -384,10 +307,6 @@ export default function AvailabilityCalendarScreen() {
       const toAdd = [...pendingAdd];
       const toRemove = [...pendingRemove];
 
-      // INSERT new rows — only send columns that exist on the table.
-      // Do NOT include updated_at or created_at: the DB triggers set these
-      // automatically. Sending them causes the PowerSync upload error:
-      //   "record new has no field created_at"
       for (const date of toAdd) {
         const query = db
           .insertInto("DriverUnavailability")
@@ -401,7 +320,6 @@ export default function AvailabilityCalendarScreen() {
         await executeTypedMutationVoid(query);
       }
 
-      // DELETE removed rows by their DB id
       for (const date of toRemove) {
         const row = dbUnavailableDates?.find(
           (r) => r.date_unavailable === date,
@@ -414,7 +332,6 @@ export default function AvailabilityCalendarScreen() {
         await executeTypedMutationVoid(query);
       }
 
-      // Allow the useEffect to re-sync from fresh DB data after the upload settles
       dbInitialised.current = false;
     } catch (err) {
       console.error("Error saving availability:", err);
@@ -430,23 +347,15 @@ export default function AvailabilityCalendarScreen() {
     driver,
   ]);
 
-  // ─── Header right: save/discard buttons + hamburger menu ───────────────────
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            marginRight: 16,
-          }}
-        >
+        <View style={styles.headerActions}>
           {hasPendingChanges && (
             <TouchableOpacity
               style={[
                 styles.headerDiscardBtn,
-                { backgroundColor: t.discardBtnBg },
+                { backgroundColor: theme.surfaceElevated },
               ]}
               onPress={handleDiscard}
               activeOpacity={0.7}
@@ -454,7 +363,7 @@ export default function AvailabilityCalendarScreen() {
               <Ionicons
                 name="close-circle-outline"
                 size={18}
-                color={t.discardBtnIcon}
+                color={theme.textSecondary}
               />
             </TouchableOpacity>
           )}
@@ -462,8 +371,8 @@ export default function AvailabilityCalendarScreen() {
             style={[
               styles.headerSaveBtn,
               hasPendingChanges
-                ? styles.headerSaveBtnDirty
-                : { backgroundColor: t.saveBtnCleanBg },
+                ? { backgroundColor: theme.warning }
+                : { backgroundColor: theme.surfaceElevated },
             ]}
             onPress={handleSave}
             disabled={!hasPendingChanges || isSaving}
@@ -472,14 +381,14 @@ export default function AvailabilityCalendarScreen() {
             <Text
               style={[
                 styles.headerSaveBtnText,
-                !hasPendingChanges && { color: t.saveBtnCleanText },
+                !hasPendingChanges && { color: theme.textTertiary },
               ]}
             >
               {isSaving ? "Saving…" : hasPendingChanges ? "Save" : "Saved ✓"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={openDrawer} activeOpacity={0.7}>
-            <Menu size={24} color={t.menuIcon} strokeWidth={1.75} />
+            <Menu size={24} color={theme.textPrimary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       ),
@@ -491,14 +400,15 @@ export default function AvailabilityCalendarScreen() {
     isSaving,
     handleSave,
     handleDiscard,
-    colorScheme,
+    theme,
+    styles,
   ]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
   const monthLabel = formatMonthName(currentMonth);
+  const isUnavailable = futureCountThisMonth > 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
       <DocExpiryWarningBanner />
 
@@ -506,24 +416,26 @@ export default function AvailabilityCalendarScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Intro strip */}
         <AvailabilityIntroStrip />
 
-        {/* Status banner */}
         <View
           style={[
             styles.statusBanner,
-            futureCountThisMonth > 0
-              ? styles.statusUnavail
-              : styles.statusAvail,
+            {
+              backgroundColor: isUnavailable
+                ? theme.danger + "18"
+                : theme.success + "18",
+              borderColor: isUnavailable
+                ? theme.danger + "30"
+                : theme.success + "30",
+            },
           ]}
         >
           <View
             style={[
               styles.statusDot,
               {
-                backgroundColor:
-                  futureCountThisMonth > 0 ? SAVED_RED : SUCCESS_GREEN,
+                backgroundColor: isUnavailable ? theme.danger : theme.success,
               },
             ]}
           />
@@ -531,10 +443,7 @@ export default function AvailabilityCalendarScreen() {
             style={[
               styles.statusText,
               {
-                color:
-                  futureCountThisMonth > 0
-                    ? t.statusUnavailText
-                    : t.statusAvailText,
+                color: isUnavailable ? theme.danger : theme.success,
               },
             ]}
           >
@@ -543,22 +452,21 @@ export default function AvailabilityCalendarScreen() {
               : `${futureCountThisMonth} day${futureCountThisMonth > 1 ? "s" : ""} unavailable in ${monthLabel}`}
             {pendingAddThisMonth > 0 ? ` · ${pendingAddThisMonth} unsaved` : ""}
           </Text>
-          {futureCountThisMonth > 0 && (
+          {isUnavailable && (
             <TouchableOpacity
               onPress={handleClearMonth}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={[styles.clearText, { color: t.clearText }]}>
+              <Text style={[styles.clearText, { color: theme.danger }]}>
                 Clear month
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Calendar */}
-        <View style={[styles.calendarCard, { borderColor: t.calendarBorder }]}>
+        <View style={[styles.calendarCard, { borderColor: theme.border }]}>
           <Calendar
-            key={colorScheme}
+            key={scheme}
             current={currentMonth + "-01"}
             onDayPress={handleDayPress}
             onMonthChange={(month: DateData) =>
@@ -570,80 +478,66 @@ export default function AvailabilityCalendarScreen() {
             hideExtraDays
             enableSwipeMonths
             theme={{
-              backgroundColor: t.calendarBg,
-              calendarBackground: t.calendarBg,
-              monthTextColor: colorScheme === "dark" ? "#FFFFFF" : "#111827",
+              backgroundColor: theme.surface,
+              calendarBackground: theme.surface,
+              monthTextColor: theme.textPrimary,
               textMonthFontSize: 16,
               textMonthFontWeight: "700",
-              arrowColor: colorScheme === "dark" ? "#93c5fd" : BRAND_BLUE,
-              textSectionTitleColor:
-                colorScheme === "dark" ? "#7fb3d3" : "#6B7280",
+              arrowColor: theme.accent,
+              textSectionTitleColor: theme.textSecondary,
               textDayHeaderFontSize: 12,
               textDayHeaderFontWeight: "600",
-              dayTextColor: colorScheme === "dark" ? "#FFFFFF" : "#111827",
+              dayTextColor: theme.textPrimary,
               textDayFontSize: 14,
               textDayFontWeight: "500",
-              todayTextColor: TODAY_BLUE,
-              todayBackgroundColor: TODAY_BLUE + "25",
-              selectedDayBackgroundColor: SAVED_RED,
-              selectedDayTextColor: "#FFFFFF",
-              textDisabledColor: colorScheme === "dark" ? "#4a6f96" : "#C7C7CC",
+              todayTextColor: theme.accent,
+              todayBackgroundColor: theme.accent + "25",
+              selectedDayBackgroundColor: theme.danger,
+              selectedDayTextColor: theme.onAccent,
+              textDisabledColor: theme.textTertiary,
             }}
           />
         </View>
 
-        {/* Legend */}
         <View style={styles.legend}>
           <LegendItem
-            color={SAVED_RED}
+            color={theme.danger}
             label="Unavailable (saved)"
             shape="square"
-            textColor={t.legendText}
+            textColor={theme.textSecondary}
           />
           <LegendItem
-            color={PENDING_COLOR}
+            color={theme.warning}
             label="Unsaved"
             shape="square"
-            textColor={t.legendText}
+            textColor={theme.textSecondary}
           />
           <LegendItem
-            color={DOT_UPCOMING}
+            color={theme.warning}
             label="Upcoming trip"
             shape="dot"
-            textColor={t.legendText}
+            textColor={theme.textSecondary}
           />
           <LegendItem
-            color={DOT_COMPLETED}
+            color={theme.success}
             label="Completed"
             shape="dot"
-            textColor={t.legendText}
+            textColor={theme.textSecondary}
           />
         </View>
 
-        {/* Upcoming Trips */}
         {upcomingTrips.length > 0 && (
           <View style={styles.listSection}>
             <View style={styles.listSectionHeader}>
-              <View
-                style={[
-                  styles.sectionPill,
-                  {
-                    backgroundColor: DOT_UPCOMING + "22",
-                    borderColor: DOT_UPCOMING + "55",
-                  },
-                ]}
+              <Badge
+                label="Upcoming Trips"
+                color={theme.warning}
+                dot
+                uppercase
+              />
+              <Text
+                style={[styles.sectionCount, { color: theme.textTertiary }]}
               >
-                <View
-                  style={[
-                    styles.sectionPillDot,
-                    { backgroundColor: DOT_UPCOMING },
-                  ]}
-                />
-                <Text style={[styles.sectionPillText, { color: DOT_UPCOMING }]}>
-                  Upcoming Trips
-                </Text>
-              </View>
-              <Text style={[styles.sectionCount, { color: t.sectionCount }]}>
                 {upcomingTrips.length}
               </Text>
             </View>
@@ -666,27 +560,41 @@ export default function AvailabilityCalendarScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
 
-      {/* Undo toast — floats above content, auto-dismisses after 4s */}
       {undoToast !== null && (
-        <View style={styles.undoToast} pointerEvents="box-none">
-          <Text style={styles.undoToastText} numberOfLines={2}>
+        <View
+          style={[
+            styles.undoToast,
+            {
+              backgroundColor: theme.surfaceElevated,
+              borderColor: theme.border,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <Text
+            style={[styles.undoToastText, { color: theme.textSecondary }]}
+            numberOfLines={2}
+          >
             {undoToast}
           </Text>
           <TouchableOpacity
             onPress={handleUndo}
-            style={styles.undoToastBtn}
+            style={[
+              styles.undoToastBtn,
+              { backgroundColor: theme.warning },
+            ]}
             activeOpacity={0.8}
             disabled={undoStack.length === 0}
           >
-            <Text style={styles.undoToastBtnText}>Undo</Text>
+            <Text style={[styles.undoToastBtnText, { color: theme.onAccent }]}>
+              Undo
+            </Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
   );
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function LegendItem({
   color,
@@ -700,182 +608,118 @@ function LegendItem({
   textColor: string;
 }) {
   return (
-    <View style={styles.legendItem}>
+    <View style={legendStyles.legendItem}>
       {shape === "dot" ? (
-        <View style={[styles.legendDot, { backgroundColor: color }]} />
+        <View style={[legendStyles.legendDot, { backgroundColor: color }]} />
       ) : (
-        <View style={[styles.legendSwatch, { backgroundColor: color }]} />
+        <View style={[legendStyles.legendSwatch, { backgroundColor: color }]} />
       )}
-      <Text style={[styles.legendLabel, { color: textColor }]}>{label}</Text>
+      <Text style={[legendStyles.legendLabel, { color: textColor }]}>
+        {label}
+      </Text>
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  logo: { width: 45, height: 45 },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    color: "#111827",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSaveBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    minWidth: 50,
-    alignItems: "center",
-  },
-  headerSaveBtnDirty: {
-    backgroundColor: PENDING_COLOR,
-  },
-  headerSaveBtnClean: {
-    backgroundColor: "#e5e7eb",
-  },
-  headerSaveBtnText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  headerSaveBtnTextClean: {
-    color: "#6b7280",
-  },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
-  introStrip: {
-    // kept for reference — moved to AvailabilityIntroStrip component
-  },
-  introText: { fontSize: 13, fontWeight: "500", flex: 1 },
-  statusBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  statusAvail: { backgroundColor: "#14532d30", borderColor: "#22c55e30" },
-  statusUnavail: { backgroundColor: "#7f1d1d30", borderColor: "#ef444430" },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusText: { fontSize: 13, fontWeight: "600", flex: 1 },
-  clearText: {
-    fontSize: 12,
-    color: "#fca5a5",
-    fontWeight: "600",
-    textDecorationLine: "underline",
-  },
-  calendarCard: {
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#1e5799",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  legend: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 12,
-    marginBottom: 20,
-  },
+const legendStyles = StyleSheet.create({
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   legendDot: { width: 7, height: 7, borderRadius: 4 },
   legendSwatch: { width: 12, height: 12, borderRadius: 3 },
-  legendLabel: { fontSize: 12, color: "#7fb3d3", fontWeight: "500" },
-  listSection: { marginBottom: 16 },
-  listSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  sectionPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-  },
-  sectionPillDot: { width: 6, height: 6, borderRadius: 3 },
-  sectionPillText: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  sectionCount: { fontSize: 13, color: "#4a6f96", fontWeight: "600" },
-
-  // ── Header actions cluster ──
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  headerDiscardBtn: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: "#f3f4f6",
-  },
-
-  // ── Undo toast ──
-  undoToast: {
-    position: "absolute",
-    bottom: 24,
-    left: 16,
-    right: 16,
-    backgroundColor: "#1e293b",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  undoToastText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#cbd5e1",
-    fontWeight: "500",
-  },
-  undoToastBtn: {
-    backgroundColor: PENDING_COLOR,
-    borderRadius: 7,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  undoToastBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#fff",
-  },
+  legendLabel: { ...typeScale.caption, fontWeight: "400" },
 });
+
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    screen: { flex: 1 },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginRight: 16,
+    },
+    headerSaveBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 8,
+      minWidth: 50,
+      alignItems: "center",
+    },
+    headerSaveBtnText: {
+      ...typeScale.subhead,
+      fontWeight: "700",
+      color: theme.onAccent,
+    },
+    headerDiscardBtn: {
+      padding: 6,
+      borderRadius: 8,
+    },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
+    statusBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: 12,
+      borderWidth: 1,
+    },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { ...typeScale.footnote, fontWeight: "600", flex: 1 },
+    clearText: {
+      ...typeScale.caption,
+      fontWeight: "600",
+      textDecorationLine: "underline",
+    },
+    calendarCard: {
+      borderRadius: 12,
+      overflow: "hidden",
+      borderWidth: 1,
+      marginBottom: 12,
+      ...elevation(theme, "raised"),
+    },
+    legend: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      gap: 12,
+      marginBottom: 20,
+    },
+    listSection: { marginBottom: 16 },
+    listSectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    sectionCount: { ...typeScale.footnote, fontWeight: "600" },
+    undoToast: {
+      position: "absolute",
+      bottom: 24,
+      left: 16,
+      right: 16,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      ...elevation(theme, "floating"),
+      borderWidth: 1,
+    },
+    undoToastText: {
+      flex: 1,
+      ...typeScale.footnote,
+      fontWeight: "400",
+    },
+    undoToastBtn: {
+      borderRadius: 7,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+    },
+    undoToastBtnText: {
+      ...typeScale.footnote,
+      fontWeight: "700",
+    },
+  });
+}

@@ -1,6 +1,7 @@
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { getAuthStyles } from "@/constants/AuthStyles";
-import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { typeScale } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@clerk/clerk-expo";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
@@ -39,9 +40,9 @@ export default function StatusScreen({
   showLogout = true,
   confirmLogout = true,
 }: StatusScreenProps) {
-  const colorScheme = useColorScheme();
-  const styles = getAuthStyles(colorScheme);
-  const localStyles = makeStyles(colorScheme === "dark");
+  const { theme, scheme } = useTheme();
+  const styles = getAuthStyles(scheme);
+  const localStyles = useThemedStyles(makeStyles);
   const { signOut } = useAuth();
 
   const doSignOut = async () => {
@@ -104,7 +105,7 @@ export default function StatusScreen({
           >
             <LogOut
               size={16}
-              color={colorScheme === "dark" ? "#8E8E93" : DARK_BLUE}
+              color={theme.accent}
               strokeWidth={2}
             />
             <Text style={localStyles.logoutButtonText}>Log Out</Text>
@@ -115,10 +116,14 @@ export default function StatusScreen({
   );
 }
 
-function makeStyles(isDark: boolean) {
+function makeStyles(theme: {
+  accent: string;
+  onAccent: string;
+  textSecondary: string;
+}) {
   return StyleSheet.create({
     primaryButton: {
-      backgroundColor: BRAND_BLUE,
+      backgroundColor: theme.accent,
       borderRadius: 8,
       height: 50,
       alignItems: "center",
@@ -126,8 +131,8 @@ function makeStyles(isDark: boolean) {
       marginTop: 8,
     },
     primaryButtonText: {
-      color: "#FFFFFF",
-      fontSize: 16,
+      color: theme.onAccent,
+      ...typeScale.callout,
       fontWeight: "600",
       letterSpacing: 0.3,
     },
@@ -141,9 +146,9 @@ function makeStyles(isDark: boolean) {
       marginBottom: 36,
     },
     logoutButtonText: {
-      color: isDark ? "#8E8E93" : DARK_BLUE,
-      fontWeight: "500",
-      fontSize: 16,
+      color: theme.textSecondary,
+      fontWeight: "400",
+      ...typeScale.callout,
     },
   });
 }

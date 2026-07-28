@@ -43,6 +43,65 @@ export type DriverData = {
   id: string;
 };
 
+const WORK_TRACKER_COLUMNS = [
+  "id",
+  "created_at",
+  "updated_at",
+  "date",
+  "pickup_time",
+  "pickup_poc",
+  "dropoff_time",
+  "dropoff_poc",
+  "pay_cents",
+  "notes",
+  "internal_notes",
+  "pickup_address_uuid",
+  "dropoff_address_uuid",
+  "bleacher_uuid",
+  "driver_uuid",
+  "user_uuid",
+  "status",
+  "released_at",
+  "accepted_at",
+  "started_at",
+  "completed_at",
+  "teardown_required",
+  "pickup_instructions",
+  "setup_required",
+  "dropoff_instructions",
+  "project_number",
+  "bol_number",
+  "pre_inspection_uuid",
+  "post_inspection_uuid",
+] as const;
+
+/** Single work tracker by id — for completed-trip detail route. */
+export function useWorkTracker(workTrackerId: string | null | undefined): {
+  workTracker: WorkTracker | null;
+  isLoading: boolean;
+} {
+  const compiled = useMemo(() => {
+    if (!workTrackerId) return null;
+    return db
+      .selectFrom("WorkTrackers")
+      .select([...WORK_TRACKER_COLUMNS])
+      .where("id", "=", workTrackerId)
+      .limit(1)
+      .compile();
+  }, [workTrackerId]);
+
+  const { data } = useTypedQuery(compiled, expect<WorkTracker>());
+
+  if (!workTrackerId) {
+    return { workTracker: null, isLoading: false };
+  }
+
+  return {
+    workTracker: data?.[0] ?? null,
+    isLoading: data === undefined,
+  };
+}
+
 export function useWorkTrackers(): {
   workTrackers: WorkTracker[] | null;
   isLoading: boolean;
@@ -80,37 +139,7 @@ export function useWorkTrackers(): {
     if (!driverId) return null;
     return db
       .selectFrom("WorkTrackers")
-      .select([
-        "id",
-        "created_at",
-        "updated_at",
-        "date",
-        "pickup_time",
-        "pickup_poc",
-        "dropoff_time",
-        "dropoff_poc",
-        "pay_cents",
-        "notes",
-        "internal_notes",
-        "pickup_address_uuid",
-        "dropoff_address_uuid",
-        "bleacher_uuid",
-        "driver_uuid",
-        "user_uuid",
-        "status",
-        "released_at",
-        "accepted_at",
-        "started_at",
-        "completed_at",
-        "teardown_required",
-        "pickup_instructions",
-        "setup_required",
-        "dropoff_instructions",
-        "project_number",
-        "bol_number",
-        "pre_inspection_uuid",
-        "post_inspection_uuid",
-      ])
+      .select([...WORK_TRACKER_COLUMNS])
       .where("driver_uuid", "=", driverId)
       .orderBy("date", "asc")
       .compile();

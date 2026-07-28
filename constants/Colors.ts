@@ -10,7 +10,9 @@ export const DARK_BLUE = "#10365A";
 export const BRAND_BLUE = "#1D62A3";
 /** iOS system blue — links, action buttons */
 export const ACCENT_BLUE = "#0A84FF";
-export const GREEN_ACCENT = "#3A8B61";
+export const GREEN_ACCENT = "#328C61";
+/** Secondary green accent — positive CTAs, badges, success-adjacent UI. */
+export const BRAND_GREEN = GREEN_ACCENT;
 /** Warning / pending upload */
 export const WARNING_ORANGE = "#FF9500";
 /** Error / failed upload */

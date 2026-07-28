@@ -1,23 +1,42 @@
+import { ThemeColors, typeScale } from "@/constants/theme";
+import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 export type DamageSeverityValue = null | 0 | 1;
 
 export type DamageSeverityEnum = 'none' | 'minor' | 'major';
 
-const SEVERITY_OPTIONS: {
-  value: DamageSeverityValue;
-  enumValue: DamageSeverityEnum;
-  label: string;
-  color: string;
-  bg: string;
-  icon: string;
-}[] = [
-  { value: null, enumValue: 'none',  label: 'None',  color: '#34C759', bg: '#E8F9ED', icon: 'checkmark-circle' },
-  { value: 0,    enumValue: 'minor', label: 'Minor', color: '#FF9500', bg: '#FFF3E0', icon: 'warning-outline' },
-  { value: 1,    enumValue: 'major', label: 'Major', color: '#FF3B30', bg: '#FFEBEA', icon: 'warning' },
-];
+function severityOptions(theme: ThemeColors) {
+  return [
+    {
+      value: null as DamageSeverityValue,
+      enumValue: 'none' as const,
+      label: 'None',
+      color: theme.success,
+      bg: theme.secondaryAccentSoft,
+      icon: 'checkmark-circle',
+    },
+    {
+      value: 0 as DamageSeverityValue,
+      enumValue: 'minor' as const,
+      label: 'Minor',
+      color: theme.warning,
+      bg: theme.warning + '18',
+      icon: 'warning-outline',
+    },
+    {
+      value: 1 as DamageSeverityValue,
+      enumValue: 'major' as const,
+      label: 'Major',
+      color: theme.danger,
+      bg: theme.danger + '18',
+      icon: 'warning',
+    },
+  ];
+}
 
 export function severityEnumToValue(e: DamageSeverityEnum): DamageSeverityValue {
   if (e === 'minor') return 0;
@@ -38,11 +57,15 @@ interface Props {
 }
 
 export default function DamageSeveritySelector({ label, value, onChange }: Props) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const options = severityOptions(theme);
+
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{label}</Text>
       <View style={styles.row}>
-        {SEVERITY_OPTIONS.map((opt) => {
+        {options.map((opt) => {
           const active = value === opt.value;
           return (
             <TouchableOpacity
@@ -50,19 +73,24 @@ export default function DamageSeveritySelector({ label, value, onChange }: Props
               style={[
                 styles.option,
                 {
-                  borderColor: active ? opt.color : '#E5E7EB',
-                  backgroundColor: active ? opt.bg : '#F8F8F8',
+                  borderColor: active ? opt.color : theme.border,
+                  backgroundColor: active ? opt.bg : theme.surfaceElevated,
                 },
               ]}
               onPress={() => onChange(opt.value)}
               activeOpacity={0.7}
             >
               <Ionicons
-                name={opt.icon as any}
+                name={opt.icon as 'checkmark-circle' | 'warning-outline' | 'warning'}
                 size={20}
-                color={active ? opt.color : '#8E8E93'}
+                color={active ? opt.color : theme.textTertiary}
               />
-              <Text style={[styles.optionLabel, { color: active ? opt.color : '#8E8E93' }]}>
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: active ? opt.color : theme.textTertiary },
+                ]}
+              >
                 {opt.label}
               </Text>
             </TouchableOpacity>
@@ -73,18 +101,25 @@ export default function DamageSeveritySelector({ label, value, onChange }: Props
   );
 }
 
-const styles = StyleSheet.create({
-  section: { marginBottom: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1C1C1E', marginBottom: 8 },
-  row: { flexDirection: 'row', gap: 10 },
-  option: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 2,
-    gap: 4,
-  },
-  optionLabel: { fontSize: 13, fontWeight: '600' },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    section: { marginBottom: 16 },
+    sectionTitle: {
+      ...typeScale.subhead,
+      fontWeight: '700',
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    row: { flexDirection: 'row', gap: 10 },
+    option: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      borderRadius: 10,
+      borderWidth: 2,
+      gap: 4,
+    },
+    optionLabel: { ...typeScale.footnote, fontWeight: '600' },
+  });
+}

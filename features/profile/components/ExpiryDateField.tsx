@@ -1,5 +1,6 @@
-import { BRAND_BLUE } from "@/constants/Colors";
 import { AndroidWheelDatePicker } from "@/features/profile/components/AndroidWheelDatePicker";
+import { typeScale } from "@/constants/theme";
+import { useFormTheme } from "@/hooks/useTheme";
 import { formatExpiryDate, todayISODate } from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
@@ -19,12 +20,6 @@ type ExpiryDateFieldProps = {
   label?: string;
   value: string | null;
   onChange: (date: string | null) => void;
-  theme: {
-    text: string;
-    inputBg: string;
-    border: string;
-    card: string;
-  };
 };
 
 function parseISODate(value: string): Date {
@@ -43,8 +38,8 @@ export function ExpiryDateField({
   label = "Expiration date",
   value,
   onChange,
-  theme,
 }: ExpiryDateFieldProps) {
+  const { form: theme, theme: appTheme, scheme } = useFormTheme();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Date>(() =>
     value ? parseISODate(value) : parseISODate(todayISODate()),
@@ -76,11 +71,11 @@ export function ExpiryDateField({
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="calendar-outline" size={18} color={BRAND_BLUE} />
+        <Ionicons name="calendar-outline" size={18} color={theme.accent} />
         <Text
           style={[
             styles.fieldText,
-            { color: value ? theme.text : "#8E8E93" },
+            { color: value ? theme.text : theme.textTertiary },
           ]}
         >
           {value ? formatExpiryDate(value) : "Select expiration date"}
@@ -91,7 +86,11 @@ export function ExpiryDateField({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityLabel="Clear expiration date"
           >
-            <Ionicons name="close-circle" size={18} color="#8E8E93" />
+            <Ionicons
+              name="close-circle"
+              size={18}
+              color={theme.textTertiary}
+            />
           </TouchableOpacity>
         ) : null}
       </TouchableOpacity>
@@ -102,22 +101,31 @@ export function ExpiryDateField({
         transparent
         onRequestClose={() => setOpen(false)}
       >
-        <View style={styles.backdrop}>
+        <View style={[styles.backdrop, { backgroundColor: appTheme.overlay }]}>
           <TouchableOpacity
             style={styles.backdropTap}
             activeOpacity={1}
             onPress={() => setOpen(false)}
           />
           <View style={[styles.sheet, { backgroundColor: theme.card }]}>
-            <View style={styles.modalHeader}>
+            <View
+              style={[
+                styles.modalHeader,
+                { borderBottomColor: theme.separator },
+              ]}
+            >
               <TouchableOpacity onPress={() => setOpen(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={[styles.cancelText, { color: theme.accent }]}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
               <Text style={[styles.modalTitle, { color: theme.text }]}>
                 {label}
               </Text>
               <TouchableOpacity onPress={handleDone}>
-                <Text style={styles.doneText}>Done</Text>
+                <Text style={[styles.doneText, { color: theme.accent }]}>
+                  Done
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -127,6 +135,8 @@ export function ExpiryDateField({
                 mode="date"
                 display="spinner"
                 onChange={handleIosChange}
+                themeVariant={scheme === "dark" ? "dark" : "light"}
+                textColor={theme.text}
                 style={styles.picker}
               />
             ) : (
@@ -148,7 +158,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   label: {
-    fontSize: 13,
+    ...typeScale.footnote,
     fontWeight: "600",
     marginBottom: 6,
   },
@@ -163,13 +173,12 @@ const styles = StyleSheet.create({
   },
   fieldText: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: "500",
+    ...typeScale.subhead,
+    fontWeight: "400",
   },
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.35)",
   },
   backdropTap: {
     flex: 1,
@@ -186,24 +195,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(60,60,67,0.29)",
   },
   cancelText: {
-    fontSize: 16,
-    color: BRAND_BLUE,
+    ...typeScale.callout,
     fontWeight: "400",
   },
   doneText: {
-    fontSize: 16,
-    color: BRAND_BLUE,
+    ...typeScale.callout,
     fontWeight: "600",
   },
   modalTitle: {
-    fontSize: 17,
+    ...typeScale.body,
     fontWeight: "600",
   },
   picker: {
     alignSelf: "stretch",
+    width: "100%",
     height: 216,
   },
 });

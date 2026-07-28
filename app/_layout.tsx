@@ -1,4 +1,5 @@
 import SystemProvider, { db } from "@/components/providers/SystemProvider";
+import AppThemeProvider from "@/components/providers/ThemeProvider";
 import AppVersionGate from "@/features/app-version/AppVersionGate";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider, useUser } from "@clerk/clerk-expo";
@@ -88,9 +89,21 @@ function RootLayoutContent() {
             presentation: "card",
           }}
         />
+        <Stack.Screen
+          name="completed-trip"
+          options={{
+            headerShown: false,
+            presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
-      <StatusBar style="auto" />
+      {/* Status-bar content follows the app theme (not the OS), so it stays
+          legible when the user overrides Light/Dark: dark text on light bg,
+          light text on dark bg. */}
+      <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
       <AppVersionGate />
     </ThemeProvider>
   );
@@ -107,16 +120,18 @@ export default function RootLayout() {
   }
 
   return (
-    <ClerkProvider
-      tokenCache={tokenCache}
-      __experimental_resourceCache={resourceCache}
-      publishableKey={publishableKey}
-    >
-      <QueryClientProvider client={queryClient}>
-        <SystemProvider>
-          <RootLayoutContent />
-        </SystemProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
+    <AppThemeProvider>
+      <ClerkProvider
+        tokenCache={tokenCache}
+        __experimental_resourceCache={resourceCache}
+        publishableKey={publishableKey}
+      >
+        <QueryClientProvider client={queryClient}>
+          <SystemProvider>
+            <RootLayoutContent />
+          </SystemProvider>
+        </QueryClientProvider>
+      </ClerkProvider>
+    </AppThemeProvider>
   );
 }

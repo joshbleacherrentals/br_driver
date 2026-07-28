@@ -1,12 +1,14 @@
+import Badge from "@/components/ui/Badge";
 import BillOfLading, { BOLButton } from "@/components/widgets/billOfLading";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import InspectionSummaryWidget from "@/components/widgets/inspectionSummaryWidget";
-import { BRAND_BLUE } from "@/constants/Colors";
+import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
@@ -19,7 +21,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useThemedStyles } from "@/hooks/useThemedStyles";
+const FLOATING_HEADER_HEIGHT = 52;
+const FLOATING_HEADER_GAP = 12;
 
 interface CompletedTripProps {
   workTracker: WorkTracker;
@@ -30,6 +36,12 @@ export default function CompletedTrips({
   workTracker,
   onClose,
 }: CompletedTripProps) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const headerScrollInset =
+    FLOATING_HEADER_GAP + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP;
+
   const { address: pickupAddress } = useAddress(
     workTracker.pickup_address_uuid,
   );
@@ -125,22 +137,24 @@ export default function CompletedTrips({
     ]);
   };
 
+  const bleacherLabel = bleacher
+    ? `Bleacher #${bleacher.bleacher_number}`
+    : "Completed Trip";
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {/* Title row: bleacher label + damage badge */}
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>Completed Trip</Text>
-            </View>
-            <View style={styles.subtitleRow}>
-              <Text style={styles.subtitle}>
-                {bleacher && `Bleacher #${bleacher.bleacher_number}`}
-                {workTracker.bleacher_uuid && workTracker.pay_cents && " - "}
-                {workTracker.pay_cents && formatPay(workTracker.pay_cents)}
-              </Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + headerScrollInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hero}>
+          <View style={styles.heroMain}>
+            <View style={styles.heroTitleRow}>
+              <Text style={styles.heroTitle}>{bleacherLabel}</Text>
               {damageReports.length > 0 && (
                 <BleacherDamageBadge
                   damageReport={damageReports[0]}
@@ -148,82 +162,87 @@ export default function CompletedTrips({
                 />
               )}
             </View>
-            <Text style={styles.dateText}>{formatDate(workTracker.date)}</Text>
+            <Text style={styles.heroDate}>{formatDate(workTracker.date)}</Text>
+            {workTracker.pay_cents ? (
+              <Text style={styles.heroPay}>{formatPay(workTracker.pay_cents)}</Text>
+            ) : null}
           </View>
-          <View style={styles.badgeAndBol}>
-            <View style={styles.completedBadge}>
-              <Text style={styles.completedText}>COMPLETED</Text>
-            </View>
+          <View style={styles.heroActions}>
+            <Badge
+              label="Completed"
+              color={theme.success}
+              icon="checkmark-circle"
+            />
             <BOLButton onPress={() => setBolVisible(true)} />
           </View>
         </View>
 
-        {/* Notes */}
-        {workTracker.notes && (
-          <View style={styles.notesBox}>
-            <Text style={styles.notesLabel}>Trip Notes</Text>
-            <Text style={styles.notesText}>{workTracker.notes}</Text>
+        {workTracker.notes ? (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Trip Notes</Text>
+            <Text style={styles.cardBody}>{workTracker.notes}</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Trip Timeline */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Trip Timeline</Text>
-          {workTracker.accepted_at && (
+        <View style={styles.card}>
+          <Text style={styles.cardHeading}>Trip Timeline</Text>
+          {workTracker.accepted_at ? (
             <View style={styles.timelineItem}>
-              <Text style={styles.timelineLabel}>Accepted:</Text>
+              <Text style={styles.timelineLabel}>Accepted</Text>
               <Text style={styles.timelineValue}>
                 {formatDateTime(workTracker.accepted_at)}
               </Text>
             </View>
-          )}
-          {workTracker.started_at && (
+          ) : null}
+          {workTracker.started_at ? (
             <View style={styles.timelineItem}>
-              <Text style={styles.timelineLabel}>Started:</Text>
+              <Text style={styles.timelineLabel}>Started</Text>
               <Text style={styles.timelineValue}>
                 {formatDateTime(workTracker.started_at)}
               </Text>
             </View>
-          )}
-          {workTracker.completed_at && (
-            <View style={styles.timelineItem}>
-              <Text style={styles.timelineLabel}>Completed:</Text>
+          ) : null}
+          {workTracker.completed_at ? (
+            <View style={[styles.timelineItem, styles.timelineItemLast]}>
+              <Text style={styles.timelineLabel}>Completed</Text>
               <Text style={styles.timelineValue}>
                 {formatDateTime(workTracker.completed_at)}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
-        {/* Pickup Location */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="location" size={20} color="#000" />
-            <Text style={styles.sectionTitle}>Pickup Location</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() =>
-              openInMaps(
-                pickupAddress
-                  ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
-                  : undefined,
-              )
-            }
-          >
-            <Text style={styles.addressText}>
-              {pickupAddress ? pickupAddress.street : "Address not set"}
-            </Text>
-          </TouchableOpacity>
-          {workTracker.pickup_time && (
-            <Text style={styles.detailText}>
-              Time: {formatTime(workTracker.pickup_time)}
-            </Text>
-          )}
-          {workTracker.pickup_poc && (
-            <Text style={styles.detailText}>POC: {workTracker.pickup_poc}</Text>
-          )}
-          {workTracker.teardown_required !== null &&
-            workTracker.teardown_required !== undefined && (
+        <View style={styles.group}>
+          <View style={[styles.card, styles.cardGroupedTop]}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="location-outline" size={18} color={theme.accent} />
+              <Text style={styles.cardHeadingInline}>Pickup Location</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() =>
+                openInMaps(
+                  pickupAddress
+                    ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
+                    : undefined,
+                )
+              }
+            >
+              <Text style={styles.addressText}>
+                {pickupAddress ? pickupAddress.street : "Address not set"}
+              </Text>
+            </TouchableOpacity>
+            {workTracker.pickup_time ? (
+              <Text style={styles.detailText}>
+                Time: {formatTime(workTracker.pickup_time)}
+              </Text>
+            ) : null}
+            {workTracker.pickup_poc ? (
+              <Text style={styles.detailText}>
+                POC: {workTracker.pickup_poc}
+              </Text>
+            ) : null}
+            {workTracker.teardown_required !== null &&
+            workTracker.teardown_required !== undefined ? (
               <View style={styles.flagRow}>
                 <Ionicons
                   name={
@@ -232,7 +251,11 @@ export default function CompletedTrips({
                       : "checkmark-circle-outline"
                   }
                   size={14}
-                  color={workTracker.teardown_required ? "#FF9500" : "#8E8E93"}
+                  color={
+                    workTracker.teardown_required
+                      ? theme.warning
+                      : theme.textTertiary
+                  }
                 />
                 <Text
                   style={[
@@ -246,56 +269,57 @@ export default function CompletedTrips({
                   {workTracker.teardown_required ? "Yes" : "No"}
                 </Text>
               </View>
-            )}
-          {workTracker.pickup_instructions && (
-            <View style={styles.instructionsBox}>
-              <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
-              <Text style={styles.instructionsText}>
-                {workTracker.pickup_instructions}
-              </Text>
-            </View>
-          )}
+            ) : null}
+            {workTracker.pickup_instructions ? (
+              <View style={styles.instructionsBox}>
+                <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
+                <Text style={styles.instructionsText}>
+                  {workTracker.pickup_instructions}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <InspectionSummaryWidget
+            inspection={preInspection}
+            damages={damageReports}
+            title="Pickup Inspection"
+            defaultExpanded={true}
+            embedded
+          />
         </View>
 
-        {/* Pickup Inspection */}
-        <InspectionSummaryWidget
-          inspection={preInspection}
-          damages={damageReports}
-          title="Pickup Inspection"
-          defaultExpanded={true}
-        />
-
-        {/* Dropoff Location */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Ionicons name="location" size={20} color="#000" />
-            <Text style={styles.sectionTitle}>Dropoff Location</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() =>
-              openInMaps(
-                dropoffAddress
-                  ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
-                  : undefined,
-              )
-            }
-          >
-            <Text style={styles.addressText}>
-              {dropoffAddress ? dropoffAddress.street : "Address not set"}
-            </Text>
-          </TouchableOpacity>
-          {workTracker.dropoff_time && (
-            <Text style={styles.detailText}>
-              Time: {formatTime(workTracker.dropoff_time)}
-            </Text>
-          )}
-          {workTracker.dropoff_poc && (
-            <Text style={styles.detailText}>
-              POC: {workTracker.dropoff_poc}
-            </Text>
-          )}
-          {workTracker.setup_required !== null &&
-            workTracker.setup_required !== undefined && (
+        <View style={styles.group}>
+          <View style={[styles.card, styles.cardGroupedTop]}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="location-outline" size={18} color={theme.accent} />
+              <Text style={styles.cardHeadingInline}>Dropoff Location</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() =>
+                openInMaps(
+                  dropoffAddress
+                    ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
+                    : undefined,
+                )
+              }
+            >
+              <Text style={styles.addressText}>
+                {dropoffAddress ? dropoffAddress.street : "Address not set"}
+              </Text>
+            </TouchableOpacity>
+            {workTracker.dropoff_time ? (
+              <Text style={styles.detailText}>
+                Time: {formatTime(workTracker.dropoff_time)}
+              </Text>
+            ) : null}
+            {workTracker.dropoff_poc ? (
+              <Text style={styles.detailText}>
+                POC: {workTracker.dropoff_poc}
+              </Text>
+            ) : null}
+            {workTracker.setup_required !== null &&
+            workTracker.setup_required !== undefined ? (
               <View style={styles.flagRow}>
                 <Ionicons
                   name={
@@ -304,166 +328,259 @@ export default function CompletedTrips({
                       : "checkmark-circle-outline"
                   }
                   size={14}
-                  color={workTracker.setup_required ? "#FF9500" : "#8E8E93"}
+                  color={
+                    workTracker.setup_required
+                      ? theme.warning
+                      : theme.textTertiary
+                  }
                 />
                 <Text
                   style={[
                     styles.flagText,
-                    workTracker.setup_required ? styles.flagTextActive : null,
+                    workTracker.setup_required
+                      ? styles.flagTextActive
+                      : null,
                   ]}
                 >
                   Set Up Required: {workTracker.setup_required ? "Yes" : "No"}
                 </Text>
               </View>
-            )}
-          {workTracker.dropoff_instructions && (
-            <View style={styles.instructionsBox}>
-              <Text style={styles.instructionsLabel}>
-                Drop-off Instructions
-              </Text>
-              <Text style={styles.instructionsText}>
-                {workTracker.dropoff_instructions}
-              </Text>
-            </View>
-          )}
+            ) : null}
+            {workTracker.dropoff_instructions ? (
+              <View style={styles.instructionsBox}>
+                <Text style={styles.instructionsLabel}>
+                  Drop-off Instructions
+                </Text>
+                <Text style={styles.instructionsText}>
+                  {workTracker.dropoff_instructions}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <InspectionSummaryWidget
+            inspection={postInspection}
+            damages={damageReports}
+            title="Dropoff Inspection"
+            defaultExpanded={true}
+            embedded
+          />
         </View>
-
-        {/* Dropoff Inspection */}
-        <InspectionSummaryWidget
-          inspection={postInspection}
-          damages={damageReports}
-          title="Dropoff Inspection"
-          defaultExpanded={true}
-        />
-
-        {/* Close */}
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeButtonText}>Close</Text>
-        </TouchableOpacity>
-
-        <BillOfLading
-          visible={bolVisible}
-          workTracker={workTracker}
-          onClose={() => setBolVisible(false)}
-        />
       </ScrollView>
-    </SafeAreaView>
+
+      <View
+        style={[styles.headerOverlay, { paddingTop: insets.top + FLOATING_HEADER_GAP }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.floatingHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+            accessibilityLabel="Back to trip history"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={22} color={theme.accent} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Trip Details
+          </Text>
+          <View style={styles.headerSide} />
+        </View>
+      </View>
+
+      <BillOfLading
+        visible={bolVisible}
+        workTracker={workTracker}
+        onClose={() => setBolVisible(false)}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  badgeAndBol: { alignItems: "flex-end", marginLeft: 12 },
-  container: { flex: 1, backgroundColor: "#F2F2F7" },
-  scrollContent: { padding: 16, paddingBottom: 32 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  headerLeft: { flex: 1 },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 2,
-  },
-  subtitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 2,
-  },
-  title: { fontSize: 28, fontWeight: "700", color: "#000" },
-  subtitle: { fontSize: 18, fontWeight: "600", color: "#000" },
-  dateText: { fontSize: 15, color: "#8E8E93", marginTop: 2 },
-  completedBadge: {
-    backgroundColor: "#8E8E93",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  completedText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  notesBox: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  notesLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#8E8E93",
-    marginBottom: 8,
-  },
-  notesText: { fontSize: 16, color: "#000" },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    gap: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-    marginBottom: 0,
-  },
-  timelineItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
-  },
-  timelineLabel: { fontSize: 14, fontWeight: "500", color: "#8E8E93" },
-  timelineValue: { fontSize: 14, fontWeight: "600", color: "#000" },
-  addressText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0A84FF",
-    marginBottom: 8,
-  },
-  detailText: { fontSize: 14, color: "#8E8E93", marginTop: 4 },
-  flagRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 },
-  flagText: { fontSize: 13, color: "#8E8E93" },
-  flagTextActive: { color: "#FF9500", fontWeight: "600" },
-  instructionsBox: {
-    backgroundColor: "#F0F4FF",
-    borderLeftWidth: 3,
-    borderLeftColor: BRAND_BLUE,
-    borderRadius: 6,
-    padding: 10,
-    marginTop: 10,
-  },
-  instructionsLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: BRAND_BLUE,
-    marginBottom: 3,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  instructionsText: { fontSize: 13, color: "#1C1C1E", lineHeight: 18 },
-  closeButton: {
-    backgroundColor: "#0A84FF",
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  closeButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    headerOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 12,
+      backgroundColor: "transparent",
+      zIndex: 10,
+    },
+    floatingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      height: FLOATING_HEADER_HEIGHT,
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      paddingHorizontal: 4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      ...elevation(theme, "floating"),
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: "center",
+      ...typeScale.body,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    headerSide: { width: 40 },
+    scroll: { flex: 1 },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+      gap: 12,
+    },
+    hero: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 4,
+    },
+    heroMain: { flex: 1, minWidth: 0 },
+    heroTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+    heroTitle: {
+      ...typeScale.title2,
+      fontWeight: "700",
+      color: theme.textPrimary,
+    },
+    heroDate: {
+      ...typeScale.subhead,
+      color: theme.textSecondary,
+      marginTop: 4,
+    },
+    heroPay: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      marginTop: 2,
+    },
+    heroActions: {
+      alignItems: "flex-end",
+      gap: 8,
+      flexShrink: 0,
+    },
+    group: { gap: 0 },
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      padding: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    cardGroupedTop: {
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+      borderBottomWidth: 0,
+    },
+    cardHeading: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    cardHeadingInline: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    cardTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+    },
+    cardLabel: {
+      ...typeScale.footnote,
+      fontWeight: "600",
+      color: theme.textTertiary,
+      marginBottom: 8,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    cardBody: {
+      ...typeScale.subhead,
+      color: theme.textPrimary,
+      lineHeight: 22,
+    },
+    timelineItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.separator,
+    },
+    timelineItemLast: { borderBottomWidth: 0, paddingBottom: 0 },
+    timelineLabel: {
+      ...typeScale.subhead,
+      fontWeight: "400",
+      color: theme.textSecondary,
+    },
+    timelineValue: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      textAlign: "right",
+      flexShrink: 1,
+    },
+    addressText: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.accent,
+      lineHeight: 21,
+    },
+    detailText: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      marginTop: 8,
+    },
+    flagRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 10,
+    },
+    flagText: { ...typeScale.footnote, color: theme.textSecondary },
+    flagTextActive: { color: theme.warning, fontWeight: "600" },
+    instructionsBox: {
+      backgroundColor: theme.accentSoft,
+      borderLeftWidth: 3,
+      borderLeftColor: theme.accent,
+      borderRadius: radius.control,
+      padding: 12,
+      marginTop: 12,
+    },
+    instructionsLabel: {
+      ...typeScale.caption2,
+      fontWeight: "700",
+      color: theme.accent,
+      marginBottom: 4,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    instructionsText: {
+      ...typeScale.footnote,
+      color: theme.textPrimary,
+      lineHeight: 18,
+    },
+  });
+}

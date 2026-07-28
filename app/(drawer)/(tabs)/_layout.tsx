@@ -19,11 +19,10 @@ import NotificationDot from "@/components/ui/NotificationDot";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import DriverGate from "@/components/widgets/DriverGate";
-import { BRAND_BLUE } from "@/constants/Colors";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useReleasedTripsCount } from "@/hooks/db/useWorkTrackers";
 import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { ClipboardClock, Menu, Navigation2 } from "lucide-react-native";
@@ -81,8 +80,7 @@ export default function TabLayout() {
  */
 function TabsContent() {
   const { updateReady } = useOTAUpdateContext();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
   const { count: pendingCount } = useReleasedTripsCount();
 
@@ -104,19 +102,19 @@ function TabsContent() {
         screenOptions={{
           animation: "none",
           tabBarShowLabel: false,
-          tabBarActiveTintColor: BRAND_BLUE,
-          tabBarInactiveTintColor: isDark ? "#636366" : "#8E8E93",
+          tabBarActiveTintColor: theme.accent,
+          tabBarInactiveTintColor: theme.textTertiary,
           headerShown: true,
           headerStyle: {
             height: 120,
-            backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-            borderBottomColor: isDark ? "#38383A" : "#E5E7EB",
+            backgroundColor: theme.surface,
+            borderBottomColor: theme.border,
             borderBottomWidth: 0.5,
           },
           headerTitleStyle: {
             fontSize: 17,
             fontWeight: "600",
-            color: isDark ? "#FFFFFF" : "#111827",
+            color: theme.textPrimary,
           },
           headerRight: () => (
             <TouchableOpacity
@@ -127,7 +125,7 @@ function TabsContent() {
               <View>
                 <Menu
                   size={28}
-                  color={isDark ? "#FFFFFF" : "#111827"}
+                  color={theme.textPrimary}
                   strokeWidth={1.75}
                 />
                 {updateReady && <NotificationDot />}
@@ -139,8 +137,8 @@ function TabsContent() {
           tabBarItemStyle: { marginTop: 10 },
           tabBarStyle: Platform.select({
             default: {
-              backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-              borderTopColor: isDark ? "#38383A" : "#E5E7EB",
+              backgroundColor: "transparent",
+              borderTopColor: theme.border,
               borderTopWidth: 0.5,
               height: 92,
             },
@@ -164,8 +162,15 @@ function TabsContent() {
               <View>
                 <ClipboardClock size={28} color={color} strokeWidth={1.75} />
                 {pendingCount > 0 && (
-                  <View style={badgeStyles.container}>
-                    <Text style={badgeStyles.text}>
+                  <View
+                    style={[
+                      badgeStyles.container,
+                      { backgroundColor: theme.danger },
+                    ]}
+                  >
+                    <Text
+                      style={[badgeStyles.text, { color: theme.onAccent }]}
+                    >
                       {pendingCount > 99 ? "99+" : pendingCount}
                     </Text>
                   </View>
@@ -233,7 +238,6 @@ const badgeStyles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -10,
-    backgroundColor: "#FF3B30",
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -242,7 +246,6 @@ const badgeStyles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   text: {
-    color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "700",
   },
