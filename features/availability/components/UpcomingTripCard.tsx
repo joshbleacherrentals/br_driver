@@ -99,7 +99,7 @@ const makeStyles = (theme: ThemeColors) =>
     row: { flexDirection: "row", alignItems: "center", gap: 6 },
     date: { ...typeScale.subhead, fontWeight: "600", color: theme.textPrimary },
     meta: { ...typeScale.caption, fontWeight: "400", color: theme.textSecondary },
-    statusBadgeSpacing: { marginLeft: 8 },
+    statusBadgeSpacing: { marginLeft: 8, alignSelf: "center" },
     conflictBadge: {
       flexDirection: "row",
       alignItems: "center",

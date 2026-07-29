@@ -85,8 +85,10 @@ function RootLayoutContent() {
         <Stack.Screen
           name="damage-report"
           options={{
-            title: "Damage Report",
+            headerShown: false,
             presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
           }}
         />
         <Stack.Screen

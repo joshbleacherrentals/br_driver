@@ -2,7 +2,13 @@ import BleacherDropdown, {
   BleacherOption,
 } from "@/components/widgets/bleacherDropdown";
 import { damageReportPhotoAttachmentQueue } from "@/components/providers/SystemProvider";
-import { themes, type ThemeColors, typeScale } from "@/constants/theme";
+import {
+  elevation,
+  radius,
+  themes,
+  type ThemeColors,
+  typeScale,
+} from "@/constants/theme";
 import { useAllBleachers } from "@/hooks/db/useBleacher";
 import { useDamageReportById } from "@/hooks/db/useDamageReport";
 import {
@@ -30,7 +36,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import {
   DamageDetailsForm,
   DamageDetailsFormValues,
@@ -44,6 +52,9 @@ import { createDamageReport } from "./utils/createDamageReport";
 import { resolvePhotoUri } from "./utils/resolvePhotoUri";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+
+const FLOATING_HEADER_HEIGHT = 52;
+const FLOATING_HEADER_GAP = 12;
 const DEBUG_PHOTO_UPLOAD = false;
 const debugTheme = themes.dark;
 
@@ -60,6 +71,44 @@ const INITIAL_DETAILS: DamageDetailsFormValues = {
 };
 
 type ScreenStyles = ReturnType<typeof makeStyles>;
+
+function DamageReportHeader({
+  onBack,
+  styles,
+  theme,
+  insets,
+}: {
+  onBack: () => void;
+  styles: ScreenStyles;
+  theme: ThemeColors;
+  insets: { top: number };
+}) {
+  return (
+    <View
+      style={[
+        styles.headerOverlay,
+        { paddingTop: insets.top + FLOATING_HEADER_GAP },
+      ]}
+      pointerEvents="box-none"
+    >
+      <View style={styles.floatingHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+          accessibilityLabel="Back"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={22} color={theme.accent} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          Damage Report
+        </Text>
+        <View style={styles.headerSide} />
+      </View>
+    </View>
+  );
+}
 
 function ViewOnlyPhotoGrid({
   photos,
@@ -253,6 +302,9 @@ export default function DamageReportScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const headerScrollInset =
+    FLOATING_HEADER_GAP + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP;
   const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
   const params = useLocalSearchParams<{ damageReportId?: string }>();
   const { bleachers } = useAllBleachers();
@@ -436,8 +488,16 @@ export default function DamageReportScreen() {
 
   if (isViewOnly) {
     return (
-      <SafeAreaView style={styles.container} edges={["bottom"]}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + headerScrollInset,
+              paddingBottom: 16 + insets.bottom,
+            },
+          ]}
+        >
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bleacher</Text>
             <Text style={styles.viewOnlyValue}>
@@ -528,13 +588,28 @@ export default function DamageReportScreen() {
             <DebugUploadTracker attachmentIds={trackedAttachmentIds} />
           )}
         </ScrollView>
-      </SafeAreaView>
+
+        <DamageReportHeader
+          onBack={() => router.back()}
+          styles={styles}
+          theme={theme}
+          insets={insets}
+        />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + headerScrollInset,
+            paddingBottom: 16 + insets.bottom,
+          },
+        ]}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Bleacher</Text>
           <View style={styles.requiredBadge}>
@@ -592,19 +667,61 @@ export default function DamageReportScreen() {
         )}
       </ScrollView>
 
+      <DamageReportHeader
+        onBack={() => router.back()}
+        styles={styles}
+        theme={theme}
+        insets={insets}
+      />
+
       <SubmitProgressModal
         visible={isSubmitting}
         current={prepProgress.current}
         total={prepProgress.total}
         onAbort={handleAbort}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 function makeStyles(theme: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
+    headerOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 12,
+      backgroundColor: "transparent",
+      zIndex: 10,
+    },
+    floatingHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      height: FLOATING_HEADER_HEIGHT,
+      backgroundColor: theme.surface,
+      borderRadius: radius.card,
+      paddingHorizontal: 4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      ...elevation(theme, "floating"),
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radius.control,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: "center",
+      ...typeScale.body,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    headerSide: { width: 40 },
     scrollContent: { padding: 16 },
     section: {
       backgroundColor: theme.surface,

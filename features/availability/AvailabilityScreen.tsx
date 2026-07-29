@@ -10,7 +10,6 @@ import { useDriverUnavailability } from "@/hooks/db/useDriverUnavailability";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
-import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { randomUUID } from "expo-crypto";
 import { Menu } from "lucide-react-native";
@@ -30,9 +29,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Calendar, DateData } from "react-native-calendars";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+
+type UndoEntry = {
+  snapshot: Set<string>;
+  /** DB rows deleted by this action — undo re-inserts them */
+  persistedRemoves?: string[];
+};
+
+const ACTION_BAR_HEIGHT = 108;
 const TODAY = new Date().toISOString().split("T")[0];
 
 const UPCOMING_STATUSES = new Set([
@@ -70,29 +78,14 @@ export default function AvailabilityCalendarScreen() {
   const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
   const { theme, scheme } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
 
   const [currentMonth, setCurrentMonth] = useState(TODAY.substring(0, 7));
   const [isSaving, setIsSaving] = useState(false);
 
-  const [undoStack, setUndoStack] = useState<Set<string>[]>([]);
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [undoToast, setUndoToast] = useState<string | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const pushUndo = useCallback((snapshot: Set<string>) => {
-    setUndoStack((prev) => [...prev.slice(-9), new Set(snapshot)]);
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    setUndoStack((prev) => {
-      if (!prev.length) return prev;
-      const next = [...prev];
-      const snapshot = next.pop()!;
-      setLocalUnavailable(snapshot);
-      return next;
-    });
-    setUndoToast(null);
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-  }, []);
 
   const showUndoToast = useCallback((message: string) => {
     setUndoToast(message);
@@ -149,6 +142,84 @@ export default function AvailabilityCalendarScreen() {
     () => new Set([...dbSavedSet].filter((d) => !localUnavailable.has(d))),
     [localUnavailable, dbSavedSet],
   );
+
+  const persistAvailabilityChanges = useCallback(
+    async (toAdd: string[], toRemove: string[]): Promise<boolean> => {
+      if (!toAdd.length && !toRemove.length) return true;
+
+      const driverUuid = driver?.id;
+      if (!driverUuid) {
+        Alert.alert(
+          "Error",
+          "Could not determine your driver profile. Please try again.",
+        );
+        return false;
+      }
+
+      setIsSaving(true);
+      try {
+        for (const date of toAdd) {
+          const query = db
+            .insertInto("DriverUnavailability")
+            .values({
+              id: randomUUID(),
+              driver_uuid: driverUuid,
+              date_unavailable: date,
+              updated_at: new Date().toISOString(),
+            })
+            .compile();
+          await executeTypedMutationVoid(query);
+        }
+
+        for (const date of toRemove) {
+          const row = dbUnavailableDates?.find(
+            (r) => r.date_unavailable === date,
+          );
+          if (!row) continue;
+          const query = db
+            .deleteFrom("DriverUnavailability")
+            .where("id", "=", row.id)
+            .compile();
+          await executeTypedMutationVoid(query);
+        }
+
+        dbInitialised.current = false;
+        return true;
+      } catch (err) {
+        console.error("Error saving availability:", err);
+        Alert.alert("Error", "Failed to save availability. Please try again.");
+        return false;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [driver, dbUnavailableDates],
+  );
+
+  const pushUndo = useCallback((entry: UndoEntry) => {
+    setUndoStack((prev) => [...prev.slice(-9), entry]);
+  }, []);
+
+  const handleUndo = useCallback(async () => {
+    const entry = undoStack[undoStack.length - 1];
+    if (!entry) return;
+
+    setUndoStack((prev) => prev.slice(0, -1));
+    setUndoToast(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+
+    setLocalUnavailable(new Set(entry.snapshot));
+
+    if (entry.persistedRemoves?.length) {
+      const ok = await persistAvailabilityChanges(entry.persistedRemoves, []);
+      if (!ok) {
+        Alert.alert(
+          "Undo failed",
+          "Could not restore cleared dates. Please try again.",
+        );
+      }
+    }
+  }, [undoStack, persistAvailabilityChanges]);
 
   const tripDotsByDate = useMemo(() => {
     const map: Record<string, { upcoming: boolean; completed: boolean }> = {};
@@ -242,13 +313,28 @@ export default function AvailabilityCalendarScreen() {
         {
           text: "Clear",
           style: "destructive",
-          onPress: () => {
-            pushUndo(localUnavailable);
-            setLocalUnavailable((prev) => {
-              const next = new Set(prev);
-              toRemove.forEach((d) => next.delete(d));
-              return next;
+          onPress: async () => {
+            const snapshot = new Set(localUnavailable);
+            const toRemoveFromDb = toRemove.filter((d) => dbSavedSet.has(d));
+            const next = new Set(snapshot);
+            toRemove.forEach((d) => next.delete(d));
+
+            pushUndo({
+              snapshot,
+              persistedRemoves:
+                toRemoveFromDb.length > 0 ? toRemoveFromDb : undefined,
             });
+            setLocalUnavailable(next);
+
+            if (toRemoveFromDb.length > 0) {
+              const ok = await persistAvailabilityChanges([], toRemoveFromDb);
+              if (!ok) {
+                setLocalUnavailable(snapshot);
+                setUndoStack((prev) => prev.slice(0, -1));
+                return;
+              }
+            }
+
             showUndoToast(
               `Cleared ${toRemove.length} date${toRemove.length > 1 ? "s" : ""} — tap Undo to restore`,
             );
@@ -260,7 +346,9 @@ export default function AvailabilityCalendarScreen() {
     localUnavailable,
     currentMonth,
     datesInCurrentMonth,
+    dbSavedSet,
     pushUndo,
+    persistAvailabilityChanges,
     showUndoToast,
   ]);
 
@@ -275,7 +363,7 @@ export default function AvailabilityCalendarScreen() {
           text: "Discard",
           style: "destructive",
           onPress: () => {
-            pushUndo(localUnavailable);
+            pushUndo({ snapshot: new Set(localUnavailable) });
             setLocalUnavailable(new Set(dbSavedSet));
             showUndoToast("Changes discarded — tap Undo to restore");
           },
@@ -292,117 +380,24 @@ export default function AvailabilityCalendarScreen() {
 
   const handleSave = useCallback(async () => {
     if (!hasPendingChanges) return;
+    await persistAvailabilityChanges([...pendingAdd], [...pendingRemove]);
+  }, [hasPendingChanges, pendingAdd, pendingRemove, persistAvailabilityChanges]);
 
-    const driverUuid = driver?.id;
-    if (!driverUuid) {
-      Alert.alert(
-        "Error",
-        "Could not determine your driver profile. Please try again.",
-      );
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const toAdd = [...pendingAdd];
-      const toRemove = [...pendingRemove];
-
-      for (const date of toAdd) {
-        const query = db
-          .insertInto("DriverUnavailability")
-          .values({
-            id: randomUUID(),
-            driver_uuid: driverUuid,
-            date_unavailable: date,
-            updated_at: new Date().toISOString(),
-          })
-          .compile();
-        await executeTypedMutationVoid(query);
-      }
-
-      for (const date of toRemove) {
-        const row = dbUnavailableDates?.find(
-          (r) => r.date_unavailable === date,
-        );
-        if (!row) continue;
-        const query = db
-          .deleteFrom("DriverUnavailability")
-          .where("id", "=", row.id)
-          .compile();
-        await executeTypedMutationVoid(query);
-      }
-
-      dbInitialised.current = false;
-    } catch (err) {
-      console.error("Error saving availability:", err);
-      Alert.alert("Error", "Failed to save availability. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    hasPendingChanges,
-    pendingAdd,
-    pendingRemove,
-    dbUnavailableDates,
-    driver,
-  ]);
+  const pendingChangeCount = pendingAdd.size + pendingRemove.size;
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <View style={styles.headerActions}>
-          {hasPendingChanges && (
-            <TouchableOpacity
-              style={[
-                styles.headerDiscardBtn,
-                { backgroundColor: theme.surfaceElevated },
-              ]}
-              onPress={handleDiscard}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="close-circle-outline"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[
-              styles.headerSaveBtn,
-              hasPendingChanges
-                ? { backgroundColor: theme.warning }
-                : { backgroundColor: theme.surfaceElevated },
-            ]}
-            onPress={handleSave}
-            disabled={!hasPendingChanges || isSaving}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.headerSaveBtnText,
-                !hasPendingChanges && { color: theme.textTertiary },
-              ]}
-            >
-              {isSaving ? "Saving…" : hasPendingChanges ? "Save" : "Saved ✓"}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={openDrawer} activeOpacity={0.7}>
-            <Menu size={24} color={theme.textPrimary} strokeWidth={1.75} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={openDrawer}
+          activeOpacity={0.7}
+          style={styles.headerMenuBtn}
+        >
+          <Menu size={24} color={theme.textPrimary} strokeWidth={1.75} />
+        </TouchableOpacity>
       ),
     });
-  }, [
-    navigation,
-    openDrawer,
-    hasPendingChanges,
-    isSaving,
-    handleSave,
-    handleDiscard,
-    theme,
-    styles,
-  ]);
+  }, [navigation, openDrawer, theme, styles]);
 
   const monthLabel = formatMonthName(currentMonth);
   const isUnavailable = futureCountThisMonth > 0;
@@ -413,7 +408,12 @@ export default function AvailabilityCalendarScreen() {
       <DocExpiryWarningBanner />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          hasPendingChanges && {
+            paddingBottom: 16 + insets.bottom + ACTION_BAR_HEIGHT,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <AvailabilityIntroStrip />
@@ -560,6 +560,57 @@ export default function AvailabilityCalendarScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
 
+      {hasPendingChanges && (
+        <View
+          style={[
+            styles.actionBar,
+            {
+              paddingBottom: insets.bottom + 12,
+              backgroundColor: theme.surface,
+              borderTopColor: theme.border,
+            },
+          ]}
+        >
+          <Text style={[styles.actionBarSummary, { color: theme.textSecondary }]}>
+            {pendingChangeCount} unsaved change
+            {pendingChangeCount === 1 ? "" : "s"}
+          </Text>
+          <View style={styles.actionBarButtons}>
+            <TouchableOpacity
+              style={[
+                styles.actionBarDiscardBtn,
+                { borderColor: theme.border },
+              ]}
+              onPress={handleDiscard}
+              activeOpacity={0.7}
+              disabled={isSaving}
+            >
+              <Text
+                style={[
+                  styles.actionBarDiscardText,
+                  { color: theme.textPrimary },
+                ]}
+              >
+                Discard
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionBarSaveBtn,
+                { backgroundColor: theme.warning },
+              ]}
+              onPress={handleSave}
+              activeOpacity={0.8}
+              disabled={isSaving}
+            >
+              <Text style={[styles.actionBarSaveText, { color: theme.onAccent }]}>
+                {isSaving ? "Saving…" : "Save Changes"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {undoToast !== null && (
         <View
           style={[
@@ -567,6 +618,9 @@ export default function AvailabilityCalendarScreen() {
             {
               backgroundColor: theme.surfaceElevated,
               borderColor: theme.border,
+              bottom: hasPendingChanges
+                ? ACTION_BAR_HEIGHT + insets.bottom + 8
+                : 24,
             },
           ]}
           pointerEvents="box-none"
@@ -631,28 +685,7 @@ const legendStyles = StyleSheet.create({
 function makeStyles(theme: ThemeColors) {
   return StyleSheet.create({
     screen: { flex: 1 },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginRight: 16,
-    },
-    headerSaveBtn: {
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-      borderRadius: 8,
-      minWidth: 50,
-      alignItems: "center",
-    },
-    headerSaveBtnText: {
-      ...typeScale.subhead,
-      fontWeight: "700",
-      color: theme.onAccent,
-    },
-    headerDiscardBtn: {
-      padding: 6,
-      borderRadius: 8,
-    },
+    headerMenuBtn: { marginRight: 16 },
     scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
     statusBanner: {
       flexDirection: "row",
@@ -693,6 +726,49 @@ function makeStyles(theme: ThemeColors) {
       marginBottom: 8,
     },
     sectionCount: { ...typeScale.footnote, fontWeight: "600" },
+    actionBar: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: 12,
+      paddingHorizontal: 16,
+      gap: 10,
+      ...elevation(theme, "floating"),
+    },
+    actionBarSummary: {
+      ...typeScale.footnote,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    actionBarButtons: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    actionBarDiscardBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionBarDiscardText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+    },
+    actionBarSaveBtn: {
+      flex: 2,
+      paddingVertical: 14,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionBarSaveText: {
+      ...typeScale.callout,
+      fontWeight: "700",
+    },
     undoToast: {
       position: "absolute",
       bottom: 24,
