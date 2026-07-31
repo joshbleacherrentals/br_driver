@@ -1,10 +1,11 @@
-import { BRAND_BLUE } from "@/constants/Colors";
+import Badge from "@/components/ui/Badge";
+import { ThemeColors, elevation, typeScale } from "@/constants/theme";
 import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,47 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import CompletedTrips from "./components/CompletedTripItem";
-
-// ── Themes ────────────────────────────────────────────────────────────────────
-const themes = {
-  light: {
-    bg: "#F2F2F7",
-    card: "#FFFFFF",
-    cardText: "#111827",
-    cardSecondary: "#6B7280",
-    weekHeaderBg: BRAND_BLUE,
-    weekHeaderCurrent: "#1B548E",
-    weekHeaderText: "#FFFFFF",
-    weekSubText: "#BFDBFE",
-    weekBodyBg: "#F0F4F8",
-    emptyText: "#8E8E93",
-    accentText: "#0A84FF",
-    separator: "#F2F2F7",
-    pickupLabel: "#8E8E93",
-    currentBadgeBg: "#34C759",
-    headerBg: "#FFFFFF",
-    headerText: "#111827",
-  },
-  dark: {
-    bg: "#000000",
-    card: "#1C1C1E",
-    cardText: "#FFFFFF",
-    cardSecondary: "#8E8E93",
-    weekHeaderBg: "#1C1C1E",
-    weekHeaderCurrent: "#1A3A5C",
-    weekHeaderText: "#FFFFFF",
-    weekSubText: "#93C5FD",
-    weekBodyBg: "#111111",
-    emptyText: "#636366",
-    accentText: "#0A84FF",
-    separator: "#2C2C2E",
-    pickupLabel: "#8E8E93",
-    currentBadgeBg: "#30D158",
-    headerBg: "#1C1C1E",
-    headerText: "#FFFFFF",
-  },
-};
 
 // ── Utility helpers ───────────────────────────────────────────────────────────
 function getWeekStart(dateISO: string): Date {
@@ -124,13 +84,21 @@ function formatDate(dateISO?: string | null) {
   }
 }
 
+function weekHeaderColor(
+  theme: ThemeColors,
+  scheme: "light" | "dark",
+  isCurrent: boolean,
+) {
+  if (isCurrent) return theme.accent;
+  return scheme === "dark" ? theme.surface : theme.header;
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function TripHistoryScreen() {
-  const colorScheme = useColorScheme();
-  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+  const { theme, scheme } = useTheme();
+  const router = useRouter();
 
   const { workTrackers, isLoading } = useWorkTrackers();
-  const [selectedTrip, setSelectedTrip] = useState<WorkTracker | null>(null);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>(
     {},
   );
@@ -197,40 +165,28 @@ export default function TripHistoryScreen() {
     completedTrips.map((wt) => wt.bleacher_uuid),
   );
 
-  if (selectedTrip) {
-    return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <CompletedTrips
-          workTracker={selectedTrip}
-          onClose={() => setSelectedTrip(null)}
-        />
-      </>
-    );
-  }
-
   if (isLoading) {
     return (
       <>
         <Stack.Screen
           options={{
             title: "Trip History",
-            headerStyle: { backgroundColor: t.headerBg },
-            headerTintColor: t.headerText,
+            headerStyle: { backgroundColor: theme.surface },
+            headerTintColor: theme.textPrimary,
           }}
         />
         <View
           style={[
             styles.safeArea,
             {
-              backgroundColor: t.bg,
+              backgroundColor: theme.background,
               justifyContent: "center",
               alignItems: "center",
             },
           ]}
         >
-          <ActivityIndicator size="large" color={BRAND_BLUE} />
-          <Text style={[styles.loadingText, { color: t.emptyText }]}>
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={[styles.loadingText, { color: theme.textTertiary }]}>
             Loading trips...
           </Text>
         </View>
@@ -244,25 +200,32 @@ export default function TripHistoryScreen() {
         options={{
           title: "Trip History",
           headerShown: true,
-          headerStyle: { backgroundColor: t.headerBg },
-          headerTintColor: t.headerText,
+          headerStyle: { backgroundColor: theme.surface },
+          headerTintColor: theme.textPrimary,
         }}
       />
-      <View style={[styles.safeArea, { backgroundColor: t.bg }]}>
+      <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
         <FlatList
           contentContainerStyle={styles.listContent}
           data={weekGroups}
           keyExtractor={(item) => item.key}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Ionicons name="time-outline" size={40} color={t.emptyText} />
-              <Text style={[styles.emptyText, { color: t.emptyText }]}>
+              <Ionicons
+                name="time-outline"
+                size={40}
+                color={theme.textTertiary}
+              />
+              <Text style={[styles.emptyText, { color: theme.textTertiary }]}>
                 Completed trips will appear here once you finish your deliveries
               </Text>
             </View>
           )}
           renderItem={({ item: group }) => {
             const collapsed = isCollapsed(group.key, group.isCurrent);
+            const headerBg = weekHeaderColor(theme, scheme, group.isCurrent);
+            const headerSubText = theme.onAccent + "CC";
+
             return (
               <View style={styles.weekGroup}>
                 <TouchableOpacity
@@ -270,9 +233,7 @@ export default function TripHistoryScreen() {
                   style={[
                     styles.weekHeader,
                     {
-                      backgroundColor: group.isCurrent
-                        ? t.weekHeaderCurrent
-                        : t.weekHeaderBg,
+                      backgroundColor: headerBg,
                       borderBottomLeftRadius: collapsed ? 12 : 0,
                       borderBottomRightRadius: collapsed ? 12 : 0,
                     },
@@ -282,13 +243,13 @@ export default function TripHistoryScreen() {
                     <Text
                       style={[
                         styles.weekHeaderTitle,
-                        { color: t.weekHeaderText },
+                        { color: theme.onAccent },
                       ]}
                     >
                       {group.label}
                     </Text>
                     <Text
-                      style={[styles.weekSubText, { color: t.weekSubText }]}
+                      style={[styles.weekSubText, { color: headerSubText }]}
                     >
                       {group.trips.length}{" "}
                       {group.trips.length === 1 ? "trip" : "trips"}
@@ -298,25 +259,27 @@ export default function TripHistoryScreen() {
                     </Text>
                   </View>
                   {group.isCurrent && (
-                    <View
-                      style={[
-                        styles.currentBadge,
-                        { backgroundColor: t.currentBadgeBg },
-                      ]}
-                    >
-                      <Text style={styles.currentBadgeText}>THIS WEEK</Text>
-                    </View>
+                    <Badge
+                      label="THIS WEEK"
+                      color={theme.success}
+                      variant="solid"
+                      uppercase
+                      style={styles.currentBadgeSpacing}
+                    />
                   )}
                   <Ionicons
                     name={collapsed ? "chevron-down" : "chevron-up"}
                     size={18}
-                    color={t.weekSubText}
+                    color={headerSubText}
                   />
                 </TouchableOpacity>
 
                 {!collapsed && (
                   <View
-                    style={[styles.weekBody, { backgroundColor: t.weekBodyBg }]}
+                    style={[
+                      styles.weekBody,
+                      { backgroundColor: theme.surfaceElevated },
+                    ]}
                   >
                     {group.trips.map((trip, index) => {
                       const pickupAddress = trip.pickup_address_uuid
@@ -333,12 +296,18 @@ export default function TripHistoryScreen() {
                       return (
                         <TouchableOpacity
                           key={trip.id}
-                          onPress={() => setSelectedTrip(trip)}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/completed-trip",
+                              params: { workTrackerId: trip.id },
+                            })
+                          }
                           style={[
                             styles.tripCard,
                             {
-                              backgroundColor: t.card,
+                              backgroundColor: theme.surface,
                               marginBottom: isLast ? 10 : 0,
+                              ...elevation(theme, "card"),
                             },
                           ]}
                         >
@@ -347,7 +316,7 @@ export default function TripHistoryScreen() {
                               <Text
                                 style={[
                                   styles.tripCardTitle,
-                                  { color: t.cardText },
+                                  { color: theme.textPrimary },
                                 ]}
                               >
                                 {bleacher
@@ -361,7 +330,7 @@ export default function TripHistoryScreen() {
                               <Text
                                 style={[
                                   styles.tripCardDate,
-                                  { color: t.cardSecondary },
+                                  { color: theme.textSecondary },
                                 ]}
                               >
                                 {formatDate(trip.date)}
@@ -374,12 +343,12 @@ export default function TripHistoryScreen() {
                               <Ionicons
                                 name="location-outline"
                                 size={13}
-                                color={t.pickupLabel}
+                                color={theme.textTertiary}
                               />
                               <Text
                                 style={[
                                   styles.addressLabelText,
-                                  { color: t.pickupLabel },
+                                  { color: theme.textTertiary },
                                 ]}
                               >
                                 Pickup
@@ -388,7 +357,7 @@ export default function TripHistoryScreen() {
                             <Text
                               style={[
                                 styles.addressText,
-                                { color: t.cardText },
+                                { color: theme.textPrimary },
                               ]}
                             >
                               {pickupAddress
@@ -402,12 +371,12 @@ export default function TripHistoryScreen() {
                               <Ionicons
                                 name="location-outline"
                                 size={13}
-                                color={t.pickupLabel}
+                                color={theme.textTertiary}
                               />
                               <Text
                                 style={[
                                   styles.addressLabelText,
-                                  { color: t.pickupLabel },
+                                  { color: theme.textTertiary },
                                 ]}
                               >
                                 Dropoff
@@ -416,7 +385,7 @@ export default function TripHistoryScreen() {
                             <Text
                               style={[
                                 styles.addressText,
-                                { color: t.cardText },
+                                { color: theme.textPrimary },
                               ]}
                             >
                               {dropoffAddress
@@ -428,13 +397,13 @@ export default function TripHistoryScreen() {
                           <View
                             style={[
                               styles.tripCardFooter,
-                              { borderTopColor: t.separator },
+                              { borderTopColor: theme.separator },
                             ]}
                           >
                             <Text
                               style={[
                                 styles.tripCardFooterText,
-                                { color: t.accentText },
+                                { color: theme.accent },
                               ]}
                             >
                               View full details and inspections
@@ -442,7 +411,7 @@ export default function TripHistoryScreen() {
                             <Ionicons
                               name="arrow-forward"
                               size={14}
-                              color={t.accentText}
+                              color={theme.accent}
                             />
                           </View>
                         </TouchableOpacity>
@@ -461,7 +430,7 @@ export default function TripHistoryScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  loadingText: { marginTop: 12, fontSize: 14 },
+  loadingText: { marginTop: 12, ...typeScale.subhead },
   listContent: {
     paddingBottom: 50,
     paddingTop: 12,
@@ -473,7 +442,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     gap: 12,
   },
-  emptyText: { fontSize: 14, textAlign: "center" },
+  emptyText: { ...typeScale.subhead, textAlign: "center" },
   weekGroup: { marginBottom: 12 },
   weekHeader: {
     borderRadius: 12,
@@ -484,20 +453,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   weekHeaderContent: { flex: 1 },
-  weekHeaderTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
-  weekSubText: { fontSize: 12 },
-  currentBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    marginRight: 10,
-  },
-  currentBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: 0.4,
-  },
+  weekHeaderTitle: { ...typeScale.subhead, fontWeight: "700", marginBottom: 2 },
+  weekSubText: { ...typeScale.caption },
+  currentBadgeSpacing: { marginRight: 10 },
   weekBody: {
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
@@ -509,11 +467,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 10,
     padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
   },
   tripCardHeader: {
     flexDirection: "row",
@@ -522,8 +475,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   tripCardHeaderLeft: { flex: 1 },
-  tripCardTitle: { fontSize: 17, fontWeight: "700", marginBottom: 2 },
-  tripCardDate: { fontSize: 13 },
+  tripCardTitle: { ...typeScale.body, fontWeight: "700", marginBottom: 2 },
+  tripCardDate: { ...typeScale.footnote },
   addressBlock: { marginBottom: 10 },
   addressLabel: {
     flexDirection: "row",
@@ -532,12 +485,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   addressLabelText: {
-    fontSize: 11,
+    ...typeScale.caption2,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  addressText: { fontSize: 13, marginLeft: 18 },
+  addressText: { ...typeScale.footnote, marginLeft: 18 },
   tripCardFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -545,5 +498,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 10,
   },
-  tripCardFooterText: { fontSize: 13, fontWeight: "600" },
+  tripCardFooterText: { ...typeScale.footnote, fontWeight: "600" },
 });

@@ -6,6 +6,12 @@ import * as FileSystem from "expo-file-system/legacy";
 export interface SupabaseStorageAdapterOptions {
   client: SupabaseClient;
   bucket: string;
+  /**
+   * Whether uploads may overwrite an existing object.
+   * Default true (driver docs reuse fixed paths).
+   * Damage-report photos are insert-only — pass false.
+   */
+  upsert?: boolean;
 }
 
 /**
@@ -18,13 +24,14 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async uploadFile(
     filename: string,
     data: ArrayBuffer,
-    options?: { mediaType?: string }
+    options?: { mediaType?: string; upsert?: boolean }
   ): Promise<void> {
     const { mediaType = "application/octet-stream" } = options ?? {};
+    const upsert = options?.upsert ?? this.options.upsert ?? true;
 
     const { error } = await this.options.client.storage
       .from(this.options.bucket)
-      .upload(filename, data, { contentType: mediaType, upsert: true });
+      .upload(filename, data, { contentType: mediaType, upsert });
 
     if (error) {
       throw error;

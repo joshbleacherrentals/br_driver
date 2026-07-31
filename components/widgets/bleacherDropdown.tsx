@@ -1,5 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useState } from 'react';
+import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { type ThemeColors, typeScale } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useCallback, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -10,7 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
 export interface BleacherOption {
   uuid: string;
@@ -32,18 +35,21 @@ export default function BleacherDropdown({
   options,
   selectedUuid,
   onChange,
-  placeholder = 'Select bleacher…',
+  placeholder = "Select bleacher…",
   disabled = false,
 }: BleacherDropdownProps) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   const selected = options.find((o) => o.uuid === selectedUuid);
 
   const filtered = query.trim()
-    ? options.filter((o) =>
-        String(o.bleacher_number).includes(query.trim()) ||
-        o.label?.toLowerCase().includes(query.toLowerCase())
+    ? options.filter(
+        (o) =>
+          String(o.bleacher_number).includes(query.trim()) ||
+          o.label?.toLowerCase().includes(query.toLowerCase()),
       )
     : options;
 
@@ -51,20 +57,22 @@ export default function BleacherDropdown({
     (uuid: string) => {
       onChange(uuid);
       setOpen(false);
-      setQuery('');
+      setQuery("");
     },
-    [onChange]
+    [onChange],
   );
+
+  const iconColor = disabled ? theme.textTertiary : theme.textPrimary;
+  const chevronColor = disabled ? theme.textTertiary : theme.textSecondary;
 
   return (
     <>
-      {/* Trigger */}
       <TouchableOpacity
         style={[styles.trigger, disabled && styles.triggerDisabled]}
         onPress={() => !disabled && setOpen(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="albums-outline" size={16} color={disabled ? '#C7C7CC' : '#1C1C1E'} />
+        <Ionicons name="albums-outline" size={16} color={iconColor} />
         <Text
           style={[
             styles.triggerText,
@@ -75,13 +83,12 @@ export default function BleacherDropdown({
           {selected ? `Bleacher #${selected.bleacher_number}` : placeholder}
         </Text>
         <Ionicons
-          name={open ? 'chevron-up' : 'chevron-down'}
+          name={open ? "chevron-up" : "chevron-down"}
           size={14}
-          color={disabled ? '#C7C7CC' : '#8E8E93'}
+          color={chevronColor}
         />
       </TouchableOpacity>
 
-      {/* Modal sheet */}
       <Modal
         visible={open}
         transparent
@@ -91,24 +98,25 @@ export default function BleacherDropdown({
         <TouchableOpacity
           style={styles.overlay}
           activeOpacity={1}
-          onPress={() => { setOpen(false); setQuery(''); }}
+          onPress={() => {
+            setOpen(false);
+            setQuery("");
+          }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.sheet}
         >
-          {/* Handle */}
           <View style={styles.handle} />
 
           <Text style={styles.sheetTitle}>Select Bleacher</Text>
 
-          {/* Search */}
           <View style={styles.searchRow}>
-            <Ionicons name="search" size={16} color="#8E8E93" />
+            <Ionicons name="search" size={16} color={theme.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search by number…"
-              placeholderTextColor="#C7C7CC"
+              placeholderTextColor={theme.textTertiary}
               value={query}
               onChangeText={setQuery}
               keyboardType="numeric"
@@ -117,12 +125,13 @@ export default function BleacherDropdown({
             />
           </View>
 
-          {/* List */}
           <FlatList
             data={filtered}
             keyExtractor={(item) => item.uuid}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={filtered.length === 0 && styles.emptyContainer}
+            contentContainerStyle={
+              filtered.length === 0 && styles.emptyContainer
+            }
             ListEmptyComponent={
               <Text style={styles.emptyText}>No bleachers found</Text>
             }
@@ -130,12 +139,20 @@ export default function BleacherDropdown({
               const isSelected = item.uuid === selectedUuid;
               return (
                 <TouchableOpacity
-                  style={[styles.listItem, isSelected && styles.listItemSelected]}
+                  style={[
+                    styles.listItem,
+                    isSelected && styles.listItemSelected,
+                  ]}
                   onPress={() => handleSelect(item.uuid)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.listItemLeft}>
-                    <Text style={[styles.listItemNumber, isSelected && styles.listItemNumberSelected]}>
+                    <Text
+                      style={[
+                        styles.listItemNumber,
+                        isSelected && styles.listItemNumberSelected,
+                      ]}
+                    >
                       #{item.bleacher_number}
                     </Text>
                     {!!item.label && (
@@ -143,7 +160,11 @@ export default function BleacherDropdown({
                     )}
                   </View>
                   {isSelected && (
-                    <Ionicons name="checkmark-circle" size={20} color="#0A84FF" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={theme.accent}
+                    />
                   )}
                 </TouchableOpacity>
               );
@@ -155,72 +176,89 @@ export default function BleacherDropdown({
   );
 }
 
-const styles = StyleSheet.create({
-  trigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  triggerDisabled: { opacity: 0.5 },
-  triggerText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
-  triggerPlaceholder: { color: '#8E8E93', fontWeight: '400' },
-  triggerTextDisabled: { color: '#C7C7CC' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    maxHeight: '65%',
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#D1D1D6',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-  emptyContainer: { flex: 1, alignItems: 'center', paddingTop: 32 },
-  emptyText: { fontSize: 14, color: '#8E8E93' },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
-  },
-  listItemSelected: { backgroundColor: '#F0F6FF', borderRadius: 8, paddingHorizontal: 8 },
-  listItemLeft: { gap: 2 },
-  listItemNumber: { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
-  listItemNumberSelected: { color: '#0A84FF' },
-  listItemLabel: { fontSize: 12, color: '#8E8E93' },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    trigger: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: theme.surfaceElevated,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    triggerDisabled: { opacity: 0.5 },
+    triggerText: {
+      flex: 1,
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    triggerPlaceholder: { color: theme.textSecondary, fontWeight: "400" },
+    triggerTextDisabled: { color: theme.textTertiary },
+    overlay: { flex: 1, backgroundColor: theme.overlay },
+    sheet: {
+      backgroundColor: theme.surface,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+      maxHeight: "65%",
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      backgroundColor: theme.textTertiary,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginTop: 10,
+      marginBottom: 12,
+    },
+    sheetTitle: {
+      ...typeScale.body,
+      fontWeight: "700",
+      color: theme.textPrimary,
+      marginBottom: 12,
+      textAlign: "center",
+    },
+    searchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: theme.surfaceElevated,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    searchInput: { flex: 1, ...typeScale.subhead, color: theme.textPrimary },
+    emptyContainer: { flex: 1, alignItems: "center", paddingTop: 32 },
+    emptyText: { ...typeScale.subhead, color: theme.textSecondary },
+    listItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.separator,
+    },
+    listItemSelected: {
+      backgroundColor: theme.accentSoft,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+    },
+    listItemLeft: { gap: 2 },
+    listItemNumber: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    listItemNumberSelected: { color: theme.accent },
+    listItemLabel: { ...typeScale.caption, color: theme.textSecondary },
+  });
+}

@@ -1,8 +1,9 @@
 import OAuthButton from "@/components/OAuthButton";
+import { typeScale } from "@/constants/theme";
 import { AppleSignInButton } from "@/components/SignInWithApple";
-import { getAuthStyles, PRIMARY, PRIMARY_LIGHT } from "@/constants/AuthStyles";
+import { getAuthStyles } from "@/constants/AuthStyles";
 import { useAuthError } from "@/hooks/useAuthError";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useSignIn } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -23,9 +24,8 @@ import {
 } from "react-native";
 
 function SignInScreen() {
-  const colorScheme = useColorScheme();
-  const styles = getAuthStyles(colorScheme);
-  const placeholderTextColor = colorScheme === "dark" ? "#94A3B8" : "#94A3B8";
+  const { theme, scheme } = useTheme();
+  const styles = getAuthStyles(scheme);
   const router = useRouter();
   // [useSignIn hook](/docs/hooks/use-sign-in) from Clerk SDK to handle sign-in logic
   const { signIn, isLoaded, setActive } = useSignIn();
@@ -96,7 +96,7 @@ function SignInScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email address"
-                placeholderTextColor={placeholderTextColor}
+                placeholderTextColor={theme.textTertiary}
                 value={emailAddress}
                 onChangeText={(text) => setEmailAddress(text)}
                 autoCapitalize="none"
@@ -110,7 +110,7 @@ function SignInScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your password"
-                placeholderTextColor={placeholderTextColor}
+                placeholderTextColor={theme.textTertiary}
                 value={password}
                 onChangeText={(text) => setPassword(text)}
                 secureTextEntry
@@ -141,9 +141,15 @@ function SignInScreen() {
               marginBottom: -12,
             }}
           >
-            <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
-            <Text style={{ marginHorizontal: 8, color: "#666" }}>or</Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: "#ccc" }} />
+            <View
+              style={{ flex: 1, height: 1, backgroundColor: theme.separator }}
+            />
+            <Text style={{ marginHorizontal: 8, color: theme.textSecondary }}>
+              or
+            </Text>
+            <View
+              style={{ flex: 1, height: 1, backgroundColor: theme.separator }}
+            />
           </View>
           {/* OAuthButton component to handle OAuth sign-in */}
           <View style={{ marginBottom: 24 }}>
@@ -164,7 +170,7 @@ function SignInScreen() {
         <View style={{ flex: 1 }}>
           <BlurView
             intensity={20}
-            tint={colorScheme === "dark" ? "dark" : "light"}
+            tint={scheme === "dark" ? "dark" : "light"}
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
           />
           <Pressable
@@ -177,10 +183,10 @@ function SignInScreen() {
                 maxWidth: 420,
                 borderRadius: 16,
                 padding: 20,
-                backgroundColor: colorScheme === "dark" ? "#0b1f35" : "#ffffff",
+                backgroundColor: theme.surface,
                 borderWidth: 1,
-                borderColor: colorScheme === "dark" ? "#1d3d5b" : "#E2E8F0",
-                shadowColor: PRIMARY_LIGHT,
+                borderColor: theme.border,
+                shadowColor: theme.accent,
                 shadowOpacity: 0.25,
                 shadowOffset: { width: 0, height: 10 },
                 shadowRadius: 20,
@@ -188,13 +194,13 @@ function SignInScreen() {
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                <Ionicons name="alert-circle" size={24} color={PRIMARY_LIGHT} />
+                <Ionicons name="alert-circle" size={24} color={theme.accent} />
                 <Text
                   style={{
                     marginLeft: 8,
-                    fontSize: 18,
+                    ...typeScale.title3,
                     fontWeight: "700",
-                    color: colorScheme === "dark" ? "#F1F5F9" : "#0F172A",
+                    color: theme.textPrimary,
                   }}
                 >
                   Sign in error
@@ -206,9 +212,9 @@ function SignInScreen() {
                   key={idx}
                   style={{
                     marginTop: idx === 0 ? 8 : 6,
-                    fontSize: 15,
+                    ...typeScale.subhead,
                     lineHeight: 21,
-                    color: colorScheme === "dark" ? "#CBD5E1" : "#334155",
+                    color: theme.textSecondary,
                   }}
                 >
                   • {m}
@@ -221,12 +227,12 @@ function SignInScreen() {
                   style={{
                     paddingHorizontal: 16,
                     paddingVertical: 10,
-                    backgroundColor: PRIMARY,
+                    backgroundColor: theme.accent,
                     borderRadius: 10,
                   }}
                   activeOpacity={0.85}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "600" }}>OK</Text>
+                  <Text style={{ color: theme.onAccent, fontWeight: "600" }}>OK</Text>
                 </TouchableOpacity>
               </View>
             </View>

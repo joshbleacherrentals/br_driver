@@ -20,6 +20,9 @@ export type DriverData = {
     license_photo_path: string | null;
     insurance_photo_path: string | null;
     medical_card_photo_path: string | null;
+    license_expires_on: string | null;
+    insurance_expires_on: string | null;
+    medical_card_expires_on: string | null;
     vehicle_uuid: string | null;
 };
 
@@ -74,6 +77,9 @@ export function useDriver(): { driver: DriverData | null } {
         "license_photo_path",
         "insurance_photo_path",
         "medical_card_photo_path",
+        "license_expires_on",
+        "insurance_expires_on",
+        "medical_card_expires_on",
         "vehicle_uuid"
     ])
     .where("user_uuid", "=", userId)

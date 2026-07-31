@@ -102,8 +102,6 @@ features/                     # Feature folders — each screen owns its code
 │       └── CompletedTripItem.tsx
 ├── auth/
 │   └── SignInScreen.tsx
-└── more/
-    └── MoreScreen.tsx
 
 components/                   # Shared across 2+ features
 ├── providers/
@@ -121,8 +119,7 @@ components/                   # Shared across 2+ features
 │   └── no-driver.tsx
 ├── OAuthButton.tsx
 ├── SignInWithApple.tsx
-├── SignOutButton.tsx
-└── SwipeAcceptBarV2.tsx
+└── SignOutButton.tsx
 
 hooks/
 ├── db/                       # Database hooks (one per domain entity)

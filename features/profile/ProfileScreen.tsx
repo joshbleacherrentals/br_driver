@@ -1,19 +1,24 @@
 import Card from "@/components/ui/Card";
+import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import {
-  BRAND_BLUE,
-  DARK_BLUE,
-  GREEN_ACCENT,
-  SCREEN_BG_DARK,
-  SCREEN_BG_LIGHT,
-} from "@/constants/Colors";
+  expiryStatusLabel,
+  getDocExpiryStatus,
+} from "@/utils/documentExpiry";
+import DevResetDbButton from "@/features/profile/components/DevResetDbButton";
+import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
+import {
+  isDocPathReady,
+  useDriverDocUploadStatuses,
+} from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import {
   useAccountManager,
   UserContactData,
 } from "@/hooks/db/useAccountManager";
 import { AddressData, useAddress } from "@/hooks/db/useAddress";
 import { useDriver, useVehicle } from "@/hooks/db/useDriver";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -32,18 +37,18 @@ import EditDriverInfo from "./components/EditDriverInfo";
 import EditProfileDocs from "./components/EditProfileDocs";
 import EditVehicleInfo from "./components/EditVehicleInfo";
 
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 export default function ProfileScreen() {
   const { user } = useUser();
   const { signOut } = useAuth();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const screenBg = isDark ? SCREEN_BG_DARK : SCREEN_BG_LIGHT;
-  const styles = makeStyles(isDark);
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showEditDriver, setShowEditDriver] = useState(false);
+  const [isRetryingDocs, setIsRetryingDocs] = useState(false);
 
   const { driver } = useDriver();
   const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
@@ -54,6 +59,40 @@ export default function ProfileScreen() {
   );
   const country = address?.street?.split(",").pop()?.trim();
   const isUSA = country === "USA";
+
+  const {
+    statuses: docStatuses,
+    hasPending: docsPending,
+    hasFailed: docsFailed,
+    retryFailed: retryDocs,
+  } = useDriverDocUploadStatuses([
+    driver?.license_photo_path,
+    driver?.insurance_photo_path,
+    driver?.medical_card_photo_path,
+  ]);
+
+  const handleRetryDocs = async () => {
+    setIsRetryingDocs(true);
+    try {
+      const { needRepick } = await retryDocs();
+      if (needRepick.length > 0) {
+        Alert.alert(
+          "Re-add required",
+          "The local file for some documents is gone. Open Edit Documents and choose the photo again.",
+        );
+      }
+    } finally {
+      setIsRetryingDocs(false);
+    }
+  };
+
+  const docStatusHint = (path: string | null | undefined) => {
+    if (!path) return null;
+    const status = docStatuses[path];
+    if (status === "pending") return "Uploading…";
+    if (status === "failed") return "Upload failed";
+    return null;
+  };
 
   const formatAddress = (address: AddressData | null) => {
     if (!address) return "Address not set";
@@ -98,17 +137,31 @@ export default function ProfileScreen() {
     return `${accountManager?.first_name} ${accountManager?.last_name}`;
   };
 
+  const licenseExpiryStatus = getDocExpiryStatus(driver?.license_expires_on);
+  const insuranceExpiryStatus = getDocExpiryStatus(
+    driver?.insurance_expires_on,
+  );
+  const medicalExpiryStatus = getDocExpiryStatus(
+    driver?.medical_card_expires_on,
+  );
+
+  const expiryHintStyle = (status: ReturnType<typeof getDocExpiryStatus>) => {
+    if (status === "expired" || status === "missing")
+      return styles.documentExpired;
+    if (status === "expiring_soon") return styles.documentExpiring;
+    return styles.documentExpiryOk;
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: screenBg }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
+      <DocExpiryWarningBanner />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
           <Image source={{ uri: user?.imageUrl }} style={styles.avatar} />
-          <Text
-            style={[styles.name, { color: isDark ? "#FFFFFF" : DARK_BLUE }]}
-          >
+          <Text style={[styles.name, { color: theme.header }]}>
             {user?.firstName} {user?.lastName}
           </Text>
           <Text style={styles.email}>
@@ -124,6 +177,9 @@ export default function ProfileScreen() {
             licensePath={driver?.license_photo_path ?? null}
             insurancePath={driver?.insurance_photo_path ?? null}
             medicalCardPath={driver?.medical_card_photo_path ?? null}
+            licenseExpiresOn={driver?.license_expires_on ?? null}
+            insuranceExpiresOn={driver?.insurance_expires_on ?? null}
+            medicalCardExpiresOn={driver?.medical_card_expires_on ?? null}
             onClose={() => setShowEditDocs(false)}
           />
         )}
@@ -159,7 +215,7 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.phone_number && driver?.address_uuid && (
                   <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
                   </View>
                 )}
                 <TouchableOpacity
@@ -221,7 +277,7 @@ export default function ProfileScreen() {
                   vehicle?.year &&
                   vehicle?.vin_number && (
                     <View style={styles.documentBadge}>
-                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
                     </View>
                   )}
                 <TouchableOpacity
@@ -264,9 +320,23 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.insurance_photo_path &&
                   driver?.license_photo_path &&
-                  ((isUSA && driver?.medical_card_photo_path) || !isUSA) && (
+                  driver?.license_expires_on &&
+                  driver?.insurance_expires_on &&
+                  licenseExpiryStatus === "ok" &&
+                  insuranceExpiryStatus === "ok" &&
+                  ((isUSA &&
+                    driver?.medical_card_photo_path &&
+                    driver?.medical_card_expires_on &&
+                    medicalExpiryStatus === "ok") ||
+                    !isUSA) &&
+                  isDocPathReady(docStatuses[driver.license_photo_path]) &&
+                  isDocPathReady(docStatuses[driver.insurance_photo_path]) &&
+                  (!isUSA ||
+                    isDocPathReady(
+                      docStatuses[driver.medical_card_photo_path!],
+                    )) && (
                     <View style={styles.documentBadge}>
-                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
                     </View>
                   )}
                 <TouchableOpacity
@@ -278,21 +348,41 @@ export default function ProfileScreen() {
               </View>
             </View>
 
+            <DocUploadStatusBanner
+              hasPending={docsPending}
+              hasFailed={docsFailed}
+              isRetrying={isRetryingDocs}
+              onRetry={handleRetryDocs}
+            />
+
             <View style={styles.documentRow}>
               <View style={styles.documentIconContainer}>
-                <Ionicons name="card" size={20} color={BRAND_BLUE} />
+                <Ionicons name="card" size={20} color={theme.accent} />
               </View>
               <View style={styles.documentContent}>
                 <Text style={styles.documentText}>Driver&apos;s License</Text>
                 {!driver?.license_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}
+                {docStatusHint(driver?.license_photo_path) && (
+                  <Text style={styles.documentPending}>
+                    {docStatusHint(driver?.license_photo_path)}
+                  </Text>
+                )}
+                <Text style={expiryHintStyle(licenseExpiryStatus)}>
+                  {expiryStatusLabel(
+                    licenseExpiryStatus,
+                    driver?.license_expires_on,
+                  )}
+                </Text>
               </View>
-              {driver?.license_photo_path && (
-                <View style={styles.documentBadge}>
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                </View>
-              )}
+              {driver?.license_photo_path &&
+                licenseExpiryStatus === "ok" &&
+                isDocPathReady(docStatuses[driver.license_photo_path]) && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                  </View>
+                )}
             </View>
 
             <View style={styles.documentRow}>
@@ -300,7 +390,7 @@ export default function ProfileScreen() {
                 <Ionicons
                   name="shield-checkmark"
                   size={20}
-                  color={BRAND_BLUE}
+                  color={theme.accent}
                 />
               </View>
               <View style={styles.documentContent}>
@@ -310,33 +400,64 @@ export default function ProfileScreen() {
                 {!driver?.insurance_photo_path && (
                   <Text style={styles.documentMissing}>Not uploaded</Text>
                 )}
+                {docStatusHint(driver?.insurance_photo_path) && (
+                  <Text style={styles.documentPending}>
+                    {docStatusHint(driver?.insurance_photo_path)}
+                  </Text>
+                )}
+                <Text style={expiryHintStyle(insuranceExpiryStatus)}>
+                  {expiryStatusLabel(
+                    insuranceExpiryStatus,
+                    driver?.insurance_expires_on,
+                  )}
+                </Text>
               </View>
-              {driver?.insurance_photo_path && (
-                <View style={styles.documentBadge}>
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                </View>
-              )}
+              {driver?.insurance_photo_path &&
+                insuranceExpiryStatus === "ok" &&
+                isDocPathReady(docStatuses[driver.insurance_photo_path]) && (
+                  <View style={styles.documentBadge}>
+                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                  </View>
+                )}
             </View>
             {isUSA && (
               <View style={styles.documentRow}>
                 <View style={styles.documentIconContainer}>
-                  <Ionicons name="medical" size={20} color={BRAND_BLUE} />
+                  <Ionicons name="medical" size={20} color={theme.accent} />
                 </View>
                 <View style={styles.documentContent}>
                   <Text style={styles.documentText}>Medical Card</Text>
                   {!driver?.medical_card_photo_path && (
                     <Text style={styles.documentMissing}>Not uploaded</Text>
                   )}
+                  {docStatusHint(driver?.medical_card_photo_path) && (
+                    <Text style={styles.documentPending}>
+                      {docStatusHint(driver?.medical_card_photo_path)}
+                    </Text>
+                  )}
+                  <Text style={expiryHintStyle(medicalExpiryStatus)}>
+                    {expiryStatusLabel(
+                      medicalExpiryStatus,
+                      driver?.medical_card_expires_on,
+                    )}
+                  </Text>
                 </View>
-                {driver?.medical_card_photo_path && (
-                  <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </View>
-                )}
+                {driver?.medical_card_photo_path &&
+                  medicalExpiryStatus === "ok" &&
+                  isDocPathReady(
+                    docStatuses[driver.medical_card_photo_path],
+                  ) && (
+                    <View style={styles.documentBadge}>
+                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                    </View>
+                  )}
               </View>
             )}
           </Card>
         )}
+
+        {/* DEV-only: reset local DB to reproduce a fresh first-sync */}
+        {__DEV__ && <DevResetDbButton />}
 
         {/* Logout Button */}
         <TouchableOpacity
@@ -346,7 +467,7 @@ export default function ProfileScreen() {
         >
           <LogOut
             size={16}
-            color={isDark ? "#8E8E93" : DARK_BLUE}
+            color={theme.accent}
             strokeWidth={2}
           />
           <Text style={styles.logoutButtonText}>Log Out</Text>
@@ -356,9 +477,7 @@ export default function ProfileScreen() {
   );
 }
 
-function makeStyles(isDark: boolean) {
-  const text = isDark ? "#FFFFFF" : "#000000";
-  const border = isDark ? "rgba(255,255,255,0.08)" : "#F2F2F7";
+function makeStyles(theme: ThemeColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -381,16 +500,16 @@ function makeStyles(isDark: boolean) {
       borderRadius: 60,
       marginBottom: 16,
       borderWidth: 4,
-      borderColor: "#F2F2F7",
+      borderColor: theme.separator,
     },
     name: {
-      fontSize: 24,
+      ...typeScale.title2,
       fontWeight: "700",
       marginBottom: 4,
     },
     email: {
-      fontSize: 15,
-      color: "#8E8E93",
+      ...typeScale.subhead,
+      color: theme.textSecondary,
     },
     sectionSpacing: {
       marginBottom: 16,
@@ -407,21 +526,21 @@ function makeStyles(isDark: boolean) {
       gap: 8,
     },
     sectionTitle: {
-      fontSize: 18,
+      ...typeScale.title3,
       fontWeight: "700",
-      color: text,
+      color: theme.textPrimary,
       letterSpacing: 0.3,
     },
     editButton: {
       paddingHorizontal: 12,
       paddingVertical: 6,
-      backgroundColor: BRAND_BLUE,
+      backgroundColor: theme.accent,
       borderRadius: 6,
     },
     editButtonText: {
-      fontSize: 14,
+      ...typeScale.subhead,
       fontWeight: "600",
-      color: "#FFFFFF",
+      color: theme.onAccent,
     },
     infoRow: {
       flexDirection: "row",
@@ -429,40 +548,29 @@ function makeStyles(isDark: boolean) {
       alignItems: "center",
       paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: border,
+      borderBottomColor: theme.separator,
     },
     infoLabel: {
-      fontSize: 15,
-      color: "#8E8E93",
-      fontWeight: "500",
+      ...typeScale.subhead,
+      color: theme.textSecondary,
+      fontWeight: "400",
     },
     infoValue: {
-      fontSize: 13,
-      color: text,
+      ...typeScale.footnote,
+      color: theme.textPrimary,
       fontWeight: "600",
     },
     infoViewOnlyValue: {
-      fontSize: 13,
-      color: "#8E8E93",
+      ...typeScale.footnote,
+      color: theme.textSecondary,
       fontWeight: "600",
-    },
-    statusBadge: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 6,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: "#FFFFFF",
-      letterSpacing: 0.5,
     },
     documentRow: {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 8,
       borderBottomWidth: 1,
-      borderBottomColor: border,
+      borderBottomColor: theme.separator,
     },
     documentIconContainer: {
       width: 20,
@@ -475,21 +583,45 @@ function makeStyles(isDark: boolean) {
       flex: 1,
     },
     documentText: {
-      fontSize: 15,
-      color: text,
-      fontWeight: "500",
+      ...typeScale.subhead,
+      color: theme.textPrimary,
+      fontWeight: "400",
     },
     documentMissing: {
-      fontSize: 13,
-      color: "#FF3B30",
-      fontWeight: "500",
+      ...typeScale.footnote,
+      color: theme.danger,
+      fontWeight: "400",
+      marginTop: 2,
+    },
+    documentPending: {
+      ...typeScale.footnote,
+      color: theme.warning,
+      fontWeight: "400",
+      marginTop: 2,
+    },
+    documentExpired: {
+      ...typeScale.footnote,
+      color: theme.danger,
+      fontWeight: "400",
+      marginTop: 2,
+    },
+    documentExpiring: {
+      ...typeScale.footnote,
+      color: theme.warning,
+      fontWeight: "400",
+      marginTop: 2,
+    },
+    documentExpiryOk: {
+      ...typeScale.footnote,
+      color: theme.textTertiary,
+      fontWeight: "400",
       marginTop: 2,
     },
     documentBadge: {
       width: 24,
       height: 24,
       borderRadius: 12,
-      backgroundColor: GREEN_ACCENT,
+      backgroundColor: theme.secondaryAccent,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -503,9 +635,9 @@ function makeStyles(isDark: boolean) {
       marginBottom: 36,
     },
     logoutButtonText: {
-      color: isDark ? "#8E8E93" : DARK_BLUE,
-      fontWeight: "500",
-      fontSize: 16,
+      color: theme.textSecondary,
+      fontWeight: "400",
+      ...typeScale.callout,
     },
   });
 }

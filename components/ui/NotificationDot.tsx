@@ -1,3 +1,5 @@
+import { ThemeColors, typeScale } from "@/constants/theme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -18,6 +20,8 @@ export default function NotificationDot({
   top = -5,
   right = -5,
 }: NotificationDotProps) {
+  const styles = useThemedStyles(makeStyles);
+
   if (!count || count <= 0) return null;
 
   const label = count > 99 ? "99+" : String(count);
@@ -29,20 +33,21 @@ export default function NotificationDot({
   );
 }
 
-const styles = StyleSheet.create({
-  dot: {
-    position: "absolute",
-    backgroundColor: "#FF3B30",
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  text: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-});
+const makeStyles = (theme: ThemeColors) =>
+  StyleSheet.create({
+    dot: {
+      position: "absolute",
+      borderRadius: 9,
+      minWidth: 18,
+      height: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 4,
+      backgroundColor: theme.danger,
+    },
+    text: {
+      ...typeScale.caption2,
+      fontWeight: "700",
+      color: theme.onAccent,
+    },
+  });

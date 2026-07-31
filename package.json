@@ -1,7 +1,7 @@
 {
   "name": "br_driver",
   "main": "expo-router/entry",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "engines": {
     "node": ">=20.19.4"
   },
@@ -33,6 +33,7 @@
     "@powersync/op-sqlite": "^0.8.0",
     "@powersync/react": "^1.8.2",
     "@powersync/react-native": "^1.29.0",
+    "@react-native-community/datetimepicker": "8.6.0",
     "@react-navigation/bottom-tabs": "^7.18.0",
     "@react-navigation/drawer": "^7.9.4",
     "@react-navigation/elements": "^2.9.23",
