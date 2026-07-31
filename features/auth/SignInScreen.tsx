@@ -1,7 +1,7 @@
 import OAuthButton from "@/components/OAuthButton";
-import { typeScale } from "@/constants/theme";
 import { AppleSignInButton } from "@/components/SignInWithApple";
 import { getAuthStyles } from "@/constants/AuthStyles";
+import { typeScale } from "@/constants/theme";
 import { useAuthError } from "@/hooks/useAuthError";
 import { useTheme } from "@/hooks/useTheme";
 import { useSignIn } from "@clerk/clerk-expo";
@@ -51,7 +51,11 @@ function SignInScreen() {
         router.replace("/(tabs)/index");
       } else {
         console.error("Sign-in not complete", signInAttempt);
-        showError(new Error("Unable to sign in. Please check your credentials and try again."));
+        showError(
+          new Error(
+            "Unable to sign in. Please check your credentials and try again.",
+          ),
+        );
       }
     } catch (err: any) {
       // Avoid JSON.stringify on complex objects; log raw and show a friendly modal
@@ -79,14 +83,19 @@ function SignInScreen() {
           <View style={styles.headerContainer}>
             <Image
               source={require("@/assets/images/NEW-Bleacher-Rentals-logo.png")}
-              style={{ width: 200, height: 60, marginBottom: 16, marginTop: 28 }}
+              style={{
+                width: 200,
+                height: 60,
+                marginBottom: 16,
+                marginTop: 28,
+              }}
               contentFit="contain"
               accessibilityLabel="Bleacher Rentals"
             />
             <Text style={styles.title}>Welcome to Bleacher Rentals Driver</Text>
             <Text style={styles.subtitle}>
-              Please sign in using the email address that your Account Manager used to create your
-              account.
+              Please sign in using the email address that your Account Manager
+              used to create your account.
             </Text>
           </View>
 
@@ -124,6 +133,7 @@ function SignInScreen() {
             <TouchableOpacity
               style={styles.button}
               onPress={() => {
+                console.log("Sign In button pressedgashdfg");
                 Keyboard.dismiss();
                 void onSignInPress();
               }}
@@ -166,12 +176,23 @@ function SignInScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       {/* Error Modal */}
-      <Modal visible={errorVisible} transparent animationType="fade" onRequestClose={hideError}>
+      <Modal
+        visible={errorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={hideError}
+      >
         <View style={{ flex: 1 }}>
           <BlurView
             intensity={20}
             tint={scheme === "dark" ? "dark" : "light"}
-            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
           />
           <Pressable
             onPress={hideError}
@@ -193,7 +214,13 @@ function SignInScreen() {
                 elevation: 10,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
                 <Ionicons name="alert-circle" size={24} color={theme.accent} />
                 <Text
                   style={{
@@ -221,7 +248,13 @@ function SignInScreen() {
                 </Text>
               ))}
 
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  marginTop: 16,
+                }}
+              >
                 <TouchableOpacity
                   onPress={hideError}
                   style={{
@@ -232,7 +265,9 @@ function SignInScreen() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <Text style={{ color: theme.onAccent, fontWeight: "600" }}>OK</Text>
+                  <Text style={{ color: theme.onAccent, fontWeight: "600" }}>
+                    OK
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
