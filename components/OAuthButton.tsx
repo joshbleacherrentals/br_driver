@@ -34,7 +34,7 @@ export default function OAuthButton({ strategy, children, onError }: Props) {
   const onPress = useCallback(async () => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: "brdriver",
+        // scheme: "brdriver",
         path: "oauth-native-callback",
       });
 
@@ -59,7 +59,11 @@ export default function OAuthButton({ strategy, children, onError }: Props) {
   }, [startSSOFlow, strategy, onError]);
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.button} activeOpacity={0.85}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.button}
+      activeOpacity={0.85}
+    >
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <AntDesign name="google" size={18} color={styles.buttonText.color} />
         <Text style={[styles.buttonText, { marginLeft: 8 }]}>{children}</Text>
