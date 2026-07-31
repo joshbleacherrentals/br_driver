@@ -1,14 +1,17 @@
-import { DARK_BLUE } from "@/constants/Colors";
+import ThemeToggle from "@/features/side-navigation/components/ThemeToggle";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import UpdateCard from "@/features/side-navigation/components/UpdateCard";
 import UserProfileCard from "@/features/side-navigation/components/UserProfileCard";
 import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface MenuItem {
   label: string;
@@ -45,8 +48,9 @@ interface SideNavigationProps {
 
 export default function SideNavigation({ drawerNavigation }: SideNavigationProps) {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
   const version = Constants.expoConfig?.version ?? "—";
   const { updateReady, restart } = useOTAUpdateContext();
 
@@ -59,62 +63,83 @@ export default function SideNavigation({ drawerNavigation }: SideNavigationProps
   );
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7" },
-      ]}
-    >
+    <View style={styles.container}>
       <UserProfileCard />
-      <View style={styles.list}>
-        {MENU_ITEMS.map((item) => (
-          <TouchableOpacity
-            key={item.route}
-            style={styles.menuItem}
-            onPress={() => handleNav(item.route)}
-            activeOpacity={0.6}
-          >
-            <Ionicons
-              name={item.icon as any}
-              size={22}
-              color={isDark ? "#EBEBF5" : DARK_BLUE}
-            />
-            <Text
-              style={[
-                styles.menuItemLabel,
-                { color: isDark ? "#FFFFFF" : "#1C1C1E" },
-              ]}
+      <View style={styles.content}>
+        <View style={styles.list}>
+          {MENU_ITEMS.map((item) => (
+            <TouchableOpacity
+              key={item.route}
+              style={styles.menuItem}
+              onPress={() => handleNav(item.route)}
+              activeOpacity={0.6}
             >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Ionicons
+                name={item.icon as any}
+                size={22}
+                color={theme.accent}
+              />
+              <Text style={styles.menuItemLabel}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 20) },
+          ]}
+        >
+          {updateReady && <UpdateCard onRestart={restart} />}
+          <View style={styles.appearance}>
+            <Text style={styles.appearanceLabel}>Appearance</Text>
+            <ThemeToggle />
+          </View>
+          <Text style={styles.versionText}>Version {version}</Text>
+        </View>
       </View>
-      {updateReady && <UpdateCard onRestart={restart} />}
-      <Text
-        style={[styles.versionText, { color: isDark ? "#636366" : "#8E8E93" }]}
-      >
-        Version {version}
-      </Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  list: { paddingHorizontal: 20, paddingTop: 8 },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(120,120,128,0.2)",
-  },
-  menuItemLabel: { fontSize: 16 },
-  versionText: {
-    textAlign: "center",
-    fontSize: 12,
-    paddingVertical: 24,
-  },
-});
+const makeStyles = (theme: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    content: { flex: 1 },
+    list: { paddingHorizontal: 20, paddingTop: 8 },
+    menuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.separator,
+    },
+    menuItemLabel: { ...typeScale.callout, color: theme.textPrimary },
+    footer: {
+      marginTop: "auto",
+      alignItems: "center",
+      gap: 20,
+      paddingTop: 24,
+      paddingHorizontal: 20,
+      width: "100%",
+    },
+    appearance: {
+      alignItems: "center",
+      gap: 10,
+      width: "100%",
+    },
+    appearanceLabel: {
+      ...typeScale.caption2,
+      fontWeight: "600",
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      textAlign: "center",
+      color: theme.textTertiary,
+    },
+    versionText: {
+      textAlign: "center",
+      ...typeScale.caption,
+      color: theme.textTertiary,
+    },
+  });

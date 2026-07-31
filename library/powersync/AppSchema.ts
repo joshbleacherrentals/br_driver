@@ -52,10 +52,16 @@ const AccountManagers = new Table(AccountManagerCols, {
 const DriversCols = {
   account_manager_uuid: column.text,
   address_uuid: column.text,
+  app_platform: column.text,
+  app_version: column.text,
+  app_version_reported_at: column.text,
   created_at: column.text,
+  insurance_expires_on: column.text,
   insurance_photo_path: column.text,
   is_active: column.integer,
+  license_expires_on: column.text,
   license_photo_path: column.text,
+  medical_card_expires_on: column.text,
   medical_card_photo_path: column.text,
   pay_currency: column.text,
   pay_per_unit: column.text,
@@ -116,6 +122,8 @@ const BleacherCols = {
   trailer_height_in: column.integer,
   nvis_pdf_path: column.text,
   zone_uuid: column.text,
+  bleacher_type_uuid: column.text,
+  storage_location_uuid: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 
@@ -156,6 +164,7 @@ const DamageReportsCols = {
   resolved_at: column.text,
   maintenance_event_uuid: column.text,
   created_by_user_uuid: column.text,
+  deleted: column.integer,
 } satisfies PowerSyncColsFor<"DamageReports">;
 const DamageReports = new Table(DamageReportsCols, {
   indexes: { bleacher_uuid: ["bleacher_uuid"] },
@@ -248,6 +257,21 @@ const BlueBookCols = {
 } satisfies PowerSyncColsFor<"BlueBook">;
 const BlueBook = new Table(BlueBookCols, { indexes: { id: ["id"] } });
 
+// App store version gate policy (one row per environment)
+const AppVersionPolicyCols = {
+  environment: column.text,
+  recommended_version: column.text,
+  required_version: column.text,
+  soft_deadline: column.text,
+  ios_store_url: column.text,
+  android_store_url: column.text,
+  message: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"AppVersionPolicy">;
+const AppVersionPolicy = new Table(AppVersionPolicyCols, {
+  indexes: { environment: ["environment"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -263,6 +287,7 @@ export const AppSchema = new Schema({
   WorkTrackers,
   Vehicles,
   BlueBook,
+  AppVersionPolicy,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),

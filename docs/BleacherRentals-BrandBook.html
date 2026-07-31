@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bleacher Rentals · Brand Book</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    --page-bg: #f6f7f9;
+    --page-fg: #1c1c1e;
+    --page-muted: #6b7280;
+    --page-card: #ffffff;
+    --page-border: rgba(60,60,67,0.12);
+    --brand: #405DAA;
+    --brand-deep: #10365a;
+    --shadow: 0 1px 2px rgba(16,54,90,.06), 0 8px 24px rgba(16,54,90,.06);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #0b0e12;
+      --page-fg: #f2f3f5;
+      --page-muted: #8a919c;
+      --page-card: #14181e;
+      --page-border: rgba(255,255,255,0.09);
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --page-bg:#f6f7f9;--page-fg:#1c1c1e;--page-muted:#6b7280;--page-card:#fff;
+    --page-border:rgba(60,60,67,0.12);--shadow:0 1px 2px rgba(16,54,90,.06),0 8px 24px rgba(16,54,90,.06);
+  }
+  :root[data-theme="dark"] {
+    --page-bg:#0b0e12;--page-fg:#f2f3f5;--page-muted:#8a919c;--page-card:#14181e;
+    --page-border:rgba(255,255,255,0.09);--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; }
+  .wrap {
+    font-family: var(--font);
+    background: var(--page-bg);
+    color: var(--page-fg);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding: clamp(20px,5vw,64px) clamp(16px,5vw,48px) 96px;
+    transition: background .3s, color .3s;
+  }
+  .container { max-width: 1340px; margin: 0 auto; }
+
+  header.masthead { margin-bottom: 40px; display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
+  .eyebrow { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--brand); font-weight:700; }
+  h1 { font-size: clamp(28px,5vw,42px); font-weight:800; letter-spacing:-.02em; margin:.35em 0 .2em; text-wrap:balance; }
+  .lede { color:var(--page-muted); font-size:16px; max-width:56ch; line-height:1.5; margin:0; }
+
+  /* Theme toggle button (animated) */
+  .toggle {
+    border:1px solid var(--page-border); background:var(--page-card); color:var(--page-fg);
+    border-radius:999px; padding:8px 14px; display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; box-shadow:var(--shadow);
+  }
+  .toggle .knob { width:22px; height:22px; border-radius:50%; position:relative; display:grid; place-items:center; }
+  .toggle svg { width:16px; height:16px; transition:transform .4s cubic-bezier(.34,1.56,.64,1), opacity .3s; }
+
+  h2.section { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--page-muted); font-weight:700; margin:56px 0 18px; }
+
+  /* Palette cards */
+  .palettes { display:flex; flex-direction:column; gap:28px; }
+  .pcard { background:var(--page-card); border:1px solid var(--page-border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; display:grid; grid-template-columns:1fr; }
+  @media (min-width:900px){ .pcard{ grid-template-columns:minmax(0,1fr) minmax(380px,44%); } }
+  .pcard-info { display:flex; flex-direction:column; }
+  .pcard-tokens { padding:0 22px 20px; margin-top:auto; }
+  .pcard-head { padding:22px 22px 14px; }
+  .pcard-name { font-size:23px; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+  .tag { font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#fff; background:var(--brand); padding:3px 7px; border-radius:6px; }
+  .pcard-desc { color:var(--page-muted); font-size:14.5px; line-height:1.5; margin-top:8px; max-width:60ch; }
+
+  .swatches { display:flex; flex-wrap:wrap; gap:8px; padding:0 22px 16px; }
+  .sw { flex:1 1 60px; min-width:56px; border-radius:10px; height:52px; border:1px solid var(--page-border); position:relative; overflow:hidden; }
+  .sw span { position:absolute; left:6px; bottom:5px; font-size:9px; font-weight:700; }
+
+  /* Mini device previews */
+  .previews { display:flex; gap:18px; padding:22px; align-items:flex-start; justify-content:center; border-top:1px solid var(--page-border); background:rgba(120,120,128,.045); }
+  @media (min-width:900px){ .previews{ border-top:none; border-left:1px solid var(--page-border); } }
+  .phone { flex:1 1 200px; max-width:270px; border-radius:20px; overflow:hidden; border:1px solid var(--page-border); box-shadow:0 6px 18px rgba(0,0,0,.12); }
+  .phone-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; text-align:center; padding:6px 0 0; color:var(--page-muted); }
+
+  /* the screen inside phone uses its OWN palette vars */
+  .screen { padding:14px 12px 16px; font-size:12px; }
+  .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .nav .title { font-weight:800; font-size:14px; letter-spacing:-.01em; }
+  .nav .avatar { width:22px; height:22px; border-radius:50%; }
+  .group-label { font-size:9px; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin:0 4px 6px; }
+  .list { border-radius:12px; overflow:hidden; }
+  .row { display:flex; align-items:center; gap:8px; padding:9px 10px; }
+  .row + .row { border-top:1px solid var(--sep); }
+  .dot { width:20px; height:20px; border-radius:6px; display:grid; place-items:center; flex:none; }
+  .dot svg{ width:12px; height:12px; }
+  .row .rl { flex:1; }
+  .row .rl b { display:block; font-weight:600; font-size:11px; }
+  .row .rl small { font-size:9px; }
+  .pill { font-size:8px; font-weight:800; padding:2px 6px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .btn { margin-top:12px; text-align:center; padding:9px; border-radius:11px; font-weight:700; font-size:11px; }
+
+  .tokens { margin-top:12px; border:1px solid var(--page-border); border-radius:var(--radius); overflow:hidden; }
+  .tokens table { width:100%; border-collapse:collapse; font-size:12px; }
+  .tokens th, .tokens td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--page-border); }
+  .tokens th { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--page-muted); }
+  .tokens td:first-child { font-family:ui-monospace,monospace; font-size:11px; color:var(--brand); white-space:nowrap; }
+  .chip { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:6px; border:1px solid var(--page-border); }
+
+  .principles { display:grid; grid-template-columns:1fr; gap:14px; }
+  @media(min-width:720px){ .principles{ grid-template-columns:1fr 1fr; } }
+  @media(min-width:1040px){ .principles{ grid-template-columns:repeat(4,1fr); } }
+  .principle { background:var(--page-card); border:1px solid var(--page-border); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow); }
+  .principle h3 { margin:0 0 5px; font-size:14px; font-weight:700; }
+  .principle p { margin:0; color:var(--page-muted); font-size:13px; line-height:1.5; }
+  .principle .demo { margin-top:12px; }
+  .radii { display:flex; gap:8px; align-items:flex-end; }
+  .radii div { background:var(--brand); opacity:.9; }
+  /* Typography */
+  .typo-intro { display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:22px; }
+  @media(min-width:720px){ .typo-intro{ grid-template-columns:1fr 1fr; } }
+  .type-table { border:1px solid var(--page-border); border-radius:var(--radius); overflow:auto; box-shadow:var(--shadow); background:var(--page-card); }
+  .type-table table { width:100%; border-collapse:collapse; min-width:640px; }
+  .type-table th, .type-table td { text-align:left; padding:14px 18px; border-bottom:1px solid var(--page-border); vertical-align:middle; }
+  .type-table tr:last-child td { border-bottom:none; }
+  .type-table th { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--page-muted); font-weight:700; }
+  .type-table .spec { font-size:12px; color:var(--page-muted); font-family:ui-monospace,monospace; white-space:nowrap; }
+  .type-table .use { font-size:12px; color:var(--page-muted); }
+  .specimen { color:var(--page-fg); letter-spacing:-.01em; }
+  .stack { background:var(--page-card); border:1px solid var(--page-border); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow); }
+  .stack h3 { margin:0 0 8px; font-size:14px; }
+  .stack code { font-family:ui-monospace,monospace; font-size:12px; background:rgba(120,120,128,.14); padding:2px 6px; border-radius:5px; }
+  .stack p { margin:0 0 6px; color:var(--page-muted); font-size:13px; line-height:1.5; }
+  .rules { list-style:none; margin:0; padding:0; }
+  .rules li { position:relative; padding:6px 0 6px 20px; color:var(--page-muted); font-size:13px; line-height:1.5; border-top:1px solid var(--page-border); }
+  .rules li:first-child { border-top:none; }
+  .rules li::before { content:"·"; position:absolute; left:6px; top:5px; color:var(--brand); font-weight:800; }
+  .rules b { color:var(--page-fg); font-weight:600; }
+  footer { margin-top:56px; color:var(--page-muted); font-size:12px; text-align:center; }
+</style>
+
+<div class="wrap">
+<div class="container">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Bleacher Rentals · Driver App</div>
+      <h1>Design System &amp; Brand Book</h1>
+      <p class="lede">Apple-style minimalism built around brand blue (<code>#405DAA</code>) and green (<code>#328C61</code>) accents. Every token, list, modal and control derives from the Slate palette, in both light and dark.</p>
+    </div>
+    <button class="toggle" id="tt" aria-label="Toggle theme">
+      <span class="knob"><svg id="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg></span>
+      <span id="tlabel">Light</span>
+    </button>
+  </header>
+
+  <h2 class="section">Palette · Slate</h2>
+  <div class="palettes" id="palettes"></div>
+
+  <h2 class="section">Foundations · shared across every palette</h2>
+  <div class="principles">
+    <div class="principle">
+      <h3>Grouped inset lists</h3>
+      <p>Rows grouped into rounded cards floating on the grouped background, separated by hairline dividers that inset from the leading edge — never full-bleed lines.</p>
+    </div>
+    <div class="principle">
+      <h3>Soft elevation, not borders</h3>
+      <p>Surfaces lift with a faint two-layer shadow tinted toward the brand navy, not hard 1px outlines. In dark mode, elevation reads as a lighter surface.</p>
+    </div>
+    <div class="principle">
+      <h3>Corner radius scale</h3>
+      <p>Controls 12 · cards 16 · sheets 22. Consistent, never mixed at random.</p>
+      <div class="demo radii">
+        <div style="width:44px;height:32px;border-radius:12px"></div>
+        <div style="width:56px;height:40px;border-radius:16px"></div>
+        <div style="width:68px;height:48px;border-radius:22px"></div>
+      </div>
+    </div>
+    <div class="principle">
+      <h3>SF typography &amp; restrained accent</h3>
+      <p>System font (SF Pro). Weight and size carry hierarchy. <b>Primary accent</b> (<code>accent</code> · <code>#405DAA</code>) — active states, links, main actions. <b>Secondary accent</b> (<code>secondaryAccent</code> · <code>#328C61</code>) — positive highlights, badges, success-adjacent UI. Use both sparingly — never as filler.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Typography · типографіка</h2>
+  <div class="typo-intro">
+    <div class="stack">
+      <h3>Primary typeface — SF Pro <span style="font-weight:400;color:var(--page-muted)">(system)</span></h3>
+      <p>The app uses the native system font via <code>-apple-system</code> / San Francisco on iOS and <code>Roboto</code> on Android. No custom font files — this guarantees perfect legibility, Dynamic Type support, and zero bundle cost. Hierarchy comes from <b>weight and size</b>, not from switching families.</p>
+      <p style="font-size:22px;color:var(--page-fg);letter-spacing:-.01em">Aa Bb Cc · 1234567890</p>
+    </div>
+    <div class="stack">
+      <h3>Setting rules</h3>
+      <ul class="rules">
+        <li><b>Three weights only:</b> Regular 400 · Semibold 600 · Bold 700. Avoid Medium/Heavy to keep the scale clean.</li>
+        <li><b>Tracking:</b> tight <code>-0.01em</code> on titles ≥20pt; <code>+0.08em</code> uppercase on eyebrows &amp; group labels.</li>
+        <li><b>Numbers:</b> <code>tabular-nums</code> for times, dates, counts &amp; anything in columns so digits align.</li>
+        <li><b>Line-height:</b> ~1.3 for body, ~1.1 for large titles. Body measure ≤ ~40 chars on mobile.</li>
+        <li><b>Color:</b> <code>textPrimary</code> for content, <code>textSecondary</code> for meta — never pure grey guesses.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="type-table">
+    <table>
+      <tr><th>Style</th><th>Specimen</th><th>Size / Line / Weight</th><th>Use</th></tr>
+      <tr><td class="spec">largeTitle</td><td><span class="specimen" style="font-size:34px;font-weight:700;line-height:1.1">Trips</span></td><td class="spec">34 / 41 / 700</td><td class="use">Screen title (large nav)</td></tr>
+      <tr><td class="spec">title1</td><td><span class="specimen" style="font-size:28px;font-weight:700">Lincoln High</span></td><td class="spec">28 / 34 / 700</td><td class="use">Section hero</td></tr>
+      <tr><td class="spec">title2</td><td><span class="specimen" style="font-size:22px;font-weight:700">Inspection</span></td><td class="spec">22 / 28 / 700</td><td class="use">Modal / card title</td></tr>
+      <tr><td class="spec">title3</td><td><span class="specimen" style="font-size:20px;font-weight:600">Vehicle info</span></td><td class="spec">20 / 25 / 600</td><td class="use">Sub-section header</td></tr>
+      <tr><td class="spec">headline</td><td><span class="specimen" style="font-size:17px;font-weight:600">Accept Trip</span></td><td class="spec">17 / 22 / 600</td><td class="use">Row title, primary button</td></tr>
+      <tr><td class="spec">body</td><td><span class="specimen" style="font-size:17px;font-weight:400">Delivery at 7:30 AM</span></td><td class="spec">17 / 22 / 400</td><td class="use">Default reading text</td></tr>
+      <tr><td class="spec">callout</td><td><span class="specimen" style="font-size:16px;font-weight:400">Bleacher 12-row</span></td><td class="spec">16 / 21 / 400</td><td class="use">Secondary content</td></tr>
+      <tr><td class="spec">subhead</td><td><span class="specimen" style="font-size:15px;font-weight:400">Riverside Park</span></td><td class="spec">15 / 20 / 400</td><td class="use">Row subtitle</td></tr>
+      <tr><td class="spec">footnote</td><td><span class="specimen" style="font-size:13px;font-weight:400">7:30 AM · Delivery</span></td><td class="spec">13 / 18 / 400</td><td class="use">Meta, timestamps</td></tr>
+      <tr><td class="spec">caption</td><td><span class="specimen" style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">Today</span></td><td class="spec">12 / 16 / 600</td><td class="use">Group labels, eyebrows</td></tr>
+      <tr><td class="spec">caption2</td><td><span class="specimen" style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">Active</span></td><td class="spec">11 / 13 / 700</td><td class="use">Pills, badges, version</td></tr>
+    </table>
+  </div>
+
+  <footer>Bleacher Rentals Driver App · design system draft · switch this document’s theme with the toggle top-right.</footer>
+</div>
+</div>
+
+<script>
+const PALETTES = [
+  {
+    key:"slate", name:"Slate", tag:"Refined",
+    desc:"Neutrals warmed toward the brand navy; dark grounds are deep slate, not pure black. Brand blue (#405DAA) is the primary accent; brand green (#328C61) for secondary highlights, success states, and positive CTAs. Considered, cohesive, premium.",
+    accent:"#405DAA", accentName:"Brand Blue",
+    secondaryAccent:"#328C61", secondaryAccentName:"Secondary",
+    light:{ bg:"#EEF1F5", card:"#FFFFFF", sep:"rgba(16,54,90,.12)", fg:"#12202E", muted:"#5E6B7A", accent:"#405DAA", secondaryAccent:"#328C61", header:"#10365A" },
+    dark:{ bg:"#0B0F14", card:"#161C24", sep:"rgba(255,255,255,.08)", fg:"#EDF1F6", muted:"#8A97A6", accent:"#405DAA", secondaryAccent:"#328C61", header:"#405DAA" },
+    tokens:[["accent","#405DAA","#405DAA"],["secondaryAccent","#328C61","#328C61"],["background","#EEF1F5","#0B0F14"],["surface","#FFFFFF","#161C24"],["textPrimary","#12202E","#EDF1F6"],["separator","103A5A·12%","white·8%"]]
+  }
+];
+
+const ic = {
+  clock:'<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>',
+  cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  warn:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'
+};
+function svg(p){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
+
+function screen(t){
+  return `<div class="screen" style="background:${t.bg};color:${t.fg};--sep:${t.sep}">
+    <div class="nav"><span class="title" style="color:${t.header}">Trips</span><span class="avatar" style="background:${t.accent}"></span></div>
+    <div class="group-label" style="color:${t.muted}">Today</div>
+    <div class="list" style="background:${t.card};box-shadow:0 1px 3px rgba(0,0,0,.10)">
+      <div class="row"><span class="dot" style="background:${t.accent}1F;color:${t.accent}">${svg(ic.clock)}</span><span class="rl"><b>Lincoln High</b><small style="color:${t.muted}">7:30 AM · Delivery</small></span><span class="pill" style="background:${t.secondaryAccent}1F;color:${t.secondaryAccent}">Active</span></div>
+      <div class="row"><span class="dot" style="background:${t.accent}1F;color:${t.accent}">${svg(ic.cal)}</span><span class="rl"><b>Riverside Park</b><small style="color:${t.muted}">1:00 PM · Pickup</small></span><span class="pill" style="background:rgba(120,120,128,.16);color:${t.muted}">Later</span></div>
+    </div>
+    <div class="group-label" style="color:${t.muted};margin-top:12px">Menu</div>
+    <div class="list" style="background:${t.card};box-shadow:0 1px 3px rgba(0,0,0,.10)">
+      <div class="row"><span class="dot" style="background:${t.accent}1F;color:${t.accent}">${svg(ic.doc)}</span><span class="rl"><b>Documents</b></span></div>
+      <div class="row"><span class="dot" style="background:${t.accent}1F;color:${t.accent}">${svg(ic.warn)}</span><span class="rl"><b>Damage Reports</b></span></div>
+    </div>
+    <div class="btn" style="background:${t.accent};color:#fff">Accept Trip</div>
+  </div>`;
+}
+
+function paletteCard(p){
+  const sw = t => Object.entries({bg:t.bg,card:t.card,accent:t.accent,secondaryAccent:t.secondaryAccent}).map(([k,v])=>
+    `<div class="sw" style="background:${v}"><span style="color:${k==='accent'||k==='secondaryAccent'?'#fff':t.fg}">${v.replace('#','')}</span></div>`).join('');
+  const rows = p.tokens.map(([n,l,d])=>`<tr><td>${n}</td><td><span class="chip" style="background:${l}"></span>${l}</td><td><span class="chip" style="background:${d}"></span>${d}</td></tr>`).join('');
+  return `<div class="pcard">
+    <div class="pcard-info">
+      <div class="pcard-head">
+        <div class="pcard-name">${p.name}${p.tag?` <span class="tag">${p.tag}</span>`:''}</div>
+        <div class="pcard-desc">${p.desc}</div>
+      </div>
+      <div class="swatches">${sw(p.light)}</div>
+      <div class="pcard-tokens"><div class="tokens"><table>
+        <tr><th>token</th><th>light</th><th>dark</th></tr>${rows}
+      </table></div></div>
+    </div>
+    <div class="previews">
+      <div><div class="phone">${screen(p.light)}</div><div class="phone-label">Light</div></div>
+      <div><div class="phone">${screen(p.dark)}</div><div class="phone-label">Dark</div></div>
+    </div>
+  </div>`;
+}
+
+document.getElementById('palettes').innerHTML = PALETTES.map(paletteCard).join('');
+
+// document theme toggle
+const root=document.documentElement, tb=document.getElementById('tt'), tl=document.getElementById('tlabel'), ti=document.getElementById('ticon');
+const sun='<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>';
+const moon='<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>';
+function set(mode){ root.setAttribute('data-theme',mode); tl.textContent=mode==='dark'?'Dark':'Light'; ti.innerHTML=mode==='dark'?moon:sun; ti.style.transform=mode==='dark'?'rotate(-40deg)':'rotate(0)'; }
+let cur = matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'; set(cur);
+tb.onclick=()=>{ cur=cur==='dark'?'light':'dark'; set(cur); };
+</script>
+
+</html>

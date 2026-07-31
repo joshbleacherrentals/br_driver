@@ -1,11 +1,11 @@
 import { getAuthStyles } from "@/constants/AuthStyles";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useSSO } from "@clerk/clerk-expo";
 import { OAuthStrategy } from "@clerk/types";
 import { AntDesign } from "@expo/vector-icons";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 
 export const useWarmUpBrowser = () => {
@@ -20,7 +20,6 @@ export const useWarmUpBrowser = () => {
 WebBrowser.maybeCompleteAuthSession();
 
 interface Props {
-  // The OAuthStrategy type from Clerk allows you to specify the provider you want to use in this specific instance of the OAuthButton component
   strategy: OAuthStrategy;
   children: React.ReactNode;
   onError?: (err: unknown) => void;
@@ -28,15 +27,14 @@ interface Props {
 
 export default function OAuthButton({ strategy, children, onError }: Props) {
   useWarmUpBrowser();
-  const colorScheme = useColorScheme();
-  const styles = getAuthStyles(colorScheme);
-  // useSSO hook from Clerk SDK to support various SSO providers
+  const { scheme } = useTheme();
+  const styles = useMemo(() => getAuthStyles(scheme), [scheme]);
   const { startSSOFlow } = useSSO();
 
   const onPress = useCallback(async () => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: "brdriver",
+        // scheme: "brdriver",
         path: "oauth-native-callback",
       });
 
@@ -61,9 +59,13 @@ export default function OAuthButton({ strategy, children, onError }: Props) {
   }, [startSSOFlow, strategy, onError]);
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.button} activeOpacity={0.85}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.button}
+      activeOpacity={0.85}
+    >
       <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <AntDesign name="google" size={18} color="#ffffff" />
+        <AntDesign name="google" size={18} color={styles.buttonText.color} />
         <Text style={[styles.buttonText, { marginLeft: 8 }]}>{children}</Text>
       </View>
     </TouchableOpacity>

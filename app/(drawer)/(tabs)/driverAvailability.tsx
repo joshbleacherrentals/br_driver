@@ -1,1 +1,4 @@
-export { default } from "@/features/availability/AvailabilityScreen";
+import { withUnmountOnBlur } from "@/components/navigation/withUnmountOnBlur";
+import AvailabilityScreen from "@/features/availability/AvailabilityScreen";
+
+export default withUnmountOnBlur(AvailabilityScreen);

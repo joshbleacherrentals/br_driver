@@ -43,6 +43,65 @@ export type DriverData = {
   id: string;
 };
 
+const WORK_TRACKER_COLUMNS = [
+  "id",
+  "created_at",
+  "updated_at",
+  "date",
+  "pickup_time",
+  "pickup_poc",
+  "dropoff_time",
+  "dropoff_poc",
+  "pay_cents",
+  "notes",
+  "internal_notes",
+  "pickup_address_uuid",
+  "dropoff_address_uuid",
+  "bleacher_uuid",
+  "driver_uuid",
+  "user_uuid",
+  "status",
+  "released_at",
+  "accepted_at",
+  "started_at",
+  "completed_at",
+  "teardown_required",
+  "pickup_instructions",
+  "setup_required",
+  "dropoff_instructions",
+  "project_number",
+  "bol_number",
+  "pre_inspection_uuid",
+  "post_inspection_uuid",
+] as const;
+
+/** Single work tracker by id — for completed-trip detail route. */
+export function useWorkTracker(workTrackerId: string | null | undefined): {
+  workTracker: WorkTracker | null;
+  isLoading: boolean;
+} {
+  const compiled = useMemo(() => {
+    if (!workTrackerId) return null;
+    return db
+      .selectFrom("WorkTrackers")
+      .select([...WORK_TRACKER_COLUMNS])
+      .where("id", "=", workTrackerId)
+      .limit(1)
+      .compile();
+  }, [workTrackerId]);
+
+  const { data } = useTypedQuery(compiled, expect<WorkTracker>());
+
+  if (!workTrackerId) {
+    return { workTracker: null, isLoading: false };
+  }
+
+  return {
+    workTracker: data?.[0] ?? null,
+    isLoading: data === undefined,
+  };
+}
+
 export function useWorkTrackers(): {
   workTrackers: WorkTracker[] | null;
   isLoading: boolean;
@@ -80,37 +139,7 @@ export function useWorkTrackers(): {
     if (!driverId) return null;
     return db
       .selectFrom("WorkTrackers")
-      .select([
-        "id",
-        "created_at",
-        "updated_at",
-        "date",
-        "pickup_time",
-        "pickup_poc",
-        "dropoff_time",
-        "dropoff_poc",
-        "pay_cents",
-        "notes",
-        "internal_notes",
-        "pickup_address_uuid",
-        "dropoff_address_uuid",
-        "bleacher_uuid",
-        "driver_uuid",
-        "user_uuid",
-        "status",
-        "released_at",
-        "accepted_at",
-        "started_at",
-        "completed_at",
-        "teardown_required",
-        "pickup_instructions",
-        "setup_required",
-        "dropoff_instructions",
-        "project_number",
-        "bol_number",
-        "pre_inspection_uuid",
-        "post_inspection_uuid",
-      ])
+      .select([...WORK_TRACKER_COLUMNS])
       .where("driver_uuid", "=", driverId)
       .orderBy("date", "asc")
       .compile();
@@ -130,33 +159,58 @@ export function useWorkTrackers(): {
   return { workTrackers: WTData.data, isLoading: false };
 }
 
-// ---------------------------------------------------------------------------
-// Fleet-wide WorkTrackers for bleacher address resolution.
-// No status filter — we want the last known dropoff regardless of status.
-// ---------------------------------------------------------------------------
+/**
+ * Lightweight pending-trips badge count for the tab bar.
+ * Avoids subscribing the full WorkTrackers payload in TabLayout.
+ */
+export function useReleasedTripsCount(): {
+  count: number;
+  isLoading: boolean;
+} {
+  const { user } = useUser();
+  const clerkUserId = user?.id ?? null;
 
-export type DropoffRow = {
-  bleacher_uuid: string | null;
-  dropoff_address_uuid: string | null;
-  date: string | null;
-};
-
-export function useDropoffsByBleachers(
-  bleacherIds: string[],
-  targetDate: string,
-): { rows: DropoffRow[] } {
   const compiled = useMemo(() => {
-    if (bleacherIds.length === 0) return null;
+    if (!clerkUserId) return null;
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
+
+  const userData = useTypedQuery(compiled, expect<UserData>());
+
+  const compiledDriver = useMemo(() => {
+    const userId = userData.data?.[0]?.id;
+    if (!userId) return null;
+    return db
+      .selectFrom("Drivers as d")
+      .select(["d.id as id"])
+      .where("user_uuid", "=", userId)
+      .limit(1)
+      .compile();
+  }, [userData.data]);
+
+  const driverData = useTypedQuery(compiledDriver, expect<DriverData>());
+
+  const compiledCount = useMemo(() => {
+    const driverId = driverData.data?.[0]?.id;
+    if (!driverId) return null;
     return db
       .selectFrom("WorkTrackers")
-      .select(["bleacher_uuid", "dropoff_address_uuid", "date"])
-      .where("bleacher_uuid", "in", bleacherIds)
-      .where("date", "<=", targetDate)
-      .where("dropoff_address_uuid", "is not", null)
-      .orderBy("date", "desc")
+      .select(["id"])
+      .where("driver_uuid", "=", driverId)
+      .where("status", "=", "released")
       .compile();
-  }, [bleacherIds, targetDate]);
+  }, [driverData.data]);
 
-  const result = useTypedQuery(compiled, expect<DropoffRow>());
-  return { rows: result.data ?? [] };
+  const released = useTypedQuery(compiledCount, expect<{ id: string }>());
+
+  if (!clerkUserId) return { count: 0, isLoading: true };
+  if (!compiled || !userData.data?.[0]?.id) return { count: 0, isLoading: true };
+  if (!compiledCount) return { count: 0, isLoading: true };
+
+  return { count: released.data?.length ?? 0, isLoading: false };
 }

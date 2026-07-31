@@ -1,6 +1,6 @@
 import SideNavigation from "@/features/side-navigation/SideNavigation";
 import { OTAUpdateContext } from "@/hooks/OTAUpdateContext";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 import { Drawer } from "expo-router/drawer";
 import React from "react";
@@ -12,8 +12,7 @@ const DEV_MOCK_OTA = __DEV__ && false;
 // ───────────────────────────────────────────────────────────────────────────────
 
 export default function DrawerLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { theme } = useTheme();
   const ota = useOTAUpdate();
 
   const otaValue = DEV_MOCK_OTA
@@ -41,9 +40,9 @@ export default function DrawerLayout() {
             drawerType: "front",
             drawerStyle: {
               width: "78%",
-              backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+              backgroundColor: theme.background,
             },
-            overlayColor: "rgba(0,0,0,0.4)",
+            overlayColor: theme.overlay,
             swipeEdgeWidth: 50,
           }}
         />

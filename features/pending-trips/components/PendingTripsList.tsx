@@ -1,67 +1,33 @@
 import { db } from "@/components/providers/SystemProvider";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import TripItem from "@/components/widgets/trip_item";
-import { useAllBleachers } from "@/hooks/db/useBleacher";
-import { useResolvedBleacherAddresses } from "@/hooks/db/useResolveAddress";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { todayISODate } from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 
-const themes = {
-  light: {
-    emptyText: "#8E8E93",
-  },
-  dark: {
-    emptyText: "#636366",
-  },
-};
-
 export default function PendingTripsList() {
-  const colorScheme = useColorScheme();
-  const t = themes[colorScheme === "dark" ? "dark" : "light"];
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const workTrackers = useWorkTrackers().workTrackers;
-  const { isProfileComplete } = useProfileCompletion();
-  const { bleachers: allBleachersFleet } = useAllBleachers();
-
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const resolvedAddresses = useResolvedBleacherAddresses(
-    allBleachersFleet,
-    today,
-  );
-
-  const bleacherOptions = useMemo(
-    () =>
-      allBleachersFleet
-        .map((b) => ({
-          uuid: b.id,
-          bleacher_number: b.bleacher_number ?? "—",
-          bleacher_rows: b.bleacher_rows ?? null,
-          resolved_address: resolvedAddresses[b.id] ?? null,
-          label: b.bleacher_rows ? `${b.bleacher_rows} rows` : undefined,
-        }))
-        .sort(
-          (a, b) =>
-            parseInt(String(a.bleacher_number)) -
-            parseInt(String(b.bleacher_number)),
-        ),
-    [allBleachersFleet, resolvedAddresses],
-  );
+  const { getAcceptBlockReason } = useProfileCompletion();
 
   const pendingTrips = useMemo(
     () => (workTrackers ?? []).filter((wt) => wt.status === "released"),
     [workTrackers],
   );
 
-  const handleAccept = async (workTrackerId: string) => {
-    if (!isProfileComplete) {
-      Alert.alert(
-        "Error",
-        "Complete your profile before you can accept any trips",
-      );
+  const handleAccept = useCallback(async (workTrackerId: string) => {
+    const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+    const blockReason = getAcceptBlockReason(trip?.date ?? todayISODate());
+    if (blockReason) {
+      Alert.alert("Cannot accept trip", blockReason);
       return;
     }
     try {
@@ -76,9 +42,9 @@ export default function PendingTripsList() {
     } catch {
       Alert.alert("Error", "Failed to accept trip.");
     }
-  };
+  }, [getAcceptBlockReason, workTrackers]);
 
-  const handleSkip = async (workTrackerId: string) => {
+  const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Skip Trip", "Are you sure you want to skip this trip?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -102,25 +68,25 @@ export default function PendingTripsList() {
         },
       },
     ]);
-  };
-
-  const noop = async () => {};
+  }, []);
 
   return (
     <FlatList
       contentContainerStyle={styles.listContent}
       data={pendingTrips}
       keyExtractor={(item) => String(item.id)}
+      initialNumToRender={4}
+      maxToRenderPerBatch={4}
+      windowSize={5}
+      removeClippedSubviews
       renderItem={({ item }) => (
         <TripItem
           workTracker={item}
-          bleacherOptions={bleacherOptions}
           onAccept={handleAccept}
           onStartTrip={noop}
           onSkip={handleSkip}
           onArrived={noop}
           onStartInspection={noop}
-          onBleacherChange={() => {}}
         />
       )}
       ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
@@ -129,12 +95,10 @@ export default function PendingTripsList() {
           <Ionicons
             name="checkmark-circle-outline"
             size={40}
-            color={t.emptyText}
+            color={theme.textTertiary}
           />
-          <Text style={[styles.emptyText, { color: t.emptyText }]}>
-            No pending trips
-          </Text>
-          <Text style={[styles.emptySubtext, { color: t.emptyText }]}>
+          <Text style={styles.emptyText}>No pending trips</Text>
+          <Text style={styles.emptySubtext}>
             New trip assignments will appear here
           </Text>
         </View>
@@ -143,22 +107,27 @@ export default function PendingTripsList() {
   );
 }
 
-const styles = StyleSheet.create({
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  emptySubtext: {
-    fontSize: 14,
-  },
-});
+const noop = async () => {};
+
+const makeStyles = (theme: ThemeColors) =>
+  StyleSheet.create({
+    listContent: {
+      paddingTop: 8,
+      paddingBottom: 32,
+    },
+    emptyContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 80,
+      gap: 8,
+    },
+    emptyText: {
+      ...typeScale.body,
+      fontWeight: "600",
+      color: theme.textTertiary,
+    },
+    emptySubtext: {
+      ...typeScale.subhead,
+      color: theme.textTertiary,
+    },
+  });
