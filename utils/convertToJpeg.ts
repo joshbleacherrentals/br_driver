@@ -16,15 +16,16 @@ export async function convertToJpegIfNeeded(
     return { uri, base64, ext: ext ?? "jpg" };
   }
 
+  // Only allocate HEIC→JPEG base64 when the caller already asked for base64.
   const result = await manipulateAsync(uri, [], {
     compress: 0.8,
     format: SaveFormat.JPEG,
-    base64: true,
+    base64: base64 !== undefined,
   });
 
   return {
     uri: result.uri,
-    base64: result.base64,
+    base64: result.base64 ?? base64,
     ext: "jpg",
   };
 }

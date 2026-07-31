@@ -39,3 +39,6 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# local shell config (should not be in the repo)
+.zshrc

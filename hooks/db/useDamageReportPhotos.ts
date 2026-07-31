@@ -13,11 +13,17 @@ export type DamageReportPhotoRow = {
   created_at: string | null;
 };
 
-export type PhotoUploadStatus = "pending" | "uploaded";
+export type PhotoUploadStatus = "pending" | "uploaded" | "failed";
 
 export type DamageReportPhotoWithStatus = DamageReportPhotoRow & {
   uploadStatus: PhotoUploadStatus;
 };
+
+function toUploadStatus(raw: string | null): PhotoUploadStatus {
+  if (raw === "uploaded") return "uploaded";
+  if (raw === "failed") return "failed";
+  return "pending";
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +32,8 @@ export function useDamageReportPhotos(
 ): {
   photos: DamageReportPhotoWithStatus[];
   isLoading: boolean;
+  hasPending: boolean;
+  hasFailed: boolean;
 } {
   const safeId = damageReportUuid ?? "__none__";
 
@@ -56,12 +64,13 @@ export function useDamageReportPhotos(
     () =>
       data.map((row) => ({
         ...row,
-        uploadStatus: (row.upload_status === "uploaded"
-          ? "uploaded"
-          : "pending") as PhotoUploadStatus,
+        uploadStatus: toUploadStatus(row.upload_status),
       })),
     [data],
   );
 
-  return { photos, isLoading };
+  const hasPending = photos.some((p) => p.uploadStatus === "pending");
+  const hasFailed = photos.some((p) => p.uploadStatus === "failed");
+
+  return { photos, isLoading, hasPending, hasFailed };
 }

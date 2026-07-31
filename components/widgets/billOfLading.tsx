@@ -1,17 +1,18 @@
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { db } from "@/components/providers/SystemProvider";
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
-import { BRAND_BLUE, DARK_BLUE } from "@/constants/Colors";
+import { type ThemeColors, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,11 +23,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-const ACCENT = "#0A84FF";
-const SURFACE = "#FFFFFF";
-const BG = "#F2F2F7";
-const MUTED = "#8E8E93";
-const DIVIDER = "#E5E7EB";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface BillOfLadingProps {
@@ -361,10 +357,13 @@ function InfoRow({
   value?: string | number | null;
   accent?: boolean;
 }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeInfoRowStyles(theme), [theme]);
+
   return (
-    <View style={infoRowStyles.row}>
-      <Text style={infoRowStyles.label}>{label}</Text>
-      <Text style={[infoRowStyles.value, accent && infoRowStyles.accentValue]}>
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.value, accent && { color: theme.accent }]}>
         {value !== null && value !== undefined && value !== ""
           ? String(value)
           : "—"}
@@ -373,26 +372,32 @@ function InfoRow({
   );
 }
 
-const infoRowStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: DIVIDER,
-    gap: 12,
-  },
-  label: { fontSize: 13, fontWeight: "500", color: MUTED, flex: 1 },
-  value: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1C1C1E",
-    flex: 1.4,
-    textAlign: "right",
-  },
-  accentValue: { color: ACCENT },
-});
+function makeInfoRowStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.separator,
+      gap: 12,
+    },
+    label: {
+      ...typeScale.footnote,
+      fontWeight: "400",
+      color: theme.textSecondary,
+      flex: 1,
+    },
+    value: {
+      ...typeScale.footnote,
+      fontWeight: "600",
+      color: theme.textPrimary,
+      flex: 1.4,
+      textAlign: "right",
+    },
+  });
+}
 
 function Section({
   title,
@@ -403,47 +408,52 @@ function Section({
   icon?: string;
   children: React.ReactNode;
 }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeSectionStyles(theme), [theme]);
+
   return (
-    <View style={sectionStyles.card}>
-      <View style={sectionStyles.titleRow}>
+    <View style={styles.card}>
+      <View style={styles.titleRow}>
         {icon && (
           <Ionicons
             name={icon as any}
             size={16}
-            color={DARK_BLUE}
+            color={theme.header}
             style={{ marginRight: 6 }}
           />
         )}
-        <Text style={sectionStyles.title}>{title}</Text>
+        <Text style={styles.title}>{title}</Text>
       </View>
       {children}
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
-  card: {
-    backgroundColor: SURFACE,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: DARK_BLUE,
-  },
-  title: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: DARK_BLUE,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-});
+function makeSectionStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      paddingBottom: 10,
+      borderBottomWidth: 2,
+      borderBottomColor: theme.header,
+    },
+    title: {
+      ...typeScale.footnote,
+      fontWeight: "700",
+      color: theme.header,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+    },
+  });
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function BillOfLading({
@@ -451,6 +461,9 @@ export default function BillOfLading({
   workTracker,
   onClose,
 }: BillOfLadingProps) {
+  const { theme } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const infoRowStyles = useMemo(() => makeInfoRowStyles(theme), [theme]);
   const { address: pickupAddress } = useAddress(
     workTracker.pickup_address_uuid,
   );
@@ -566,7 +579,9 @@ export default function BillOfLading({
           />
           <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
             <Text style={infoRowStyles.label}>Notes</Text>
-            <Text style={[infoRowStyles.value, { color: MUTED }]}>
+            <Text
+              style={[infoRowStyles.value, { color: theme.textSecondary }]}
+            >
               Power Only · Flatbed
             </Text>
           </View>
@@ -600,7 +615,7 @@ export default function BillOfLading({
             ]}
           >
             <Text style={infoRowStyles.label}>Pickup Instructions</Text>
-            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+            <Text style={infoRowStyles.value}>
               {workTracker.pickup_instructions || "—"}
             </Text>
           </View>
@@ -625,7 +640,7 @@ export default function BillOfLading({
             ]}
           >
             <Text style={infoRowStyles.label}>Delivery Instructions</Text>
-            <Text style={[infoRowStyles.value, { color: "#1C1C1E" }]}>
+            <Text style={infoRowStyles.value}>
               {workTracker.dropoff_instructions || "—"}
             </Text>
           </View>
@@ -656,9 +671,13 @@ export default function BillOfLading({
           disabled={printing}
         >
           {printing ? (
-            <ActivityIndicator color={SURFACE} size="small" />
+            <ActivityIndicator color={theme.onAccent} size="small" />
           ) : (
-            <Ionicons name="download-outline" size={18} color={SURFACE} />
+            <Ionicons
+              name="download-outline"
+              size={18}
+              color={theme.onAccent}
+            />
           )}
           <Text style={styles.downloadBtnText}>
             {printing ? "Generating PDF…" : "Download PDF"}
@@ -675,15 +694,16 @@ export default function BillOfLading({
 
 // ─── Trigger Button ───────────────────────────────────────────────────────────
 export function BOLButton({ onPress }: { onPress: () => void }) {
-  const colorScheme = useColorScheme();
-  const color = colorScheme === "dark" ? "#FFFFFF" : DARK_BLUE;
+  const { theme } = useTheme();
   return (
     <TouchableOpacity
-      style={[bolBtnStyles.btn, { borderColor: color }]}
+      style={[bolBtnStyles.btn, { borderColor: theme.accent }]}
       onPress={onPress}
     >
-      <Ionicons name="document-text-outline" size={15} color={color} />
-      <Text style={[bolBtnStyles.text, { color }]}>Bill of Lading</Text>
+      <Ionicons name="document-text-outline" size={15} color={theme.accent} />
+      <Text style={[bolBtnStyles.text, { color: theme.accent }]}>
+        Bill of Lading
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -694,71 +714,87 @@ const bolBtnStyles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderWidth: 1.5,
-    borderColor: DARK_BLUE,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
     marginTop: 12,
   },
-  text: { fontSize: 13, fontWeight: "600", color: DARK_BLUE },
+  text: { ...typeScale.footnote, fontWeight: "600" },
 });
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  shipperBanner: {
-    backgroundColor: BRAND_BLUE,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  title: { fontSize: 16, fontWeight: "700", color: SURFACE },
-  shipperName: { fontSize: 13, fontWeight: "700", color: SURFACE },
-  shipperDetail: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  legalText: { fontSize: 12, color: MUTED, lineHeight: 18 },
-  sigNote: {
-    fontSize: 12,
-    color: MUTED,
-    fontStyle: "italic",
-    marginBottom: 16,
-  },
-  sigRow: { flexDirection: "row", gap: 16 },
-  sigBlock: { flex: 1, gap: 8 },
-  sigLabel: { fontSize: 13, fontWeight: "600", color: "#1C1C1E" },
-  sigLine: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: "#1C1C1E",
-    marginTop: 24,
-  },
-  sigDateLabel: { fontSize: 12, color: MUTED, marginTop: 8 },
-  downloadBtn: {
-    backgroundColor: BRAND_BLUE,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  downloadBtnDisabled: { opacity: 0.6 },
-  downloadBtnText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: SURFACE,
-    letterSpacing: 0.3,
-  },
-  doneBtn: {
-    backgroundColor: DARK_BLUE,
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 0,
-  },
-  doneBtnText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: SURFACE,
-    letterSpacing: 0.5,
-  },
-});
+function makeStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    shipperBanner: {
+      backgroundColor: theme.header,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+    },
+    title: { ...typeScale.callout, fontWeight: "700", color: theme.onAccent },
+    shipperName: { ...typeScale.footnote, fontWeight: "700", color: theme.onAccent },
+    shipperDetail: {
+      ...typeScale.caption2,
+      color: theme.onAccent + "CC",
+      marginTop: 1,
+    },
+    scrollContent: { padding: 16, paddingBottom: 40 },
+    legalText: {
+      ...typeScale.caption,
+      color: theme.textSecondary,
+      lineHeight: 18,
+    },
+    sigNote: {
+      ...typeScale.caption,
+      color: theme.textSecondary,
+      fontStyle: "italic",
+      marginBottom: 16,
+    },
+    sigRow: { flexDirection: "row", gap: 16 },
+    sigBlock: { flex: 1, gap: 8 },
+    sigLabel: {
+      ...typeScale.footnote,
+      fontWeight: "600",
+      color: theme.textPrimary,
+    },
+    sigLine: {
+      borderBottomWidth: 1.5,
+      borderBottomColor: theme.textPrimary,
+      marginTop: 24,
+    },
+    sigDateLabel: {
+      ...typeScale.caption,
+      color: theme.textSecondary,
+      marginTop: 8,
+    },
+    downloadBtn: {
+      backgroundColor: theme.accent,
+      paddingVertical: 14,
+      borderRadius: 10,
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    downloadBtnDisabled: { opacity: 0.6 },
+    downloadBtnText: {
+      ...typeScale.subhead,
+      fontWeight: "700",
+      color: theme.onAccent,
+      letterSpacing: 0.3,
+    },
+    doneBtn: {
+      backgroundColor: theme.header,
+      paddingVertical: 16,
+      borderRadius: 10,
+      alignItems: "center",
+      marginTop: 0,
+    },
+    doneBtnText: {
+      ...typeScale.callout,
+      fontWeight: "700",
+      color: theme.onAccent,
+      letterSpacing: 0.5,
+    },
+  });
+}

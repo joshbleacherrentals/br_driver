@@ -1,7 +1,7 @@
 import { db } from "@/components/providers/SystemProvider";
-import { BRAND_BLUE, GREEN_ACCENT } from "@/constants/Colors";
+import { typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
@@ -43,14 +43,7 @@ export default function EditDriverInfo({
   const [addressData, setAddressData] = useState<AddressData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isDark = useColorScheme() === "dark";
-  const theme = {
-    bg: isDark ? "#000000" : "#F2F2F7",
-    card: isDark ? "#1C1C1E" : "#FFFFFF",
-    border: isDark ? "rgba(255,255,255,0.1)" : "#E5E7EB",
-    text: isDark ? "#FFFFFF" : "#000000",
-    inputBg: isDark ? "#2C2C2E" : "#F8F8F8",
-  };
+  const { form: theme } = useFormTheme();
 
   const formatPhoneInput = (text: string): string => {
     const cleaned = text.replace(/\D/g, "").slice(0, 10);
@@ -194,7 +187,9 @@ export default function EditDriverInfo({
           ]}
         >
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelButton}>Cancel</Text>
+            <Text style={[styles.cancelButton, { color: theme.accent }]}>
+              Cancel
+            </Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
             Edit Driver Info
@@ -219,7 +214,7 @@ export default function EditDriverInfo({
               ]}
               onChangeText={handlePhoneChange}
               placeholder={formatPhoneNumber(phoneNumber) ?? "(555) 123-4567"} // old phone as placeholder
-              placeholderTextColor="#8E8E93"
+              placeholderTextColor={theme.placeholder}
               keyboardType="phone-pad"
               maxLength={14}
             />
@@ -252,12 +247,15 @@ export default function EditDriverInfo({
           <TouchableOpacity
             style={[
               styles.submitButton,
-              isSubmitting && styles.submitButtonDisabled,
+              { backgroundColor: theme.secondaryAccent },
+              isSubmitting && { backgroundColor: theme.secondaryAccent + "66" },
             ]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
-            <Text style={styles.submitButtonText}>
+            <Text
+              style={[styles.submitButtonText, { color: theme.onSecondaryAccent }]}
+            >
               {isSubmitting ? "Saving..." : "Save Changes"}
             </Text>
           </TouchableOpacity>
@@ -268,55 +266,45 @@ export default function EditDriverInfo({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F2F7" },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
   },
-  cancelButton: { fontSize: 16, color: BRAND_BLUE, fontWeight: "600" },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#000" },
+  cancelButton: { ...typeScale.callout, fontWeight: "600" },
+  headerTitle: { ...typeScale.title3, fontWeight: "700" },
   scrollContent: { padding: 16 },
   section: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
   },
   addressSection: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...typeScale.callout,
     fontWeight: "700",
-    color: "#000",
     marginBottom: 12,
   },
-  label: { fontSize: 15, fontWeight: "600", color: "#000", marginBottom: 8 },
+  label: { ...typeScale.subhead, fontWeight: "600", marginBottom: 8 },
   input: {
-    backgroundColor: "#F8F8F8",
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
-    color: "#000",
+    ...typeScale.callout,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
   },
   submitButton: {
-    backgroundColor: GREEN_ACCENT,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8,
   },
-  submitButtonDisabled: { backgroundColor: "#A8E6B7" },
-  submitButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+  submitButtonText: { ...typeScale.callout, fontWeight: "600" },
 });

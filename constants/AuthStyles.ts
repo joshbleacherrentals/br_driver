@@ -1,55 +1,28 @@
+import { ColorScheme, ThemeColors, themes } from "@/constants/theme";
 import { ColorSchemeName, StyleSheet } from "react-native";
 
-// Primary brand colors requested
-export const PRIMARY = "#10365A"; // deep brand blue
-export const PRIMARY_LIGHT = "#1d62a3"; // lighter accent for hover/focus/shadows
+/** @deprecated Use `theme.header` from `useTheme()` instead. */
+export const PRIMARY = themes.light.header;
+/** @deprecated Use `theme.accent` from `useTheme()` instead. */
+export const PRIMARY_LIGHT = themes.light.accent;
 
-// Palettes for light & dark
-const lightPalette = {
-  background: "#ffffff",
-  surface: "#F8FAFC", // subtle background for inputs
-  textPrimary: "#0F172A",
-  textSecondary: "#64748B",
-  textEmphasis: "#334155",
-  border: "#E2E8F0",
-  buttonBg: PRIMARY_LIGHT,
-  buttonShadow: PRIMARY_LIGHT,
-  inputText: "#1E293B",
-  focusOutline: PRIMARY_LIGHT,
-};
-
-const darkPalette = {
-  background: "#081e33", // deep navy background for container
-  surface: "#0F2A45", // elevated surface for inputs
-  textPrimary: "#F1F5F9",
-  textSecondary: "#94A3B8",
-  textEmphasis: "#CBD5E1",
-  border: "#1d3d5b",
-  buttonBg: PRIMARY_LIGHT,
-  buttonShadow: PRIMARY_LIGHT,
-  inputText: "#E2E8F0",
-  focusOutline: PRIMARY_LIGHT,
-};
-
-type Palette = typeof lightPalette;
-
-const createStyles = (p: Palette) =>
+const createStyles = (theme: ThemeColors) =>
   StyleSheet.create({
     formContainer: {
       marginTop: 72,
       width: "100%",
       maxWidth: 420,
       alignSelf: "center",
-      backgroundColor: p.background,
+      backgroundColor: theme.surface,
       borderRadius: 16,
       padding: 24,
-      shadowColor: p.buttonShadow,
+      shadowColor: theme.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.12,
       shadowRadius: 14,
       elevation: 5,
       borderWidth: 1,
-      borderColor: p.border,
+      borderColor: theme.border,
     },
     headerContainer: {
       alignItems: "center",
@@ -58,12 +31,12 @@ const createStyles = (p: Palette) =>
     title: {
       fontSize: 28,
       fontWeight: "bold",
-      color: p.textPrimary,
+      color: theme.textPrimary,
       textAlign: "center",
     },
     subtitle: {
       fontSize: 15,
-      color: p.textSecondary,
+      color: theme.textSecondary,
       marginTop: 10,
       lineHeight: 22,
       textAlign: "center",
@@ -77,34 +50,30 @@ const createStyles = (p: Palette) =>
     label: {
       fontSize: 15,
       fontWeight: "600",
-      color: p.textEmphasis,
+      color: theme.textPrimary,
       marginBottom: 8,
     },
     input: {
       height: 48,
       borderWidth: 1,
-      borderColor: p.border,
+      borderColor: theme.border,
       borderRadius: 8,
       paddingHorizontal: 16,
       fontSize: 16,
-      backgroundColor: p.surface,
-      color: p.inputText,
+      backgroundColor: theme.surfaceElevated,
+      color: theme.textPrimary,
     },
     button: {
-      backgroundColor: p.buttonBg,
+      backgroundColor: theme.accent,
       borderRadius: 8,
       height: 50,
       alignItems: "center",
       justifyContent: "center",
       marginTop: 28,
-      //   shadowColor: p.buttonShadow,
-      //   shadowOffset: { width: 0, height: 3 },
-      //   shadowOpacity: 0.35,
-      //   shadowRadius: 6,
       elevation: 6,
     },
     buttonText: {
-      color: "#ffffff",
+      color: theme.onAccent,
       fontSize: 16,
       fontWeight: "600",
       letterSpacing: 0.3,
@@ -117,13 +86,19 @@ const createStyles = (p: Palette) =>
     textButtonText: {
       fontSize: 15,
       fontWeight: "600",
-      color: PRIMARY_LIGHT,
+      color: theme.accent,
     },
   });
 
-// Maintain existing named export for light styles for backward compatibility
-export const styles = createStyles(lightPalette);
-export const darkStyles = createStyles(darkPalette);
+const authStyles = {
+  light: createStyles(themes.light),
+  dark: createStyles(themes.dark),
+};
+
+export const styles = authStyles.light;
+export const darkStyles = authStyles.dark;
 
 export const getAuthStyles = (scheme: ColorSchemeName | string | null) =>
-  scheme === "dark" ? darkStyles : styles;
+  scheme === "dark" ? authStyles.dark : authStyles.light;
+
+export type { ColorScheme };
