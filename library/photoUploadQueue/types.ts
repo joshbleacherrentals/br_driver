@@ -1,0 +1,106 @@
+/**
+ * Shared types for the custom photo upload queue.
+ *
+ * Source of truth: docs/custom-photo-upload-queue.en.md (§3, §6, §10).
+ * This file is a CONTRACT ONLY — no behaviour lives here.
+ */
+
+/**
+ * §3 — `upload_status` already carries `pending`/`uploaded`/`failed`;
+ * the custom queue extends the same field with `uploading`.
+ *
+ * Deliberately closed: there is no `archived`/`deleted` member, because §3
+ * requires that a row is never deleted or archived as a side effect.
+ */
+export const UPLOAD_STATUSES = [
+  "pending",
+  "uploading",
+  "uploaded",
+  "failed",
+] as const;
+
+export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
+
+/**
+ * Events that the upload logic — and only the upload logic (§3) — may apply
+ * to a row. There is intentionally no "give up" / "archive" event (§5).
+ */
+export type UploadEvent =
+  | "attempt_started"
+  | "upload_confirmed"
+  | "attempt_failed"
+  | "attempt_timed_out"
+  | "retry_requested";
+
+/**
+ * §3 — the queue is a set of columns on the photo row itself
+ * (`DamageReportPhotos`, `InspectionPhotos`, `DriverDocuments`), not a
+ * separate table. `photo_path` doubles as the bucket path.
+ */
+export type PhotoUploadRow = {
+  id: string;
+  photo_path: string;
+  upload_status: UploadStatus;
+  local_uri: string | null;
+  gallery_asset_id: string | null;
+  attempts: number;
+  last_attempt_at: string | null;
+  last_error: string | null;
+};
+
+/**
+ * §9, §10 — everything the queue is allowed to weigh when deciding whether an
+ * upload actually succeeded. Modelled as separate signals precisely so that
+ * the "already exists" text match can never be the sole criterion.
+ */
+export type UploadEvidence = {
+  /** Explicit success from the upload API response — the primary signal. */
+  apiConfirmed: boolean;
+  /**
+   * Secondary, probable-duplicate signal: the insert-only bucket rejected the
+   * write because an object already sits at this path (§10).
+   */
+  duplicatePathSignal: boolean;
+  /**
+   * Result of a direct bucket lookup. `null` means "not checked yet".
+   */
+  bucketObjectExists: boolean | null;
+};
+
+/** §6 — one entry per report that still has a photo which failed to upload. */
+export type ProblemReport = {
+  reportUuid: string;
+  /** ISO timestamp used to order newest → oldest. */
+  createdAt: string;
+};
+
+/** §6 — everything the non-dismissible top banner needs to render. */
+export type BannerState = {
+  visible: boolean;
+  /** Number of reports with a problem photo. */
+  count: number;
+  title: string;
+  subtitle: string;
+  /** Report opened when the banner is tapped — the newest problem report. */
+  targetReportUuid: string | null;
+};
+
+/** §6 — inputs to the "1 minute of fast retries → verify → banner" rule. */
+export type ForegroundRecoveryState = {
+  /** Milliseconds since the app was opened / came to the foreground. */
+  elapsedMs: number;
+  /** Photos still not `uploaded` from a previous session. */
+  unresolvedPhotoCount: number;
+  /** Outcome of the direct bucket verification, if it has run yet. */
+  bucketVerification: "not_run" | "confirmed_missing" | "confirmed_present";
+};
+
+/** §6 — what the recovery pass should do right now. */
+export type RecoveryDecision = {
+  /** `fast` = no backoff pauses; `backoff` = §6 30s → 1min → 5min schedule. */
+  retryMode: "fast" | "backoff" | "idle";
+  /** Run the direct bucket check before showing anything to the driver. */
+  verifyBucket: boolean;
+  /** Show the non-dismissible red banner. */
+  showBanner: boolean;
+};
