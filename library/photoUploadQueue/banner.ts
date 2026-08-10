@@ -10,6 +10,11 @@ import type { BannerState, ProblemReport } from "./types";
 /** §11.6 — finalised copy. */
 export const PHOTO_UPLOAD_BANNER_TITLE = "Photo Upload Issue";
 
+/** §11.6 — finalised subtitle; `count` fills the leading "N". */
+export function photoUploadBannerSubtitle(count: number): string {
+  return `${count} report(s) have photos that failed to upload — tap to retry.`;
+}
+
 /**
  * Derives the banner from the reports that still have a problem photo.
  *
@@ -24,13 +29,27 @@ export const PHOTO_UPLOAD_BANNER_TITLE = "Photo Upload Issue";
 export function deriveBannerState(
   problemReports: readonly ProblemReport[],
 ): BannerState {
-  // TODO(photo-queue): implement — placeholder is permanently empty.
-  void problemReports;
+  if (problemReports.length === 0) {
+    return {
+      visible: false,
+      count: 0,
+      title: "",
+      subtitle: "",
+      targetReportUuid: null,
+    };
+  }
+
+  // Newest → oldest by createdAt; the tap target is always the newest (§6).
+  const newest = [...problemReports].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )[0];
+  const count = problemReports.length;
+
   return {
-    visible: false,
-    count: 0,
-    title: "",
-    subtitle: "",
-    targetReportUuid: null,
+    visible: true,
+    count,
+    title: PHOTO_UPLOAD_BANNER_TITLE,
+    subtitle: photoUploadBannerSubtitle(count),
+    targetReportUuid: newest.reportUuid,
   };
 }

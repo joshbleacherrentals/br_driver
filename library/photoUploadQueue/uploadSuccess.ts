@@ -15,8 +15,10 @@ import type { UploadEvidence } from "./types";
  * *triggers* verification — never a success criterion on its own (§10).
  */
 export function isUploadSuccessful(evidence: UploadEvidence): boolean {
-  // TODO(photo-queue): implement — placeholder is the documented anti-pattern.
-  return evidence.duplicatePathSignal;
+  // Success is either an explicit API confirmation or a positive bucket lookup.
+  // The duplicate-path signal is intentionally absent here — on its own it can
+  // never flip a row to `uploaded` (§9, §10).
+  return evidence.apiConfirmed || evidence.bucketObjectExists === true;
 }
 
 /**
@@ -25,7 +27,12 @@ export function isUploadSuccessful(evidence: UploadEvidence): boolean {
  * may have landed, and the bucket has not been checked yet (§10).
  */
 export function needsBucketVerification(evidence: UploadEvidence): boolean {
-  // TODO(photo-queue): implement — placeholder never verifies.
-  void evidence;
-  return false;
+  // Only worth a lookup while the outcome is still open: the API did not
+  // confirm, the duplicate signal hints a prior attempt may have landed, and
+  // the bucket has not been checked yet (§10).
+  return (
+    !evidence.apiConfirmed &&
+    evidence.duplicatePathSignal &&
+    evidence.bucketObjectExists === null
+  );
 }

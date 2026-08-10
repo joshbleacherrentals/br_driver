@@ -1,9 +1,6 @@
 import Badge from '@/components/ui/Badge';
 import BottomSheetModal from '@/components/ui/BottomSheetModal';
-import {
-  damageReportPhotoAttachmentQueue,
-  inspectionPhotoAttachmentQueue,
-} from '@/components/providers/SystemProvider';
+import { localUriForPath } from '@/library/photoUploadQueue';
 import ZoomableImage from '@/components/widgets/ZoomableImage';
 import { ThemeColors, radius, themes, typeScale } from "@/constants/theme";
 import { DamageReportData } from '@/hooks/db/useDamageReport';
@@ -61,24 +58,16 @@ interface InspectionSummaryWidgetProps {
   embedded?: boolean;
 }
 
+// The deterministic local copy for a bucket path (callers fall back to the
+// public URL when the local file is absent — e.g. a photo from another device).
 function getInspectionPhotoUri(storagePath: string): string | null {
   if (!storagePath) return null;
-  if (inspectionPhotoAttachmentQueue) {
-    const localPath =
-      inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-    return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
-  }
-  return supabasePublicObjectUrl('inspection-photos', storagePath) || null;
+  return localUriForPath(storagePath);
 }
 
 function getDamagePhotoUri(storagePath: string): string | null {
   if (!storagePath) return null;
-  if (damageReportPhotoAttachmentQueue) {
-    const localPath =
-      damageReportPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-    return damageReportPhotoAttachmentQueue.getLocalUri(localPath);
-  }
-  return supabasePublicObjectUrl('damage-report-photos', storagePath) || null;
+  return localUriForPath(storagePath);
 }
 
 async function resolveShareablePhotoUri(

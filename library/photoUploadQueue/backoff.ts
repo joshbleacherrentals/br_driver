@@ -17,9 +17,14 @@ export const BACKOFF_SCHEDULE_MS = [30_000, 60_000, 300_000] as const;
  * becomes "give up".
  */
 export function backoffDelayMs(attempts: number): number {
-  // TODO(photo-queue): implement — placeholder never waits.
-  void attempts;
-  return 0;
+  // No completed attempts yet — the very first try must not wait (§6).
+  if (attempts <= 0) {
+    return 0;
+  }
+  // After N failures wait BACKOFF_SCHEDULE_MS[N-1], plateauing at the last step
+  // so the delay never grows without bound and never becomes "give up" (§6).
+  const index = Math.min(attempts - 1, BACKOFF_SCHEDULE_MS.length - 1);
+  return BACKOFF_SCHEDULE_MS[index];
 }
 
 /** Whether a row's backoff pause has elapsed and it may be attempted again. */
@@ -27,8 +32,13 @@ export function isDueForRetry(
   row: Pick<PhotoUploadRow, "attempts" | "last_attempt_at">,
   nowMs: number,
 ): boolean {
-  // TODO(photo-queue): implement — placeholder ignores the schedule entirely.
-  void row;
-  void nowMs;
-  return true;
+  // Never attempted — go immediately.
+  if (!row.last_attempt_at) {
+    return true;
+  }
+  const lastMs = Date.parse(row.last_attempt_at);
+  if (Number.isNaN(lastMs)) {
+    return true;
+  }
+  return nowMs - lastMs >= backoffDelayMs(row.attempts);
 }

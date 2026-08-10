@@ -1,16 +1,12 @@
 import { DebugLogger } from "@/library/debug/DebugLogger";
-import {
-  AppSchema,
-  DAMAGE_PHOTO_ATTACHMENT_TABLE,
-  DRIVER_DOC_ATTACHMENT_TABLE,
-  PowerSyncDB,
-} from "@/library/powersync/AppSchema";
+import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
-import { DamageReportPhotoAttachmentQueue } from "@/library/powersync/DamagePhotoAttachmentQueue";
-import { InspectionPhotoAttachmentQueue } from "@/library/powersync/InspectionPhotoAttachmentQueue";
-import { PhotoAttachmentQueue } from "@/library/powersync/PhotoAttachmentQueue";
-import { SupabaseStorageAdapter } from "@/library/storage/SupabaseStorageAdapter";
+import {
+  createPhotoUploadService,
+  type PhotoUploadService,
+} from "@/library/photoUploadQueue";
 import { useAuth } from "@clerk/clerk-expo";
+import { AppState } from "react-native";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
 import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
 import {
@@ -101,13 +97,14 @@ export const powerSyncDb = new PowerSyncDatabase({
 
 export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
 
-export let photoAttachmentQueue: PhotoAttachmentQueue | undefined;
-export let inspectionPhotoAttachmentQueue:
-  | InspectionPhotoAttachmentQueue
-  | undefined;
-export let damageReportPhotoAttachmentQueue:
-  | DamageReportPhotoAttachmentQueue
-  | undefined;
+/**
+ * Custom photo upload queue (design doc: docs/custom-photo-upload-queue.md).
+ * Replaces the deprecated `@powersync/attachments` queues, whose "recompute
+ * which photos are needed" pass could archive + delete a photo before it
+ * reached Storage. Screens write rows with `upload_status = pending` and call
+ * `triggerFast()`; the service uploads them and never deletes the local copy.
+ */
+export let photoUploadService: PhotoUploadService | undefined;
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -137,74 +134,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       },
     });
 
-    // Driver document photos (license, insurance, medical card)
-    const driverDocStorage = new SupabaseStorageAdapter({
-      client: bc.client,
-      bucket: "driver-documents",
-    });
-    if (!photoAttachmentQueue) {
-      photoAttachmentQueue = new PhotoAttachmentQueue({
-        powersync: powerSyncDb,
-        storage: driverDocStorage,
-        attachmentTableName: DRIVER_DOC_ATTACHMENT_TABLE,
-        attachmentDirectoryName: DRIVER_DOC_ATTACHMENT_TABLE,
-        performInitialSync: false,
-        onDownloadError: async (_attachment, error) => {
-          if (
-            String(error).includes("Object not found") ||
-            String(error).includes("400")
-          ) {
-            return { retry: false };
-          }
-          return { retry: true };
-        },
-      });
-    } else {
-      photoAttachmentQueue.options.storage = driverDocStorage;
-    }
-
-    // Inspection photos — no watchers/timers; safe to recreate with fresh client
-    inspectionPhotoAttachmentQueue = new InspectionPhotoAttachmentQueue({
-      storage: new SupabaseStorageAdapter({
-        client: bc.client,
-        bucket: "inspection-photos",
-      }),
-    });
-
-    // Damage report photos (DamageReportPhotos table)
-    // Insert-only: bucket has deny-update RLS; upsert would fail on retry.
-    const damageReportStorage = new SupabaseStorageAdapter({
-      client: bc.client,
-      bucket: "damage-report-photos",
-      upsert: false,
-    });
-    if (!damageReportPhotoAttachmentQueue) {
-      damageReportPhotoAttachmentQueue = new DamageReportPhotoAttachmentQueue({
-        powersync: powerSyncDb,
-        storage: damageReportStorage,
-        attachmentTableName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
-        attachmentDirectoryName: DAMAGE_PHOTO_ATTACHMENT_TABLE,
-        performInitialSync: false,
-        onDownloadError: async (_attachment, error) => {
-          if (
-            String(error).includes("Object not found") ||
-            String(error).includes("400")
-          ) {
-            return { retry: false };
-          }
-          return { retry: true };
-        },
-        onUploadError: async (_attachment, error) => {
-          const msg = String(error);
-          if (/duplicate/i.test(msg) || /already exists/i.test(msg)) {
-            return { retry: false };
-          }
-          return { retry: true };
-        },
-      });
-    } else {
-      damageReportPhotoAttachmentQueue.options.storage = damageReportStorage;
-    }
+    // Single custom photo upload queue for every photo type (damage report,
+    // inspection, driver documents). Recreated with the fresh Supabase client;
+    // it holds no watchers/timers of its own — screens and the foreground
+    // listener below drive it.
+    photoUploadService = createPhotoUploadService(bc.client);
 
     return bc;
   }, [getToken]);
@@ -283,18 +217,9 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         connectedRef.current = true;
         DebugLogger.info(TAG, "Connected successfully");
 
-        if (photoAttachmentQueue) {
-          await photoAttachmentQueue.init();
-          DebugLogger.info(TAG, "PhotoAttachmentQueue initialized");
-        }
-        if (inspectionPhotoAttachmentQueue) {
-          await inspectionPhotoAttachmentQueue.init();
-          DebugLogger.info(TAG, "InspectionPhotoAttachmentQueue initialized");
-        }
-        if (damageReportPhotoAttachmentQueue) {
-          await damageReportPhotoAttachmentQueue.init();
-          DebugLogger.info(TAG, "DamageReportPhotoAttachmentQueue initialized");
-        }
+        // Background recovery pass (§6): pick up any pending/failed photos left
+        // over from a previous session, honouring backoff.
+        void photoUploadService?.triggerBackoff();
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();
@@ -353,6 +278,17 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       clearStatusListener();
     };
   }, [isLoaded, isSignedIn, connector, getToken]);
+
+  // §6 — every time the app returns to the foreground, run the recovery pass so
+  // photos stranded from a previous session get another chance to upload.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void photoUploadService?.triggerBackoff();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   return (
     <PowerSyncContext.Provider value={powerSyncDb}>

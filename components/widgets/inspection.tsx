@@ -30,10 +30,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { db, photoUploadService } from "../providers/SystemProvider";
 import {
-  db,
-  inspectionPhotoAttachmentQueue,
-} from "../providers/SystemProvider";
+  saveToGalleryIfCamera,
+  writeLocalPhoto,
+} from "@/library/photoUploadQueue";
 
 type AnswerMap = Record<
   string,
@@ -280,18 +281,35 @@ export default function InspectionScreen({
     photoIndex: number,
   ): Promise<string | null> => {
     if (!photo.isNew || !photo.uri) return photo.attachmentId ?? null;
-    if (!inspectionPhotoAttachmentQueue) {
-      console.warn("inspectionPhotoAttachmentQueue not initialized");
-      return null;
-    }
+
     const ext = photo.ext ?? "jpg";
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
     const base64 = await readAsBase64(photo.uri);
-    const record = await inspectionPhotoAttachmentQueue.savePhoto(
-      base64,
-      filename,
+
+    // Write the stable local copy, then record an InspectionPhotos row pointing
+    // at it with upload_status = pending. The custom queue uploads it in the
+    // background with retry — no more inline, no-retry upload (design doc §3).
+    const localUri = await writeLocalPhoto(base64, filename);
+
+    // Camera captures are the only copy until now — duplicate to the gallery
+    // as a safety backup (§4). Best-effort; never blocks the save.
+    void saveToGalleryIfCamera(localUri, photo.source);
+
+    await executeTypedMutation(
+      db
+        .insertInto("InspectionPhotos")
+        .values({
+          id: randomUUID(),
+          inspection_uuid: inspectionId,
+          storage_path: filename,
+          upload_status: "pending",
+          local_uri: localUri,
+          attempts: 0,
+        })
+        .compile(),
     );
-    return record.id;
+
+    return filename;
   };
 
   const handleSubmit = async () => {
@@ -396,6 +414,9 @@ export default function InspectionScreen({
           .where("id", "=", workTrackerId)
           .compile(),
       );
+
+      // Kick the queue for the inspection (and damage) photos just recorded.
+      void photoUploadService?.triggerFast();
 
       Alert.alert(
         "Success",

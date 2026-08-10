@@ -1,7 +1,7 @@
 import BleacherDropdown, {
   BleacherOption,
 } from "@/components/widgets/bleacherDropdown";
-import { damageReportPhotoAttachmentQueue } from "@/components/providers/SystemProvider";
+import { retryDamageReportPhotos } from "./utils/retryDamageReportPhotos";
 import {
   elevation,
   radius,
@@ -376,14 +376,6 @@ export default function DamageReportScreen() {
   }, []);
 
   const handleRetryFailedPhotos = useCallback(async () => {
-    if (!damageReportPhotoAttachmentQueue) {
-      Alert.alert(
-        "Unavailable",
-        "Photo upload is not ready yet. Try again shortly.",
-      );
-      return;
-    }
-
     const toRetry = reportPhotos.filter(
       (p) =>
         (p.uploadStatus === "failed" || p.uploadStatus === "pending") &&
@@ -393,18 +385,9 @@ export default function DamageReportScreen() {
 
     setIsRetryingPhotos(true);
     try {
-      let retried = 0;
-      let needReAdd = 0;
-
-      for (const photo of toRetry) {
-        const path = photo.photo_path!;
-        const ok = await damageReportPhotoAttachmentQueue.retryUpload(path);
-        if (ok) {
-          retried++;
-        } else {
-          needReAdd++;
-        }
-      }
+      const { retried, needReAdd } = await retryDamageReportPhotos(
+        toRetry.map((p) => p.photo_path!),
+      );
 
       if (needReAdd > 0 && retried === 0) {
         Alert.alert(

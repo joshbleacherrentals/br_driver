@@ -14,3 +14,8 @@ export * from "./uploadStatus";
 export * from "./uploadSuccess";
 export * from "./uploadTimeout";
 export * from "./worker";
+
+// Runtime glue (PowerSync + Supabase Storage wiring).
+export * from "./runtime/localFile";
+export * from "./runtime/photoUploadService";
+export * from "./runtime/saveToGallery";

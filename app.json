@@ -64,6 +64,14 @@
       "expo-font",
       "expo-image",
       "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": "Bleacher Rentals Driver saves the photos you capture to your device's photo library so an original copy is kept safe until it finishes uploading.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

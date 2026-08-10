@@ -1,10 +1,8 @@
-import {
-  photoAttachmentQueue,
-  powerSyncDb,
-} from "@/components/providers/SystemProvider";
-import { DRIVER_DOC_ATTACHMENT_TABLE } from "@/library/powersync/AppSchema";
-import { AttachmentState } from "@powersync/attachments";
-import { useEffect, useMemo, useState } from "react";
+import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { localPhotoExists } from "@/library/photoUploadQueue";
+import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { useMemo } from "react";
 
 export type DriverDocUploadStatus =
   | "pending"
@@ -12,11 +10,23 @@ export type DriverDocUploadStatus =
   | "failed"
   | "unknown";
 
-type AttachmentRow = { id: string; state: number };
+type DriverDocumentStatusRow = {
+  photo_path: string | null;
+  upload_status: string | null;
+};
+
+/** `uploading` shows as `pending`; a missing row (admin-uploaded) is `unknown`. */
+function toStatus(raw: string | null): DriverDocUploadStatus {
+  if (raw === "uploaded") return "uploaded";
+  if (raw === "failed") return "failed";
+  if (raw === "pending" || raw === "uploading") return "pending";
+  return "unknown";
+}
 
 /**
- * Watches local driver_doc_attachments for the given storage paths.
- * No attachment row → "unknown" (admin-uploaded or cache-expired after sync).
+ * Reactively reads the custom-queue `upload_status` for the given document
+ * bucket paths from DriverDocuments. No row → "unknown" (admin-uploaded, or the
+ * doc predates the queue).
  */
 export function useDriverDocUploadStatuses(
   paths: (string | null | undefined)[],
@@ -28,81 +38,61 @@ export function useDriverDocUploadStatuses(
     [stableKey],
   );
 
-  const [rows, setRows] = useState<AttachmentRow[]>([]);
+  const compiled = useMemo(
+    () =>
+      db
+        .selectFrom("DriverDocuments")
+        .select(["photo_path", "upload_status"])
+        .where(
+          "photo_path",
+          "in",
+          stablePaths.length > 0 ? stablePaths : ["__none__"],
+        )
+        .compile(),
+    [stablePaths],
+  );
 
-  useEffect(() => {
-    if (stablePaths.length === 0) {
-      setRows([]);
-      return;
-    }
-
-    const abortController = new AbortController();
-    const placeholders = stablePaths.map(() => "?").join(",");
-    const query = `SELECT id, state FROM ${DRIVER_DOC_ATTACHMENT_TABLE}
-                   WHERE id IN (${placeholders})`;
-
-    powerSyncDb.watch(
-      query,
-      stablePaths,
-      {
-        onResult: (result: { rows?: { _array?: AttachmentRow[] } }) => {
-          setRows(result.rows?._array ?? []);
-        },
-      },
-      { signal: abortController.signal },
-    );
-
-    return () => {
-      abortController.abort();
-    };
-  }, [stablePaths]);
-
-  const byPath = useMemo(() => {
-    const map = new Map<string, DriverDocUploadStatus>();
-    for (const path of stablePaths) {
-      map.set(path, "unknown");
-    }
-    for (const row of rows) {
-      if (
-        row.state === AttachmentState.QUEUED_UPLOAD ||
-        row.state === AttachmentState.QUEUED_SYNC ||
-        row.state === AttachmentState.QUEUED_DOWNLOAD
-      ) {
-        map.set(row.id, "pending");
-      } else if (row.state === AttachmentState.SYNCED) {
-        map.set(row.id, "uploaded");
-      } else if (row.state === AttachmentState.ARCHIVED) {
-        map.set(row.id, "failed");
-      }
-    }
-    return map;
-  }, [rows, stablePaths]);
+  const { data } = useTypedQuery(compiled, expect<DriverDocumentStatusRow>());
 
   const statuses = useMemo(() => {
     const result: Record<string, DriverDocUploadStatus> = {};
-    for (const [path, status] of byPath) {
-      result[path] = status;
+    for (const path of stablePaths) {
+      result[path] = "unknown";
+    }
+    for (const row of data) {
+      if (row.photo_path) {
+        result[row.photo_path] = toStatus(row.upload_status);
+      }
     }
     return result;
-  }, [byPath]);
+  }, [data, stablePaths]);
 
-  const hasPending = [...byPath.values()].some((s) => s === "pending");
-  const hasFailed = [...byPath.values()].some((s) => s === "failed");
+  const hasPending = Object.values(statuses).some((s) => s === "pending");
+  const hasFailed = Object.values(statuses).some((s) => s === "failed");
 
   const retryFailed = async (): Promise<{
     retried: number;
     needRepick: string[];
   }> => {
-    if (!photoAttachmentQueue) {
-      return { retried: 0, needRepick: [] };
-    }
     let retried = 0;
     const needRepick: string[] = [];
-    for (const [path, status] of byPath) {
+    for (const [path, status] of Object.entries(statuses)) {
       if (status !== "failed") continue;
-      const ok = await photoAttachmentQueue.retryUpload(path);
-      if (ok) retried += 1;
-      else needRepick.push(path);
+      if (!(await localPhotoExists(path))) {
+        needRepick.push(path);
+        continue;
+      }
+      await executeTypedMutationVoid(
+        db
+          .updateTable("DriverDocuments")
+          .set({ upload_status: "pending" })
+          .where("photo_path", "=", path)
+          .compile(),
+      );
+      retried += 1;
+    }
+    if (retried > 0) {
+      void photoUploadService?.triggerFast();
     }
     return { retried, needRepick };
   };

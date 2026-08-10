@@ -26,10 +26,26 @@ export const FAST_RETRY_WINDOW_MS = 60_000;
 export function decideRecovery(
   state: ForegroundRecoveryState,
 ): RecoveryDecision {
-  // TODO(photo-queue): implement — placeholder banners without verifying.
-  return {
-    retryMode: "fast",
-    verifyBucket: false,
-    showBanner: state.unresolvedPhotoCount > 0,
-  };
+  // Nothing outstanding — the pass has no work to do.
+  if (state.unresolvedPhotoCount <= 0) {
+    return { retryMode: "idle", verifyBucket: false, showBanner: false };
+  }
+
+  // Step 1 — inside the fast-retry window: retry hard, stay silent, no lookup.
+  if (state.elapsedMs < FAST_RETRY_WINDOW_MS) {
+    return { retryMode: "fast", verifyBucket: false, showBanner: false };
+  }
+
+  // Past the window: the banner may never appear on an unverified guess (§6.2).
+  switch (state.bucketVerification) {
+    case "not_run":
+      // Step 2 — verify directly against the bucket before showing anything.
+      return { retryMode: "fast", verifyBucket: true, showBanner: false };
+    case "confirmed_present":
+      // The file actually landed; the local status just lagged — no banner.
+      return { retryMode: "backoff", verifyBucket: false, showBanner: false };
+    case "confirmed_missing":
+      // Step 3/4 — genuinely missing: banner, then normal background backoff.
+      return { retryMode: "backoff", verifyBucket: false, showBanner: true };
+  }
 }

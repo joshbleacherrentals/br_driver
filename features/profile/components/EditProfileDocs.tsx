@@ -1,7 +1,10 @@
+import { db, photoUploadService } from "@/components/providers/SystemProvider";
 import {
-  db,
-  photoAttachmentQueue,
-} from "@/components/providers/SystemProvider";
+  localUriForPath,
+  saveToGalleryIfCamera,
+  writeLocalPhoto,
+  type PhotoSource,
+} from "@/library/photoUploadQueue";
 import { typeScale } from "@/constants/theme";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
@@ -10,6 +13,7 @@ import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
 import { Ionicons } from "@expo/vector-icons";
+import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
@@ -47,6 +51,8 @@ interface DocumentPhoto {
   isNew?: boolean;
   /** File extension extracted from the source URI (e.g. "jpg", "png", "pdf") */
   ext?: string;
+  /** Capture source — only "camera" is duplicated to the gallery (§4). */
+  source?: PhotoSource;
 }
 
 export default function EditProfileDocs({
@@ -125,6 +131,7 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "library",
       });
     }
   };
@@ -158,6 +165,7 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "camera",
       });
     }
   };
@@ -182,13 +190,16 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "file",
       });
     }
   };
 
   /**
-   * Save a photo through the attachment queue.
-   * Returns the filename used as the storage path (stored in the Drivers table).
+   * Record a document photo for the custom upload queue: write the stable local
+   * copy, then upsert the one DriverDocuments row for this (driver, doc_type)
+   * with upload_status = pending (design doc §3). Returns the bucket path, which
+   * is also mirrored onto Drivers.<doc>_photo_path for existing readers.
    */
   const savePhotoToQueue = async (
     photo: DocumentPhoto,
@@ -196,16 +207,60 @@ export default function EditProfileDocs({
   ): Promise<string | null> => {
     if (!photo.isNew || !photo.base64 || !driverId)
       return photo.attachmentId ?? null;
-    if (!photoAttachmentQueue) {
-      console.warn("PhotoAttachmentQueue not initialized");
-      return null;
-    }
 
     const ext = photo.ext ?? "jpg";
     const ts = Date.now();
     const filename = `${driverId}/${docType}_${ts}.${ext}`;
-    const record = await photoAttachmentQueue.savePhoto(photo.base64, filename);
-    return record.id;
+    const localUri = await writeLocalPhoto(photo.base64, filename);
+
+    // Camera captures are the only copy until now — duplicate to the gallery
+    // as a safety backup (§4). Library/file sources are already persistent.
+    void saveToGalleryIfCamera(localUri, photo.source);
+
+    // PowerSync local tables carry no unique index, so upsert manually by
+    // finding the existing (driver_uuid, doc_type) row.
+    const existing = await db
+      .selectFrom("DriverDocuments")
+      .select("id")
+      .where("driver_uuid", "=", driverId)
+      .where("doc_type", "=", docType)
+      .limit(1)
+      .execute();
+
+    if (existing.length > 0) {
+      await executeTypedMutation(
+        db
+          .updateTable("DriverDocuments")
+          .set({
+            photo_path: filename,
+            local_uri: localUri,
+            upload_status: "pending",
+            attempts: 0,
+            last_attempt_at: null,
+            last_error: null,
+          })
+          .where("id", "=", existing[0].id)
+          .compile(),
+      );
+    } else {
+      await executeTypedMutation(
+        db
+          .insertInto("DriverDocuments")
+          .values({
+            id: randomUUID(),
+            driver_uuid: driverId,
+            doc_type: docType,
+            photo_path: filename,
+            local_uri: localUri,
+            upload_status: "pending",
+            attempts: 0,
+            created_at: new Date().toISOString(),
+          })
+          .compile(),
+      );
+    }
+
+    return filename;
   };
 
   const handleSubmit = async () => {
@@ -250,6 +305,9 @@ export default function EditProfileDocs({
         .compile();
 
       await executeTypedMutation(updateQuery);
+
+      // Kick the queue: the user is here and waiting, so retry fast (§6/§7).
+      void photoUploadService?.triggerFast();
 
       Alert.alert(
         "Saved",
@@ -463,10 +521,7 @@ export default function EditProfileDocs({
 
 function getLocalUriForAttachment(attachmentId: string): string | null {
   if (!attachmentId) return null;
-  if (!photoAttachmentQueue) return null;
-
-  const localPath = photoAttachmentQueue.getLocalFilePathSuffix(attachmentId);
-  return photoAttachmentQueue.getLocalUri(localPath);
+  return localUriForPath(attachmentId);
 }
 
 const styles = StyleSheet.create({

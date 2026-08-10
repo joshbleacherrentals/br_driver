@@ -1,7 +1,8 @@
+import { db, photoUploadService } from "@/components/providers/SystemProvider";
 import {
-  damageReportPhotoAttachmentQueue,
-  db,
-} from "@/components/providers/SystemProvider";
+  saveToGalleryIfCamera,
+  writeLocalPhoto,
+} from "@/library/photoUploadQueue";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { generateThumbnail } from "@/utils/generateThumbnail";
 import { readAsBase64 } from "@/utils/readAsBase64";
@@ -65,11 +66,6 @@ export async function createDamageReport(
   const newPhotos = input.photos.filter((p) => p.isNew && p.uri);
   input.onPhotoProgress?.(0, newPhotos.length);
 
-  if (!damageReportPhotoAttachmentQueue) {
-    console.warn("damageReportPhotoAttachmentQueue not initialized");
-    return { damageId, aborted: false, savedPhotoCount: 0 };
-  }
-
   let savedPhotoCount = 0;
 
   for (let i = 0; i < newPhotos.length; i++) {
@@ -98,7 +94,14 @@ export async function createDamageReport(
       const ext = photo.ext ?? "jpg";
       const filename = `${damageId}/photo_${i}_${Date.now()}.${ext}`;
 
-      await damageReportPhotoAttachmentQueue.savePhotoToDisk(base64, filename);
+      // Write the stable local copy first, then record the row pointing at it
+      // with upload_status = pending. The worker uploads from local_uri and
+      // never deletes it (§2, §3) — no attachment-queue archival can lose it.
+      const localUri = await writeLocalPhoto(base64, filename);
+
+      // Camera captures are the only copy until now — duplicate to the gallery
+      // as a safety backup (§4). Best-effort; never blocks the save.
+      void saveToGalleryIfCamera(localUri, photo.source);
 
       await executeTypedMutation(
         db
@@ -108,6 +111,9 @@ export async function createDamageReport(
             damage_report_uuid: damageId,
             photo_path: filename,
             thumbnail: thumb,
+            upload_status: "pending",
+            local_uri: localUri,
+            attempts: 0,
           })
           .compile(),
       );
@@ -119,6 +125,9 @@ export async function createDamageReport(
 
     input.onPhotoProgress?.(i + 1, newPhotos.length);
   }
+
+  // Kick the queue: the user is here and waiting, so retry fast (§6/§7).
+  void photoUploadService?.triggerFast();
 
   return { damageId, aborted: false, savedPhotoCount };
 }

@@ -1,18 +1,17 @@
 /**
  * §3 — `upload_status` state machine.
  *
- * NOT IMPLEMENTED. See docs/custom-photo-upload-queue.en.md §3 and §5.
- * The bodies below are deliberately-wrong placeholders so the specification
- * tests fail as assertion diffs rather than import errors.
+ * Source of truth: docs/custom-photo-upload-queue.en.md §3 and §5.
+ * The state vocabulary is exactly `pending`/`uploading`/`uploaded`/`failed` —
+ * there is deliberately no archived/deleted state, because a stray "archive"
+ * transition is what caused the permanent photo loss this queue exists to fix.
  */
 
 import type { PhotoUploadRow, UploadEvent, UploadStatus } from "./types";
 
 /** `uploaded` is the only terminal state — §3, §5 ("timeout ≠ stop trying"). */
 export function isTerminalUploadStatus(status: UploadStatus): boolean {
-  // TODO(photo-queue): implement — placeholder claims nothing is terminal.
-  void status;
-  return false;
+  return status === "uploaded";
 }
 
 /**
@@ -23,10 +22,23 @@ export function nextUploadStatus(
   current: UploadStatus,
   event: UploadEvent,
 ): UploadStatus {
-  // TODO(photo-queue): implement — placeholder ignores both inputs.
-  void current;
-  void event;
-  return "pending";
+  // Terminal: a confirmed upload can never be undone by a later event (§3).
+  if (isTerminalUploadStatus(current)) {
+    return current;
+  }
+
+  switch (event) {
+    case "attempt_started":
+      return "uploading";
+    case "upload_confirmed":
+      return "uploaded";
+    case "attempt_failed":
+    case "attempt_timed_out":
+      // §5 — a timeout is just another failed attempt, never a give-up.
+      return "failed";
+    case "retry_requested":
+      return "pending";
+  }
 }
 
 /**
@@ -43,9 +55,39 @@ export function applyUploadEvent(
   nowIso: string,
   errorMessage?: string,
 ): PhotoUploadRow {
-  // TODO(photo-queue): implement — placeholder returns the row untouched.
-  void event;
-  void nowIso;
-  void errorMessage;
-  return row;
+  const next: PhotoUploadRow = {
+    ...row,
+    upload_status: nextUploadStatus(row.upload_status, event),
+  };
+
+  switch (event) {
+    case "attempt_started":
+      next.last_attempt_at = nowIso;
+      break;
+
+    case "attempt_failed":
+    case "attempt_timed_out":
+      // §3 — `attempts` counts completed-but-unsuccessful attempts; it is the
+      // sole input to the backoff schedule, so it increments here and nowhere
+      // else. A timeout is one such attempt too.
+      next.attempts = row.attempts + 1;
+      next.last_attempt_at = nowIso;
+      next.last_error =
+        errorMessage ??
+        (event === "attempt_timed_out" ? "Upload timed out" : row.last_error);
+      break;
+
+    case "upload_confirmed":
+      // §10 — clear stale diagnostics once the object is safely in the bucket.
+      next.last_attempt_at = nowIso;
+      next.last_error = null;
+      break;
+
+    case "retry_requested":
+      // A user-driven reset to `pending`; the next `attempt_started` stamps the
+      // timing. `attempts` is preserved so backoff history is not lost.
+      break;
+  }
+
+  return next;
 }

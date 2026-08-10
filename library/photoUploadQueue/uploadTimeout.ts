@@ -26,7 +26,19 @@ export function uploadWithTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number = UPLOAD_TIMEOUT_MS,
 ): Promise<T> {
-  // TODO(photo-queue): implement — placeholder applies no deadline at all.
-  void timeoutMs;
-  return run(new AbortController().signal);
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Upload timed out"));
+    }, timeoutMs);
+  });
+
+  // Whichever settles first wins; clearing the timer means a request that beat
+  // the deadline is never aborted late, and no dangling timer leaks (§5).
+  return Promise.race([run(controller.signal), deadline]).finally(() => {
+    clearTimeout(timer);
+  });
 }

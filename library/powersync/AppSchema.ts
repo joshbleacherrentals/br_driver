@@ -176,6 +176,12 @@ const DamageReportPhotosCols = {
   photo_path: column.text,
   thumbnail: column.text,
   upload_status: column.text,
+  // Custom photo upload queue (design doc §3).
+  local_uri: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
   created_at: column.text,
 } satisfies PowerSyncColsFor<"DamageReportPhotos">;
 const DamageReportPhotos = new Table(DamageReportPhotosCols, {
@@ -188,9 +194,35 @@ const InspectionsPhotosCols = {
   inspection_uuid: column.text,
   storage_path: column.text,
   caption: column.text,
+  // Custom photo upload queue (design doc §3) — InspectionPhotos previously had
+  // no upload_status at all.
+  upload_status: column.text,
+  local_uri: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, {
   indexes: { id: ["id"] },
+});
+
+// driver documents (license / insurance / medical card) — one row per document,
+// same custom-upload-queue shape as the photo tables (design doc §3).
+const DriverDocumentsCols = {
+  driver_uuid: column.text,
+  doc_type: column.text,
+  photo_path: column.text,
+  upload_status: column.text,
+  local_uri: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverDocuments">;
+const DriverDocuments = new Table(DriverDocumentsCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
 });
 
 // worktracker
@@ -284,6 +316,7 @@ export const AppSchema = new Schema({
   DamageReports,
   DamageReportPhotos,
   InspectionPhotos,
+  DriverDocuments,
   WorkTrackers,
   Vehicles,
   BlueBook,
@@ -302,6 +335,8 @@ export type UserRecord = PowerSyncDB["Users"];
 export type BleacherRecord = PowerSyncDB["Bleachers"];
 export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
 export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
+export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
+export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];

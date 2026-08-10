@@ -16,7 +16,7 @@ export async function pickDamagePhotosFromCamera(): Promise<DocumentPhoto[]> {
   const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
   if (result.canceled || !result.assets?.length) return [];
 
-  return [await persistDamagePhoto(result.assets[0].uri)];
+  return [await persistDamagePhoto(result.assets[0].uri, "camera")];
 }
 
 export async function pickDamagePhotosFromLibrary(): Promise<DocumentPhoto[]> {
@@ -39,7 +39,7 @@ export async function pickDamagePhotosFromLibrary(): Promise<DocumentPhoto[]> {
   const photos: DocumentPhoto[] = [];
   for (const asset of result.assets) {
     try {
-      photos.push(await persistDamagePhoto(asset.uri));
+      photos.push(await persistDamagePhoto(asset.uri, "library"));
     } catch (err) {
       console.warn("[pickDamagePhotos] persist failed:", err);
     }

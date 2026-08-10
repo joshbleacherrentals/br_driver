@@ -44,9 +44,11 @@ describe("photo upload banner (§6)", () => {
 
     expect(banner.title).toBe(PHOTO_UPLOAD_BANNER_TITLE);
     expect(PHOTO_UPLOAD_BANNER_TITLE).toBe("Photo Upload Issue");
-    expect(banner.subtitle).toContain("3");
-    expect(banner.subtitle.toLowerCase()).toContain("failed to upload");
-    expect(banner.subtitle.toLowerCase()).toContain("tap to retry");
+    // §11.6 — the copy is finalised, so the subtitle is pinned exactly, not by
+    // fragments. The leading "N" is the report count.
+    expect(banner.subtitle).toBe(
+      "3 report(s) have photos that failed to upload — tap to retry.",
+    );
   });
 
   it("keeps the count in step with a single remaining report", () => {

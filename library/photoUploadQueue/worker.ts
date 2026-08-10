@@ -34,12 +34,43 @@ export type UploadQueueWorker = {
 export function createUploadQueueWorker(
   deps: UploadQueueWorkerDeps,
 ): UploadQueueWorker {
-  // TODO(photo-queue): implement — placeholder never touches the queue.
-  void deps;
+  let running = false;
+  let inFlight: Promise<void> | null = null;
+
+  const drain = async (): Promise<void> => {
+    try {
+      for (;;) {
+        const row = await deps.claimNextPendingRow();
+        if (!row) {
+          break;
+        }
+        try {
+          await deps.uploadRow(row);
+        } catch {
+          // §5/§6 — attempts never truly end, so a single failing row must not
+          // wedge the queue and strand every photo behind it. The row keeps its
+          // retryable status (set by the caller) and is picked up on a later
+          // pass; here we just move on to the next one.
+        }
+      }
+    } finally {
+      running = false;
+      inFlight = null;
+    }
+  };
+
   return {
-    trigger: async () => {},
-    get isRunning() {
-      return false;
+    trigger(): Promise<void> {
+      // Overlapping triggers join the single in-flight run instead of starting
+      // a second one — the serialized worker §10 requires.
+      if (!running) {
+        running = true;
+        inFlight = drain();
+      }
+      return inFlight ?? Promise.resolve();
+    },
+    get isRunning(): boolean {
+      return running;
     },
   };
 }
