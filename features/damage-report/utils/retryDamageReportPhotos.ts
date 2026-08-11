@@ -23,7 +23,12 @@ export async function retryDamageReportPhotos(
     await executeTypedMutationVoid(
       db
         .updateTable("DamageReportPhotos")
-        .set({ upload_status: "pending" })
+        .set({
+          upload_status: "pending",
+          attempts: 0,
+          last_attempt_at: null,
+          last_error: null,
+        })
         .where("photo_path", "=", path)
         .compile(),
     );

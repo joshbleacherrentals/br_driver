@@ -85,7 +85,12 @@ export function useDriverDocUploadStatuses(
       await executeTypedMutationVoid(
         db
           .updateTable("DriverDocuments")
-          .set({ upload_status: "pending" })
+          .set({
+            upload_status: "pending",
+            attempts: 0,
+            last_attempt_at: null,
+            last_error: null,
+          })
           .where("photo_path", "=", path)
           .compile(),
       );

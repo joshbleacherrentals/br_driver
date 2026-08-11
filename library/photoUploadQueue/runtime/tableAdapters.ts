@@ -10,7 +10,7 @@
 import { db } from "@/components/providers/SystemProvider";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 
-import { isDueForRetry } from "../backoff";
+import { isDueForFastRetry, isDueForRetry } from "../backoff";
 import type { PhotoUploadRow, UploadStatus } from "../types";
 import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 
@@ -18,6 +18,14 @@ import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 const UNRESOLVED_STATUSES: UploadStatus[] = ["pending", "failed"];
 /** How many candidates to pull per claim before filtering for eligibility. */
 const CLAIM_BATCH = 25;
+
+/**
+ * `last_error` sentinel meaning the local file is gone: the background worker
+ * physically cannot upload it, so it is *parked* — excluded from claims and from
+ * the "actionable" count — until the user re-adds the photo (which clears this
+ * and re-queues the row, §6). It still counts as unresolved for the banner.
+ */
+export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
 
 /**
  * Shared columns every photo table carries under the queue design (§3). The
@@ -63,18 +71,31 @@ function queueUpdateSet(row: PhotoUploadRow) {
   };
 }
 
-/** First row eligible under the mode: any in `fast`, backoff-due in `backoff`. */
+/**
+ * First eligible row under the mode. `fast` uses a short cooldown so a failing
+ * row can neither hot-loop nor starve the rest; `backoff` uses the §6 schedule.
+ * Parked (missing-file) rows are never eligible.
+ */
 function firstEligible<
-  T extends { attempts: number | null; last_attempt_at: string | null },
+  T extends {
+    attempts: number | null;
+    last_attempt_at: string | null;
+    last_error: string | null;
+  },
 >(rows: T[], mode: PhotoQueueMode, nowMs: number): T | null {
   for (const row of rows) {
-    const due = isDueForRetry(
-      { attempts: row.attempts ?? 0, last_attempt_at: row.last_attempt_at },
-      nowMs,
-    );
-    if (mode === "fast" || due) {
-      return row;
-    }
+    if (row.last_error === MISSING_LOCAL_FILE_ERROR) continue;
+    const eligible =
+      mode === "fast"
+        ? isDueForFastRetry({ last_attempt_at: row.last_attempt_at }, nowMs)
+        : isDueForRetry(
+            {
+              attempts: row.attempts ?? 0,
+              last_attempt_at: row.last_attempt_at,
+            },
+            nowMs,
+          );
+    if (eligible) return row;
   }
   return null;
 }
@@ -101,6 +122,12 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
         "created_at",
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .orderBy("created_at", "asc")
       .limit(CLAIM_BATCH)
       .execute();
@@ -124,6 +151,21 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
       .selectFrom("DamageReportPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .execute();
+    return rows.length;
+  },
+
+  async countActionable() {
+    const rows = await db
+      .selectFrom("DamageReportPhotos")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .execute();
     return rows.length;
   },
@@ -151,6 +193,12 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
         "created_at",
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .orderBy("created_at", "asc")
       .limit(CLAIM_BATCH)
       .execute();
@@ -174,6 +222,21 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
       .selectFrom("InspectionPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .execute();
+    return rows.length;
+  },
+
+  async countActionable() {
+    const rows = await db
+      .selectFrom("InspectionPhotos")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .execute();
     return rows.length;
   },
@@ -201,6 +264,12 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
         "created_at",
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .orderBy("created_at", "asc")
       .limit(CLAIM_BATCH)
       .execute();
@@ -224,6 +293,21 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
       .selectFrom("DriverDocuments")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .execute();
+    return rows.length;
+  },
+
+  async countActionable() {
+    const rows = await db
+      .selectFrom("DriverDocuments")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) =>
+        eb.or([
+          eb("last_error", "is", null),
+          eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+        ]),
+      )
       .execute();
     return rows.length;
   },

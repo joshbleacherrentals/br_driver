@@ -12,7 +12,9 @@
 
 import {
   BACKOFF_SCHEDULE_MS,
+  FAST_RETRY_SPACING_MS,
   backoffDelayMs,
+  isDueForFastRetry,
   isDueForRetry,
 } from "@/library/photoUploadQueue/backoff";
 
@@ -105,5 +107,42 @@ describe("retry eligibility against the schedule (§6)", () => {
     expect(isDueForRetry({ attempts: 0, last_attempt_at: null }, Date.now())).toBe(
       true,
     );
+  });
+});
+
+// The property that makes a hot loop structurally impossible: even in fast mode
+// (which skips the backoff schedule), a row that was just attempted is NOT
+// immediately eligible again — so the worker can never re-claim the same failing
+// row on the next iteration and spin. Fresh rows still go immediately.
+describe("fast-mode cooldown makes a hot loop impossible (§6)", () => {
+  const BASE = new Date("2026-08-07T12:00:00.000Z");
+
+  it("lets a never-attempted row go immediately in fast mode", () => {
+    jest.setSystemTime(BASE);
+    expect(isDueForFastRetry({ last_attempt_at: null }, Date.now())).toBe(true);
+  });
+
+  it("refuses to re-attempt a just-failed row on the next tick", () => {
+    jest.setSystemTime(BASE);
+    const justAttempted = { last_attempt_at: BASE.toISOString() };
+
+    // 1 ms later — the interval at which the old hot loop spun.
+    jest.advanceTimersByTime(1);
+    expect(isDueForFastRetry(justAttempted, Date.now())).toBe(false);
+
+    // Still held back just before the spacing elapses.
+    jest.advanceTimersByTime(FAST_RETRY_SPACING_MS - 2);
+    expect(isDueForFastRetry(justAttempted, Date.now())).toBe(false);
+
+    // Eligible again only once the full spacing has passed.
+    jest.advanceTimersByTime(1);
+    expect(isDueForFastRetry(justAttempted, Date.now())).toBe(true);
+  });
+
+  it("caps a permanently-failing row far below a spin (≤1 attempt per spacing)", () => {
+    // Over a full minute of fast retries the same row can be attempted at most
+    // ~15 times, not thousands — the spacing is the ceiling.
+    const perMinute = 60_000 / FAST_RETRY_SPACING_MS;
+    expect(perMinute).toBeLessThanOrEqual(15);
   });
 });

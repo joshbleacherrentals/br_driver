@@ -11,6 +11,15 @@ import type { PhotoUploadRow } from "./types";
 export const BACKOFF_SCHEDULE_MS = [30_000, 60_000, 300_000] as const;
 
 /**
+ * Minimum gap between two attempts on the *same* row in fast/foreground mode.
+ * Fast mode skips the backoff schedule so a waiting user sees quick progress —
+ * but not zero, so a single instantly-failing row can never hot-loop the worker
+ * or starve the other photos. It is a floor on re-attempt spacing, not a cap on
+ * how many attempts happen (§5/§6).
+ */
+export const FAST_RETRY_SPACING_MS = 4_000;
+
+/**
  * Pause to wait before the next attempt, given how many attempts have already
  * been made for this row. Non-decreasing, and plateaus at the last step of
  * {@link BACKOFF_SCHEDULE_MS} — it never grows without bound and never
@@ -41,4 +50,25 @@ export function isDueForRetry(
     return true;
   }
   return nowMs - lastMs >= backoffDelayMs(row.attempts);
+}
+
+/**
+ * Fast-mode eligibility: a never-attempted row goes immediately; an
+ * already-attempted one must wait {@link FAST_RETRY_SPACING_MS}. This is what
+ * makes a hot loop impossible — the row that just failed cannot be re-claimed on
+ * the very next iteration, so the worker always drains and stops instead of
+ * spinning on one row.
+ */
+export function isDueForFastRetry(
+  row: Pick<PhotoUploadRow, "last_attempt_at">,
+  nowMs: number,
+): boolean {
+  if (!row.last_attempt_at) {
+    return true;
+  }
+  const lastMs = Date.parse(row.last_attempt_at);
+  if (Number.isNaN(lastMs)) {
+    return true;
+  }
+  return nowMs - lastMs >= FAST_RETRY_SPACING_MS;
 }

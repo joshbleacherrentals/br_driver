@@ -30,4 +30,11 @@ export interface PhotoQueueTableAdapter {
 
   /** Count of rows still not `uploaded` — feeds the recovery/banner pass (§6). */
   countUnresolved(): Promise<number>;
+
+  /**
+   * Count of unresolved rows the worker can still act on — i.e. excluding those
+   * parked because their local file is gone. Drives whether the queue keeps
+   * scheduling retry passes, so a permanently-missing file never busy-loops.
+   */
+  countActionable(): Promise<number>;
 }
