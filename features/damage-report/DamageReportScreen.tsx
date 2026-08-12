@@ -16,6 +16,7 @@ import {
   useDamageReportPhotos,
 } from "@/hooks/db/useDamageReportPhotos";
 import { useDriver } from "@/hooks/db/useDriver";
+import { deriveUploadProgress } from "@/library/photoUploadQueue";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -318,6 +319,7 @@ export default function DamageReportScreen() {
   const { damageReport } = useDamageReportById(viewOnlyId);
   const {
     photos: reportPhotos,
+    isLoading: photosLoading,
     hasPending: photosPending,
     hasFailed: photosFailed,
   } = useDamageReportPhotos(viewOnlyId);
@@ -347,6 +349,11 @@ export default function DamageReportScreen() {
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0 });
+  // §7 — the report whose photos this screen is watching land in the bucket.
+  // Set on a successful submit; the modal below tracks it until every photo is
+  // `uploaded` or the driver chooses to let it finish in the background.
+  const [uploadTrackedId, setUploadTrackedId] = useState<string | null>(null);
+  const [uploadDismissed, setUploadDismissed] = useState(false);
   const abortRef = useRef(false);
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>(
@@ -363,6 +370,24 @@ export default function DamageReportScreen() {
       setDebugLogs((prev) => [...prev, entry]);
     }
   }, []);
+
+  // §7 — real progress, read off the live `upload_status` of this report's rows
+  // rather than counted by the submit loop, so the bar only advances when a
+  // photo has actually reached Supabase Storage.
+  const uploadProgress = useMemo(
+    () => deriveUploadProgress(reportPhotos.map((p) => p.uploadStatus)),
+    [reportPhotos],
+  );
+
+  // Stays up across the hand-off from the prep phase: the reactive photo query
+  // for the just-created report needs a beat to return, and the modal must not
+  // blink out in that gap. The driver can always leave via "Continue in
+  // Background", so a slow query can never trap them here.
+  const showUploadModal =
+    !!uploadTrackedId &&
+    uploadTrackedId === viewOnlyId &&
+    !uploadDismissed &&
+    (photosLoading || (uploadProgress.total > 0 && !uploadProgress.complete));
 
   const canSubmit =
     selectedBleacher &&
@@ -461,6 +486,10 @@ export default function DamageReportScreen() {
 
       dlog("SUBMIT: success! Navigating to view-only...");
       setIsSubmitting(false);
+      // §7 — hand straight over to the upload phase: same modal, now counting
+      // photos confirmed in the bucket instead of photos written to disk.
+      setUploadDismissed(false);
+      setUploadTrackedId(result.damageId);
       setViewOnlyId(result.damageId);
     } catch (error) {
       dlog(`SUBMIT: FATAL ERROR - ${String(error).slice(0, 200)}`);
@@ -468,6 +497,20 @@ export default function DamageReportScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // One modal instance for both phases, rendered by both branches below — the
+  // screen flips to view-only the moment the report is saved, and §7's upload
+  // phase has to survive that flip without the modal blinking out.
+  const progressModal = (
+    <SubmitProgressModal
+      visible={isSubmitting || showUploadModal}
+      phase={isSubmitting ? "preparing" : "uploading"}
+      current={isSubmitting ? prepProgress.current : uploadProgress.uploaded}
+      total={isSubmitting ? prepProgress.total : uploadProgress.total}
+      onAbort={handleAbort}
+      onDismiss={() => setUploadDismissed(true)}
+    />
+  );
 
   if (isViewOnly) {
     return (
@@ -578,6 +621,8 @@ export default function DamageReportScreen() {
           theme={theme}
           insets={insets}
         />
+
+        {progressModal}
       </View>
     );
   }
@@ -657,12 +702,7 @@ export default function DamageReportScreen() {
         insets={insets}
       />
 
-      <SubmitProgressModal
-        visible={isSubmitting}
-        current={prepProgress.current}
-        total={prepProgress.total}
-        onAbort={handleAbort}
-      />
+      {progressModal}
     </View>
   );
 }

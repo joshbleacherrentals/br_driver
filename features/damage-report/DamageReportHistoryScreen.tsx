@@ -1,4 +1,5 @@
 import Badge from "@/components/ui/Badge";
+import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import {
@@ -182,6 +183,7 @@ export default function DamageReportHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
+      <PhotoUploadIssueBanner />
       {isLoading ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>Loading...</Text>

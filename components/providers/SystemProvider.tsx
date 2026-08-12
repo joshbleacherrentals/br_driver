@@ -2,7 +2,9 @@ import { DebugLogger } from "@/library/debug/DebugLogger";
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import {
+  createForegroundRecovery,
   createPhotoUploadService,
+  type ForegroundRecovery,
   type PhotoUploadService,
 } from "@/library/photoUploadQueue";
 import { useAuth } from "@clerk/clerk-expo";
@@ -106,6 +108,13 @@ export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
  */
 export let photoUploadService: PhotoUploadService | undefined;
 
+/**
+ * §6 — the "1 minute of fast retries → verify against the bucket → banner" pass.
+ * Runs on connect and on every foreground transition; publishes its verdict to
+ * the recovery store that `usePhotoUploadBanner` reads.
+ */
+export let photoUploadRecovery: ForegroundRecovery | undefined;
+
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const connectedRef = useRef(false);
@@ -139,6 +148,11 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     // it holds no watchers/timers of its own — screens and the foreground
     // listener below drive it.
     photoUploadService = createPhotoUploadService(bc.client);
+    photoUploadRecovery?.dispose();
+    photoUploadRecovery = createForegroundRecovery({
+      client: bc.client,
+      service: photoUploadService,
+    });
 
     return bc;
   }, [getToken]);
@@ -217,9 +231,10 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         connectedRef.current = true;
         DebugLogger.info(TAG, "Connected successfully");
 
-        // Background recovery pass (§6): pick up any pending/failed photos left
-        // over from a previous session, honouring backoff.
-        void photoUploadService?.triggerBackoff();
+        // Recovery pass (§6): pick up any pending/failed photos left over from a
+        // previous session — a minute of fast retries first, then a direct
+        // bucket check, and only then the banner.
+        photoUploadRecovery?.run();
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();
@@ -280,14 +295,18 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   }, [isLoaded, isSignedIn, connector, getToken]);
 
   // §6 — every time the app returns to the foreground, run the recovery pass so
-  // photos stranded from a previous session get another chance to upload.
+  // photos stranded from a previous session get another chance to upload before
+  // anything is reported to the driver.
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        void photoUploadService?.triggerBackoff();
+        photoUploadRecovery?.run();
       }
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      photoUploadRecovery?.dispose();
+    };
   }, []);
 
   return (

@@ -169,6 +169,27 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
       .execute();
     return rows.length;
   },
+
+  async listUnresolved(limit) {
+    const rows = await db
+      .selectFrom("DamageReportPhotos")
+      .select([
+        "id",
+        "photo_path",
+        "upload_status",
+        "local_uri",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.photo_path));
+  },
 };
 
 // ── InspectionPhotos (bucket path column: storage_path) ─────────────────────
@@ -240,6 +261,27 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
       .execute();
     return rows.length;
   },
+
+  async listUnresolved(limit) {
+    const rows = await db
+      .selectFrom("InspectionPhotos")
+      .select([
+        "id",
+        "storage_path",
+        "upload_status",
+        "local_uri",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.storage_path));
+  },
 };
 
 // ── DriverDocuments (bucket path column: photo_path) ────────────────────────
@@ -310,6 +352,27 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
       )
       .execute();
     return rows.length;
+  },
+
+  async listUnresolved(limit) {
+    const rows = await db
+      .selectFrom("DriverDocuments")
+      .select([
+        "id",
+        "photo_path",
+        "upload_status",
+        "local_uri",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.photo_path));
   },
 };
 

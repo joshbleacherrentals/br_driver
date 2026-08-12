@@ -2,6 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import Badge from "@/components/ui/Badge";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
 import { type ThemeColors, elevation, typeScale } from "@/constants/theme";
 import AvailabilityIntroStrip from "@/features/availability/components/AvailabilityIntroStrip";
 import UpcomingTripCard from "@/features/availability/components/UpcomingTripCard";
@@ -405,6 +406,7 @@ export default function AvailabilityCalendarScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
+      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ScrollView

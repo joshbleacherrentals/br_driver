@@ -32,6 +32,15 @@ export interface PhotoQueueTableAdapter {
   countUnresolved(): Promise<number>;
 
   /**
+   * The rows behind {@link countUnresolved}, so the §6 recovery pass can check
+   * each one against the bucket. Unlike `claimNext` this deliberately includes
+   * rows parked for a missing local file: those are the likeliest to be
+   * genuinely lost, and are exactly what the driver needs telling about.
+   * Bounded — a verification pass must not fan out unboundedly.
+   */
+  listUnresolved(limit: number): Promise<PhotoUploadRow[]>;
+
+  /**
    * Count of unresolved rows the worker can still act on — i.e. excluding those
    * parked because their local file is gone. Drives whether the queue keeps
    * scheduling retry passes, so a permanently-missing file never busy-loops.

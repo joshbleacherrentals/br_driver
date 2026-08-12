@@ -3,6 +3,7 @@ import { typeScale } from "@/constants/theme";
 import InspectionScreen from "@/components/widgets/inspection";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
 import TripItem from "@/components/widgets/trip_item";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
@@ -243,6 +244,7 @@ export default function TripsScreen() {
   return (
     <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
+      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ReleasedTripsBanner

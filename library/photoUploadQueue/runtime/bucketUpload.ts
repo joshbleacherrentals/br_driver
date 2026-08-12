@@ -80,24 +80,54 @@ export async function uploadToBucket(
 }
 
 /**
+ * Outcome of a direct bucket lookup. `unknown` is a first-class answer, not a
+ * failure mode: on a phone with no signal the lookup cannot run, and treating
+ * that as `absent` would let an offline app declare a photo lost (§6.2) — the
+ * exact false alarm the verification step exists to prevent.
+ */
+export type BucketPresence = "present" | "absent" | "unknown";
+
+/**
  * Direct bucket lookup — the ground truth §6.2/§10 requires before a row may be
- * declared `uploaded` on anything less than an explicit API confirmation.
+ * declared `uploaded`, or reported to the driver as lost, on anything less than
+ * an explicit API answer.
+ */
+export async function lookupBucketObject(
+  client: SupabaseClient,
+  bucket: string,
+  path: string,
+): Promise<BucketPresence> {
+  const slash = path.lastIndexOf("/");
+  const prefix = slash >= 0 ? path.slice(0, slash) : "";
+  const name = slash >= 0 ? path.slice(slash + 1) : path;
+
+  try {
+    const { data, error } = await client.storage
+      .from(bucket)
+      .list(prefix, { search: name, limit: 100 });
+
+    // An errored list says nothing about the object — offline, auth expired,
+    // rate limited. Never downgrade that to "absent".
+    if (error) {
+      return "unknown";
+    }
+    return (data ?? []).some((object) => object.name === name)
+      ? "present"
+      : "absent";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Boolean view of {@link lookupBucketObject} for the upload path, where only an
+ * affirmative "present" may confirm a row (§9/§10) and both `absent` and
+ * `unknown` correctly leave the row retryable.
  */
 export async function objectExistsInBucket(
   client: SupabaseClient,
   bucket: string,
   path: string,
 ): Promise<boolean> {
-  const slash = path.lastIndexOf("/");
-  const prefix = slash >= 0 ? path.slice(0, slash) : "";
-  const name = slash >= 0 ? path.slice(slash + 1) : path;
-
-  const { data, error } = await client.storage
-    .from(bucket)
-    .list(prefix, { search: name, limit: 100 });
-
-  if (error) {
-    return false;
-  }
-  return (data ?? []).some((object) => object.name === name);
+  return (await lookupBucketObject(client, bucket, path)) === "present";
 }
