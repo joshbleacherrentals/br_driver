@@ -2,11 +2,11 @@
  * Local file persistence for the custom photo upload queue.
  *
  * Every captured/picked photo is written to a stable location under the app's
- * document directory, keyed by its bucket path. That URI becomes the row's
- * `local_uri` (§3) and is what the worker reads to upload. The path is
- * deterministic from `photo_path`, so a renderer can locate the local copy
- * without consulting the DB. Nothing here ever deletes a file — the §2/§3
- * guarantee that the local original outlives the upload.
+ * document directory, keyed by its bucket path. The path is deterministic
+ * from `photo_path` alone, so any consumer — the upload worker, a renderer,
+ * a repair flow — can recompute the local copy's URI live, without storing or
+ * trusting a persisted absolute path anywhere. Nothing here ever deletes a
+ * file — the §2/§3 guarantee that the local original outlives the upload.
  */
 
 import * as FileSystem from "expo-file-system/legacy";
@@ -25,8 +25,8 @@ export async function localPhotoExists(bucketPath: string): Promise<boolean> {
 }
 
 /**
- * Writes base64 image/PDF data to the stable local path and returns its URI —
- * the value to store in the row's `local_uri`.
+ * Writes base64 image/PDF data to the stable local path and returns its URI,
+ * for callers that need it immediately (e.g. to save a copy to the gallery).
  */
 export async function writeLocalPhoto(
   base64: string,

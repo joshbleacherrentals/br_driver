@@ -11,7 +11,11 @@ import { db } from "@/components/providers/SystemProvider";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 
 import { isDueForFastRetry, isDueForRetry } from "../backoff";
-import type { PhotoUploadRow, UploadStatus } from "../types";
+import {
+  MISSING_LOCAL_FILE_ERROR,
+  type PhotoUploadRow,
+  type UploadStatus,
+} from "../types";
 import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 
 /** Statuses the queue still owns work for. `uploaded` is terminal (§3). */
@@ -19,13 +23,8 @@ const UNRESOLVED_STATUSES: UploadStatus[] = ["pending", "failed"];
 /** How many candidates to pull per claim before filtering for eligibility. */
 const CLAIM_BATCH = 25;
 
-/**
- * `last_error` sentinel meaning the local file is gone: the background worker
- * physically cannot upload it, so it is *parked* — excluded from claims and from
- * the "actionable" count — until the user re-adds the photo (which clears this
- * and re-queues the row, §6). It still counts as unresolved for the banner.
- */
-export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
+/** Re-exported for the adapters' existing consumers; defined in `../types`. */
+export { MISSING_LOCAL_FILE_ERROR } from "../types";
 
 /**
  * Shared columns every photo table carries under the queue design (§3). The
@@ -35,7 +34,6 @@ export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
 type RawQueueRow = {
   id: string;
   upload_status: string | null;
-  local_uri: string | null;
   gallery_asset_id: string | null;
   attempts: number | null;
   last_attempt_at: string | null;
@@ -51,7 +49,6 @@ function toPhotoUploadRow(
     id: base.id,
     photo_path: photoPath ?? "",
     upload_status: (base.upload_status ?? "pending") as UploadStatus,
-    local_uri: base.local_uri,
     gallery_asset_id: base.gallery_asset_id,
     attempts: base.attempts ?? 0,
     last_attempt_at: base.last_attempt_at,
@@ -63,7 +60,6 @@ function toPhotoUploadRow(
 function queueUpdateSet(row: PhotoUploadRow) {
   return {
     upload_status: row.upload_status,
-    local_uri: row.local_uri,
     gallery_asset_id: row.gallery_asset_id,
     attempts: row.attempts,
     last_attempt_at: row.last_attempt_at,
@@ -114,7 +110,6 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
         "id",
         "photo_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",
@@ -177,7 +172,6 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
         "id",
         "photo_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",
@@ -206,7 +200,6 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
         "id",
         "storage_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",
@@ -269,7 +262,6 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
         "id",
         "storage_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",
@@ -298,7 +290,6 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
         "id",
         "photo_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",
@@ -361,7 +352,6 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
         "id",
         "photo_path",
         "upload_status",
-        "local_uri",
         "gallery_asset_id",
         "attempts",
         "last_attempt_at",

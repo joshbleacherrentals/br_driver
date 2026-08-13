@@ -1,17 +1,21 @@
 import { db, photoUploadService } from "@/components/providers/SystemProvider";
 import {
+  isDriverDocType,
   localUriForPath,
+  replaceDriverDocumentPhoto,
   saveToGalleryIfCamera,
   writeLocalPhoto,
   type PhotoSource,
 } from "@/library/photoUploadQueue";
 import { typeScale } from "@/constants/theme";
+import { DocReplacePrompt } from "@/features/profile/components/DocReplacePrompt";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
+import { promptForPhotos } from "@/utils/pickPhotos";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
@@ -89,13 +93,14 @@ export default function EditProfileDocs({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [replacingDocType, setReplacingDocType] = useState<string | null>(null);
 
   const activePaths = [
     licensePhoto.attachmentId ?? licensePath,
     insurancePhoto.attachmentId ?? insurancePath,
     medicalCardPhoto.attachmentId ?? medicalCardPath,
   ];
-  const { hasPending, hasFailed, retryFailed, statuses } =
+  const { hasPending, hasFailed, canRetry, retryFailed, statuses, rows } =
     useDriverDocUploadStatuses(activePaths);
 
   const { form: theme } = useFormTheme();
@@ -233,7 +238,6 @@ export default function EditProfileDocs({
           .updateTable("DriverDocuments")
           .set({
             photo_path: filename,
-            local_uri: localUri,
             upload_status: "pending",
             attempts: 0,
             last_attempt_at: null,
@@ -251,7 +255,6 @@ export default function EditProfileDocs({
             driver_uuid: driverId,
             doc_type: docType,
             photo_path: filename,
-            local_uri: localUri,
             upload_status: "pending",
             attempts: 0,
             created_at: new Date().toISOString(),
@@ -325,15 +328,62 @@ export default function EditProfileDocs({
   const handleRetry = async () => {
     setIsRetrying(true);
     try {
-      const { needRepick } = await retryFailed();
-      if (needRepick.length > 0) {
+      const { retried, needRepick } = await retryFailed();
+      if (needRepick > 0 && retried === 0) {
         Alert.alert(
-          "Re-add required",
-          "The local file for some documents is gone. Please choose the photo again and save.",
+          "Nothing left to retry",
+          "The local files for those documents are gone. Once we confirm they never reached the server, you'll be able to replace them here.",
         );
       }
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  /**
+   * The row for this document is bucket-confirmed missing (§6.2) — replace it in
+   * place. One row per (driver, doc_type), so there is nothing to reconcile: the
+   * new photo takes over the existing row immediately, rather than waiting for
+   * "Save Changes" like a routine re-pick does.
+   */
+  const handleReplaceDoc = async (
+    docType: string,
+    rowId: string,
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+  ) => {
+    if (!driverId || !isDriverDocType(docType)) return;
+
+    const picked = await promptForPhotos({
+      title: "Replace Document",
+      message:
+        "This document was never stored on the server. Add it again to fix it.",
+      selectionLimit: 1,
+    });
+    if (picked.length === 0) return;
+
+    setReplacingDocType(docType);
+    try {
+      const { bucketPath, localUri } = await replaceDriverDocumentPhoto({
+        rowId,
+        driverUuid: driverId,
+        docType,
+        picked: picked[0],
+      });
+      setter({
+        uri: localUri,
+        attachmentId: bucketPath,
+        ext: picked[0].ext,
+        source: picked[0].source,
+      });
+      Alert.alert(
+        "Document replaced",
+        "Upload has been queued. Keep the app open until it finishes.",
+      );
+    } catch (error) {
+      console.error("Error replacing document:", error);
+      Alert.alert("Error", "Could not replace the document. Please try again.");
+    } finally {
+      setReplacingDocType(null);
     }
   };
 
@@ -353,6 +403,7 @@ export default function EditProfileDocs({
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
     expiry: string | null,
     setExpiry: (date: string | null) => void,
+    docType: string,
   ) => (
     <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
       <View style={styles.documentHeader}>
@@ -363,6 +414,16 @@ export default function EditProfileDocs({
           {title}
         </Text>
       </View>
+
+      {/* Renders only once a direct bucket check confirmed this document's file
+          never arrived — see DocReplacePrompt for the gate. */}
+      <DocReplacePrompt
+        docRow={photo.attachmentId ? rows[photo.attachmentId] : undefined}
+        isBusy={replacingDocType === docType}
+        onReplace={(rowId) => {
+          void handleReplaceDoc(docType, rowId, setter);
+        }}
+      />
 
       {photo.uri ? (
         <View style={styles.photoContainer}>
@@ -458,6 +519,7 @@ export default function EditProfileDocs({
             hasPending={hasPending}
             hasFailed={hasFailed}
             isRetrying={isRetrying}
+            canRetry={canRetry}
             onRetry={handleRetry}
           />
 
@@ -468,6 +530,7 @@ export default function EditProfileDocs({
             setLicensePhoto,
             licenseExpiry,
             setLicenseExpiry,
+            "license",
           )}
 
           {renderDocumentSection(
@@ -477,6 +540,7 @@ export default function EditProfileDocs({
             setInsurancePhoto,
             insuranceExpiry,
             setInsuranceExpiry,
+            "insurance",
           )}
 
           {showMedCard &&
@@ -487,6 +551,7 @@ export default function EditProfileDocs({
               setMedicalCardPhoto,
               medicalCardExpiry,
               setMedicalCardExpiry,
+              "medical_card",
             )}
 
           <TouchableOpacity

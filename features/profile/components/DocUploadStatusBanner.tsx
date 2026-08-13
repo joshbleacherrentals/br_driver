@@ -14,6 +14,11 @@ type Props = {
   hasPending: boolean;
   hasFailed: boolean;
   isRetrying: boolean;
+  /**
+   * False once every failed document is parked for a missing local file —
+   * there is nothing left to send, so Retry would do nothing but reset counters.
+   */
+  canRetry?: boolean;
   onRetry: () => void;
 };
 
@@ -24,6 +29,7 @@ export function DocUploadStatusBanner({
   hasPending,
   hasFailed,
   isRetrying,
+  canRetry = true,
   onRetry,
 }: Props) {
   const { theme } = useTheme();
@@ -34,7 +40,9 @@ export function DocUploadStatusBanner({
   const statusColor = hasFailed ? theme.danger : theme.warning;
   const backgroundColor = statusColor + "18";
   const message = hasFailed
-    ? "Some documents failed to upload. Tap Retry, or re-add the photo if the file is gone."
+    ? canRetry
+      ? "Some documents failed to upload. Tap Retry, or re-add the photo if the file is gone."
+      : "Some documents failed to upload and the original files are gone from this phone. Re-add the photo below."
     : "Documents are still uploading to the cloud. Keep the app open if possible.";
 
   return (
@@ -49,7 +57,7 @@ export function DocUploadStatusBanner({
           {message}
         </Text>
       </View>
-      {hasFailed ? (
+      {hasFailed && canRetry ? (
         <TouchableOpacity
           style={[styles.retryBtn, isRetrying && styles.retryBtnDisabled]}
           onPress={onRetry}

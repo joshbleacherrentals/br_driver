@@ -18,6 +18,10 @@ export type InspectionPhotosData = {
     inspection_uuid: string | null;
     storage_path: string | null;
     caption: string | null;
+    /** Custom upload queue (design doc §3). */
+    upload_status: string | null;
+    /** `LOCAL_FILE_MISSING` means the row is parked — Retry can do nothing. */
+    last_error: string | null;
 }
 
 /**
@@ -60,7 +64,9 @@ export function useInspectionPhotos(inspection_id: string | null): { Photos: Ins
         "created_at",
         "inspection_uuid",
         "storage_path",
-        "caption"
+        "caption",
+        "upload_status",
+        "last_error"
     ])
     .where("inspection_uuid", "=", inspection_id)
     .orderBy("created_at", "asc")

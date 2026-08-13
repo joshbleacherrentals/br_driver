@@ -94,9 +94,10 @@ export async function createDamageReport(
       const ext = photo.ext ?? "jpg";
       const filename = `${damageId}/photo_${i}_${Date.now()}.${ext}`;
 
-      // Write the stable local copy first, then record the row pointing at it
-      // with upload_status = pending. The worker uploads from local_uri and
-      // never deletes it (§2, §3) — no attachment-queue archival can lose it.
+      // Write the stable local copy first, then record the row with
+      // upload_status = pending. The worker recomputes the local path live
+      // from photo_path (never deleting it — §2, §3) — no attachment-queue
+      // archival can lose it.
       const localUri = await writeLocalPhoto(base64, filename);
 
       // Camera captures are the only copy until now — duplicate to the gallery
@@ -112,7 +113,6 @@ export async function createDamageReport(
             photo_path: filename,
             thumbnail: thumb,
             upload_status: "pending",
-            local_uri: localUri,
             attempts: 0,
           })
           .compile(),

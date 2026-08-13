@@ -44,7 +44,6 @@
 
 | Поле               | Призначення                                              |
 | ------------------ | --------------------------------------------------------- |
-| `local_uri`         | поточний файл-URI на цьому пристрої (галерея / кеш-копія) |
 | `gallery_asset_id`  | id asset'а в Галереї (для повторного доступу)              |
 | `attempts`          | лічильник спроб (для backoff, не для "здатись")            |
 | `last_attempt_at`   | час останньої спроби                                       |
@@ -52,19 +51,21 @@
 
 `photo_path` (уже є) лишається шляхом у бакеті — окремого `remote_path` не треба.
 
+Сам локальний шлях до файлу на пристрої як колонка ніде не зберігається — він детермінований від `photo_path` (див. [`localFile.ts`](../library/photoUploadQueue/runtime/localFile.ts)), тож кожен читач обчислює його наживо, а не довіряє збереженому значенню, яке могло застаріти (наприклад, після зміни контейнера застосунку).
+
 Ніякого "видалити, якщо не в списку" — рядок ніколи не видаляється й не архівується побічно; `upload_status` міняє тільки сама upload-логіка після реальної спроби.
 
 **Важливий нюанс:** `DamageReportPhotos` — це синхронізована з Supabase таблиця (через PowerSync sync rules), а не локальна. Це означає:
 - нові поля треба додати і в Postgres-таблицю (міграція + перегенерація `database.types.ts`), не тільки в `AppSchema.ts`;
-- `local_uri` і `gallery_asset_id` — по суті значення, що мають сенс лише на пристрої, який зняв фото — але оскільки поле в синхронізованій таблиці, воно фізично полетить на сервер і в інші пристрої (де буде просто нерелевантним/незаповненим для них). Це не ламає нічого, просто зайвий "шум" у синхронізованих даних;
+- `gallery_asset_id` — по суті значення, що має сенс лише на пристрої, який зняв фото — але оскільки поле в синхронізованій таблиці, воно фізично полетить на сервер і в інші пристрої (де буде просто нерелевантним/незаповненим для них). Це не ламає нічого, просто зайвий "шум" у синхронізованих даних;
 - позитивний побічний ефект: `attempts`/`last_error`/`last_attempt_at`, будучи синхронізованими, стають видимі й на бекенді — підтримка зможе побачити з дашборду/БД, чому саме конкретне фото не вантажиться на конкретному пристрої, без потреби витягувати логи з телефону водія.
 
 ### Поширення на всі типи фото
 
-Той самий набір полів (`local_uri`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error` + `upload_status`) додається аналогічно й до:
+Той самий набір полів (`gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error` + `upload_status`) додається аналогічно й до:
 
 - **`InspectionPhotos`** — зараз у неї взагалі немає `upload_status`; поле теж треба додати. Зараз [InspectionPhotoAttachmentQueue.ts](../library/powersync/InspectionPhotoAttachmentQueue.ts) навіть не веде чергу — вантажить фото inline в тому ж виклику, без retry і без збереження стану. Перехід на спільний патерн — це не тільки фікс архівації (якого там і не було), а й додавання самого retry/backoff, якого зараз немає взагалі.
-- **Driver-documents** — рішення прийнято: **нова таблиця**, наприклад `DriverDocuments`, по одному рядку на документ (license / insurance / medical card), тим самим виглядом, що й `DamageReportPhotos`/`InspectionPhotos` (`driver_uuid`, `doc_type`, `photo_path`, `upload_status`, `local_uri`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error`). На відміну від фото-черги, тут нова таблиця виправдана: поточна форма (3 окремі колонки на `Drivers`) для списку документів це вже сама по собі незручна модель (вона й зараз ускладнює [PhotoAttachmentQueue.ts](../library/powersync/PhotoAttachmentQueue.ts)'s `onAttachmentIdsChange`, який робить `UNION` трьох `SELECT`), а трійний набір із 15 нових колонок на `Drivers` тільки погіршив би це. `Drivers.license_photo_path` і т.д. після міграції стають похідними (беруться з `DriverDocuments` за `doc_type`), а не джерелом істини.
+- **Driver-documents** — рішення прийнято: **нова таблиця**, наприклад `DriverDocuments`, по одному рядку на документ (license / insurance / medical card), тим самим виглядом, що й `DamageReportPhotos`/`InspectionPhotos` (`driver_uuid`, `doc_type`, `photo_path`, `upload_status`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error`). На відміну від фото-черги, тут нова таблиця виправдана: поточна форма (3 окремі колонки на `Drivers`) для списку документів це вже сама по собі незручна модель (вона й зараз ускладнює [PhotoAttachmentQueue.ts](../library/powersync/PhotoAttachmentQueue.ts)'s `onAttachmentIdsChange`, який робить `UNION` трьох `SELECT`), а трійний набір із 15 нових колонок на `Drivers` тільки погіршив би це. `Drivers.license_photo_path` і т.д. після міграції стають похідними (беруться з `DriverDocuments` за `doc_type`), а не джерелом істини.
 
   **Нюанс з PDF:** [EditProfileDocs.tsx](../features/profile/components/EditProfileDocs.tsx) дає **три** способи додати документ — камера (`pickFromCamera`), бібліотека фото (`pickFromLibrary`), файл/PDF (`pickFile`, `DocumentPicker` з `type: ["image/*", "application/pdf"]`). Черга/`upload_status`/retry/backoff/verification/банер працюють однаково для всіх трьох — незалежно від типу файлу чи джерела, бо вони захищають сам факт "запис у БД без файлу в бакеті", а не конкретний формат. Різниця лише в кроці "Галерея" — див. секцію 4.
 

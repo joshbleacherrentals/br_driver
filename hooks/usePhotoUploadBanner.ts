@@ -1,14 +1,13 @@
 import { db } from "@/components/providers/SystemProvider";
+import { useConfirmedMissingPhotoIds } from "@/hooks/useConfirmedMissingPhotoIds";
 import {
   deriveBannerState,
-  getRecoveryState,
-  subscribeRecoveryState,
   toProblemReports,
   type BannerState,
   type ProblemPhotoRow,
 } from "@/library/photoUploadQueue";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 
 /**
  * §6 — state for the app-wide "Photo Upload Issue" banner.
@@ -28,11 +27,7 @@ import { useMemo, useSyncExternalStore } from "react";
  * queue, and still surface in-context on their own screens.
  */
 export function usePhotoUploadBanner(): BannerState {
-  const { confirmedMissingPhotoIds } = useSyncExternalStore(
-    subscribeRecoveryState,
-    getRecoveryState,
-    getRecoveryState,
-  );
+  const confirmedMissingPhotoIds = useConfirmedMissingPhotoIds();
 
   const compiled = useMemo(
     () =>

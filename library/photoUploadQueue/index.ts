@@ -8,6 +8,8 @@
 export * from "./backoff";
 export * from "./banner";
 export * from "./contentType";
+export * from "./inspectionAnswers";
+export * from "./photoRepair";
 export * from "./problemReports";
 export * from "./recovery";
 export * from "./types";
@@ -18,8 +20,12 @@ export * from "./uploadTimeout";
 export * from "./worker";
 
 // Runtime glue (PowerSync + Supabase Storage wiring).
+export * from "./runtime/applyPhotoRepair";
 export * from "./runtime/foregroundRecovery";
 export * from "./runtime/localFile";
 export * from "./runtime/photoUploadService";
 export * from "./runtime/recoveryStore";
+export * from "./runtime/replaceDriverDocumentPhoto";
+export * from "./runtime/requeuePhotoRows";
 export * from "./runtime/saveToGallery";
+export type { PhotoQueueTableName } from "./runtime/types";

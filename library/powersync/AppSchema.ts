@@ -177,7 +177,6 @@ const DamageReportPhotosCols = {
   thumbnail: column.text,
   upload_status: column.text,
   // Custom photo upload queue (design doc §3).
-  local_uri: column.text,
   gallery_asset_id: column.text,
   attempts: column.integer,
   last_attempt_at: column.text,
@@ -197,7 +196,6 @@ const InspectionsPhotosCols = {
   // Custom photo upload queue (design doc §3) — InspectionPhotos previously had
   // no upload_status at all.
   upload_status: column.text,
-  local_uri: column.text,
   gallery_asset_id: column.text,
   attempts: column.integer,
   last_attempt_at: column.text,
@@ -214,7 +212,6 @@ const DriverDocumentsCols = {
   doc_type: column.text,
   photo_path: column.text,
   upload_status: column.text,
-  local_uri: column.text,
   gallery_asset_id: column.text,
   attempts: column.integer,
   last_attempt_at: column.text,

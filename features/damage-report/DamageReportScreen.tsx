@@ -16,7 +16,9 @@ import {
   useDamageReportPhotos,
 } from "@/hooks/db/useDamageReportPhotos";
 import { useDriver } from "@/hooks/db/useDriver";
+import { usePhotoRepair, type RepairablePhoto } from "@/hooks/usePhotoRepair";
 import { deriveUploadProgress } from "@/library/photoUploadQueue";
+import { PhotoRepairBanner } from "@/components/widgets/PhotoRepairBanner";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -325,6 +327,32 @@ export default function DamageReportScreen() {
   } = useDamageReportPhotos(viewOnlyId);
   const [isRetryingPhotos, setIsRetryingPhotos] = useState(false);
 
+  // Editing a resolved report's photos is not allowed: it is closed evidence,
+  // and the queue's job there is only to finish delivering what is already on
+  // it. Retry stays available; replacement does not.
+  const isReportEditable = !damageReport?.resolved_at;
+
+  const repairablePhotos: RepairablePhoto[] = useMemo(
+    () =>
+      reportPhotos.map((photo) => ({
+        id: photo.id,
+        uploadStatus: photo.upload_status,
+        lastError: photo.last_error,
+        createdAt: photo.created_at,
+        bucketPath: photo.photo_path,
+      })),
+    [reportPhotos],
+  );
+
+  const photoRepair = usePhotoRepair({
+    parent: viewOnlyId
+      ? { table: "DamageReportPhotos", damageReportUuid: viewOnlyId }
+      : null,
+    photos: repairablePhotos,
+    editable: isReportEditable,
+    subject: "report",
+  });
+
   const bleacherOptions: BleacherOption[] = useMemo(
     () =>
       bleachers
@@ -411,18 +439,21 @@ export default function DamageReportScreen() {
     setIsRetryingPhotos(true);
     try {
       const { retried, needReAdd } = await retryDamageReportPhotos(
-        toRetry.map((p) => p.photo_path!),
+        toRetry.map((p) => ({ id: p.id, bucketPath: p.photo_path })),
       );
 
+      // "Re-add" is only actionable once the bucket has confirmed the photo is
+      // genuinely absent — until then the repair banner deliberately stays shut,
+      // so the copy points at waiting rather than at an unavailable button.
       if (needReAdd > 0 && retried === 0) {
         Alert.alert(
           "Photos missing on this device",
-          "The original files are no longer on this phone, so upload cannot be retried automatically. Please create a new damage report with the photos.",
+          "The original files are no longer on this phone, so upload cannot be retried automatically. Once we confirm they never reached the server, you'll be able to replace them here.",
         );
       } else if (needReAdd > 0) {
         Alert.alert(
           "Partial retry",
-          `${retried} photo(s) re-queued. ${needReAdd} photo(s) are no longer on this device and need a new report.`,
+          `${retried} photo(s) re-queued. ${needReAdd} photo(s) are no longer on this device and will need replacing.`,
         );
       }
     } catch (e) {
@@ -564,12 +595,23 @@ export default function DamageReportScreen() {
               Damage Photos ({reportPhotos.length})
             </Text>
             <View style={{ marginTop: 8 }}>
-              <PhotoUploadStatusBanner
-                hasPending={photosPending}
-                hasFailed={photosFailed}
-                isRetrying={isRetryingPhotos}
-                onRetry={handleRetryFailedPhotos}
-              />
+              {/* Once the bucket has confirmed photos are genuinely gone, that
+                  supersedes the "still uploading / tap retry" message — the
+                  repair banner is the only one that can actually fix it. */}
+              {photoRepair.replaceableCount > 0 ? (
+                <PhotoRepairBanner
+                  repair={photoRepair}
+                  subject="report"
+                  editable={isReportEditable}
+                />
+              ) : (
+                <PhotoUploadStatusBanner
+                  hasPending={photosPending}
+                  hasFailed={photosFailed}
+                  isRetrying={isRetryingPhotos}
+                  onRetry={handleRetryFailedPhotos}
+                />
+              )}
               <ViewOnlyPhotoGrid
                 photos={reportPhotos}
                 styles={styles}

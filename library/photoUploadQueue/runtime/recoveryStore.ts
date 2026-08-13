@@ -73,3 +73,27 @@ export function clearRecoveryState(): void {
   state = EMPTY_STATE;
   emit();
 }
+
+/**
+ * Retires the verdict for specific rows.
+ *
+ * A verdict is a statement about the object that *was* at a row's path. Once the
+ * driver replaces that photo — a new local file, or the row deleted outright —
+ * the statement no longer describes anything real, and leaving it in place would
+ * keep telling them a photo is lost immediately after they fixed it.
+ *
+ * Deliberately not called for a plain retry: re-sending the same file does not
+ * make the earlier lookup wrong, and §6 wants the warning to stand until the
+ * photo actually lands.
+ */
+export function forgetConfirmedMissingPhotoIds(ids: Iterable<string>): void {
+  const next = new Set(state.confirmedMissingPhotoIds);
+  let removed = false;
+  for (const id of ids) {
+    if (next.delete(id)) removed = true;
+  }
+  if (!removed) return;
+
+  state = next.size === 0 ? EMPTY_STATE : { confirmedMissingPhotoIds: next };
+  emit();
+}

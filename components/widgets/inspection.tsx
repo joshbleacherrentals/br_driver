@@ -303,7 +303,6 @@ export default function InspectionScreen({
           inspection_uuid: inspectionId,
           storage_path: filename,
           upload_status: "pending",
-          local_uri: localUri,
           attempts: 0,
         })
         .compile(),

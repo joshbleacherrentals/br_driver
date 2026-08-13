@@ -65,6 +65,7 @@ export default function ProfileScreen() {
     statuses: docStatuses,
     hasPending: docsPending,
     hasFailed: docsFailed,
+    canRetry: canRetryDocs,
     retryFailed: retryDocs,
   } = useDriverDocUploadStatuses([
     driver?.license_photo_path,
@@ -75,11 +76,11 @@ export default function ProfileScreen() {
   const handleRetryDocs = async () => {
     setIsRetryingDocs(true);
     try {
-      const { needRepick } = await retryDocs();
-      if (needRepick.length > 0) {
+      const { retried, needRepick } = await retryDocs();
+      if (needRepick > 0 && retried === 0) {
         Alert.alert(
-          "Re-add required",
-          "The local file for some documents is gone. Open Edit Documents and choose the photo again.",
+          "Nothing left to retry",
+          "The local files for those documents are gone. Open Edit Documents to replace them.",
         );
       }
     } finally {
@@ -354,6 +355,7 @@ export default function ProfileScreen() {
               hasPending={docsPending}
               hasFailed={docsFailed}
               isRetrying={isRetryingDocs}
+              canRetry={canRetryDocs}
               onRetry={handleRetryDocs}
             />
 

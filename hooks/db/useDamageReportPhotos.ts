@@ -10,6 +10,8 @@ export type DamageReportPhotoRow = {
   photo_path: string | null;
   thumbnail: string | null;
   upload_status: string | null;
+  /** `LOCAL_FILE_MISSING` means the row is parked — Retry can do nothing. */
+  last_error: string | null;
   created_at: string | null;
 };
 
@@ -47,6 +49,7 @@ export function useDamageReportPhotos(
           "photo_path",
           "thumbnail",
           "upload_status",
+          "last_error",
           "created_at",
         ])
         .where("damage_report_uuid", "=", safeId)

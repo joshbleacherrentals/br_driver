@@ -46,8 +46,8 @@ export function nextUploadStatus(
  * `last_attempt_at`, `last_error`).
  *
  * Must return the SAME row identity: no row is ever deleted or archived as a
- * side effect, and `local_uri` / `gallery_asset_id` are never cleared — the
- * local original outlives the upload (§2, §3, §4).
+ * side effect, and `gallery_asset_id` is never cleared — the local original
+ * outlives the upload (§2, §3, §4).
  */
 export function applyUploadEvent(
   row: PhotoUploadRow,

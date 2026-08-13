@@ -30,6 +30,7 @@ import {
   objectExistsInBucket,
   uploadToBucket,
 } from "./bucketUpload";
+import { localPhotoExists, localUriForPath } from "./localFile";
 import { MISSING_LOCAL_FILE_ERROR, PHOTO_QUEUE_ADAPTERS } from "./tableAdapters";
 import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 
@@ -55,15 +56,6 @@ function stringifyError(error: unknown): string {
     return JSON.stringify(error);
   } catch {
     return String(error);
-  }
-}
-
-async function localFileExists(uri: string): Promise<boolean> {
-  try {
-    const info = await FileSystem.getInfoAsync(uri);
-    return info.exists;
-  } catch {
-    return false;
   }
 }
 
@@ -148,8 +140,11 @@ export function createPhotoUploadService(
 
     // No local file to upload — and none recoverable by retrying. Park the row
     // (§6) so the worker stops burning passes on it; re-adding the photo clears
-    // this and re-queues it. It is never archived or deleted (§3).
-    if (!row.local_uri || !(await localFileExists(row.local_uri))) {
+    // this and re-queues it. It is never archived or deleted (§3). The path is
+    // always recomputed live from `photo_path` + the current document
+    // directory — never trusted from a stored column — so container drift
+    // between when the row was written and now can't produce a false miss.
+    if (!(await localPhotoExists(row.photo_path))) {
       await adapter.persist(
         applyUploadEvent(row, "attempt_failed", nowIso(), MISSING_LOCAL_FILE_ERROR),
       );
@@ -158,7 +153,7 @@ export function createPhotoUploadService(
 
     let data: ArrayBuffer;
     try {
-      data = await readLocalFile(row.local_uri);
+      data = await readLocalFile(localUriForPath(row.photo_path));
     } catch (error) {
       await adapter.persist(
         applyUploadEvent(row, "attempt_failed", nowIso(), stringifyError(error)),

@@ -41,13 +41,14 @@ No new table — what was originally proposed as a separate `PhotoUploadQueue` b
 
 New fields to add to `DamageReportPhotosCols` in [AppSchema.ts](../library/powersync/AppSchema.ts:174):
 
-| Field              | Purpose                                                |
-| ------------------ | ------------------------------------------------------ |
-| `local_uri`        | current file URI on this device (gallery / cache copy) |
-| `gallery_asset_id` | Gallery asset id (for looking the file back up)        |
-| `attempts`         | attempt counter (for backoff, not for "giving up")     |
-| `last_attempt_at`  | timestamp of the last attempt                          |
-| `last_error`       | text of the last error (for debugging/support)         |
+| Field              | Purpose                                            |
+| ------------------ | --------------------------------------------------- |
+| `gallery_asset_id` | Gallery asset id (for looking the file back up)      |
+| `attempts`         | attempt counter (for backoff, not for "giving up")   |
+| `last_attempt_at`  | timestamp of the last attempt                        |
+| `last_error`       | text of the last error (for debugging/support)       |
+
+The on-device file path itself is never stored as a column — it's deterministic from `photo_path` (see [`localFile.ts`](../library/photoUploadQueue/runtime/localFile.ts)), so every reader recomputes it live instead of trusting a persisted value that could go stale (e.g. across an app container change).
 
 `photo_path` (already exists) stays as the bucket path — no separate `remote_path` needed.
 
@@ -56,15 +57,15 @@ No "delete if not in the list" — a row is never deleted or archived as a side 
 **Important nuance:** `DamageReportPhotos` is a table synced with Supabase (via PowerSync sync rules), not a local-only one. This means:
 
 - the new fields need to be added to the Postgres table too (migration + regenerating `database.types.ts`), not just in `AppSchema.ts`;
-- `local_uri` and `gallery_asset_id` are, by nature, values that only make sense on the device that captured the photo — but since the field lives on a synced table, it will physically travel to the server and to other devices (where it'll just be irrelevant/empty for them). This doesn't break anything, just adds a bit of "noise" to synced data;
+- `gallery_asset_id` is, by nature, a value that only makes sense on the device that captured the photo — but since the field lives on a synced table, it will physically travel to the server and to other devices (where it'll just be irrelevant/empty for them). This doesn't break anything, just adds a bit of "noise" to synced data;
 - upside: `attempts`/`last_error`/`last_attempt_at`, being synced, become visible on the backend too — support can see from the DB/dashboard why a specific photo isn't uploading on a specific device, without pulling logs off the driver's phone.
 
 ### Extending to all photo types
 
-The same set of fields (`local_uri`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error` + `upload_status`) gets added the same way to:
+The same set of fields (`gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error` + `upload_status`) gets added the same way to:
 
 - **`InspectionPhotos`** — it currently has no `upload_status` at all; that field needs to be added too. Right now [InspectionPhotoAttachmentQueue.ts](../library/powersync/InspectionPhotoAttachmentQueue.ts) doesn't even keep a queue — it uploads inline in the same call, with no retry and no persisted state. Moving to the shared pattern isn't just an archival fix (there wasn't one to fix here) — it's adding the retry/backoff itself, which doesn't exist at all today.
-- **Driver-documents** — decision made: **a new table**, e.g. `DriverDocuments`, one row per document (license / insurance / medical card), same shape as `DamageReportPhotos`/`InspectionPhotos` (`driver_uuid`, `doc_type`, `photo_path`, `upload_status`, `local_uri`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error`). Unlike the photo queue, a new table is justified here: the current shape (3 separate columns on `Drivers`) is already an awkward model for a list of documents (it already complicates [PhotoAttachmentQueue.ts](../library/powersync/PhotoAttachmentQueue.ts)'s `onAttachmentIdsChange`, which does a `UNION` of three `SELECT`s), and a tripled set of 15 new columns on `Drivers` would only make that worse. `Drivers.license_photo_path` etc. become derived (read from `DriverDocuments` by `doc_type`) after migration, not the source of truth.
+- **Driver-documents** — decision made: **a new table**, e.g. `DriverDocuments`, one row per document (license / insurance / medical card), same shape as `DamageReportPhotos`/`InspectionPhotos` (`driver_uuid`, `doc_type`, `photo_path`, `upload_status`, `gallery_asset_id`, `attempts`, `last_attempt_at`, `last_error`). Unlike the photo queue, a new table is justified here: the current shape (3 separate columns on `Drivers`) is already an awkward model for a list of documents (it already complicates [PhotoAttachmentQueue.ts](../library/powersync/PhotoAttachmentQueue.ts)'s `onAttachmentIdsChange`, which does a `UNION` of three `SELECT`s), and a tripled set of 15 new columns on `Drivers` would only make that worse. `Drivers.license_photo_path` etc. become derived (read from `DriverDocuments` by `doc_type`) after migration, not the source of truth.
 
   **PDF nuance:** [EditProfileDocs.tsx](../features/profile/components/EditProfileDocs.tsx) offers **three** ways to add a document — camera (`pickFromCamera`), photo library (`pickFromLibrary`), file/PDF (`pickFile`, `DocumentPicker` with `type: ["image/*", "application/pdf"]`). The queue/`upload_status`/retry/backoff/verification/banner work identically across all three — regardless of file type or source, since they protect against "DB row with no matching file in the bucket," not any specific format. The only difference is the Gallery step — see section 4.
 

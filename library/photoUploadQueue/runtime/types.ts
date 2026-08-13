@@ -10,9 +10,15 @@ import type { PhotoUploadRow } from "../types";
 /** `fast` ignores backoff (foreground, user waiting); `backoff` respects it. */
 export type PhotoQueueMode = "fast" | "backoff";
 
+/** The synced tables that carry the §3 queue columns. */
+export type PhotoQueueTableName =
+  | "DamageReportPhotos"
+  | "InspectionPhotos"
+  | "DriverDocuments";
+
 export interface PhotoQueueTableAdapter {
   /** Synced table this adapter owns. */
-  readonly table: string;
+  readonly table: PhotoQueueTableName;
   /** Supabase Storage bucket the row's `photo_path` lives in. */
   readonly bucket: string;
   /** Insert-only buckets pass `false` (§10). */

@@ -1,48 +1,37 @@
-import { Alert } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import {
+  pickPhotosFromCamera,
+  pickPhotosFromLibrary,
+  type PickedPhoto,
+} from "@/utils/pickPhotos";
+import { persistPickerPhoto } from "@/utils/persistPickerPhoto";
 import type { DocumentPhoto } from "../types";
-import { persistDamagePhoto } from "./persistDamagePhoto";
 
-export async function pickDamagePhotosFromCamera(): Promise<DocumentPhoto[]> {
-  const { status } = await ImagePicker.requestCameraPermissionsAsync();
-  if (status !== "granted") {
-    Alert.alert(
-      "Permission needed",
-      "Camera permission is required to take photos",
-    );
-    return [];
-  }
-
-  const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-  if (result.canceled || !result.assets?.length) return [];
-
-  return [await persistDamagePhoto(result.assets[0].uri, "camera")];
-}
-
-export async function pickDamagePhotosFromLibrary(): Promise<DocumentPhoto[]> {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== "granted") {
-    Alert.alert(
-      "Permission needed",
-      "Media library permission is required to add photos",
-    );
-    return [];
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ["images"],
-    allowsMultipleSelection: true,
-    quality: 0.8,
-  });
-  if (result.canceled || !result.assets?.length) return [];
-
+/**
+ * Copy picked photos out of the picker's temporary location, so they survive
+ * until the report is submitted. Assets that fail to copy are skipped rather
+ * than failing the whole selection.
+ */
+async function persistAll(picked: PickedPhoto[]): Promise<DocumentPhoto[]> {
   const photos: DocumentPhoto[] = [];
-  for (const asset of result.assets) {
+  for (const photo of picked) {
     try {
-      photos.push(await persistDamagePhoto(asset.uri, "library"));
+      photos.push({
+        uri: await persistPickerPhoto(photo.uri, photo.ext),
+        isNew: true,
+        ext: photo.ext,
+        source: photo.source,
+      });
     } catch (err) {
       console.warn("[pickDamagePhotos] persist failed:", err);
     }
   }
   return photos;
+}
+
+export async function pickDamagePhotosFromCamera(): Promise<DocumentPhoto[]> {
+  return persistAll(await pickPhotosFromCamera());
+}
+
+export async function pickDamagePhotosFromLibrary(): Promise<DocumentPhoto[]> {
+  return persistAll(await pickPhotosFromLibrary());
 }

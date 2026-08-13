@@ -729,7 +729,6 @@ export type Database = {
           id: string
           last_attempt_at: string | null
           last_error: string | null
-          local_uri: string | null
           photo_path: string
           thumbnail: string | null
           upload_status: string
@@ -742,7 +741,6 @@ export type Database = {
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           photo_path: string
           thumbnail?: string | null
           upload_status?: string
@@ -755,7 +753,6 @@ export type Database = {
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           photo_path?: string
           thumbnail?: string | null
           upload_status?: string
@@ -967,7 +964,6 @@ export type Database = {
           id: string
           last_attempt_at: string | null
           last_error: string | null
-          local_uri: string | null
           photo_path: string
           upload_status: string
         }
@@ -980,7 +976,6 @@ export type Database = {
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           photo_path: string
           upload_status?: string
         }
@@ -993,7 +988,6 @@ export type Database = {
           id?: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           photo_path?: string
           upload_status?: string
         }
@@ -2076,7 +2070,6 @@ export type Database = {
           inspection_uuid: string
           last_attempt_at: string | null
           last_error: string | null
-          local_uri: string | null
           storage_path: string
           upload_status: string
         }
@@ -2089,7 +2082,6 @@ export type Database = {
           inspection_uuid: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           storage_path: string
           upload_status?: string
         }
@@ -2102,7 +2094,6 @@ export type Database = {
           inspection_uuid?: string
           last_attempt_at?: string | null
           last_error?: string | null
-          local_uri?: string | null
           storage_path?: string
           upload_status?: string
         }

@@ -91,7 +91,9 @@ describe("upload_status state machine (§3)", () => {
 
 describe("row bookkeeping (§3)", () => {
   // §3 — "a row is never deleted or archived as a side effect"; §2/§4 — the
-  // local original is never dropped, so local_uri/gallery_asset_id survive.
+  // local original is never dropped, so photo_path/gallery_asset_id survive
+  // (the on-device path itself is recomputed live from photo_path, never
+  // stored, so there is no local_uri column to preserve here).
   it("never drops the row identity or the local original", () => {
     const row = makeRow({ upload_status: "uploading" });
 
@@ -100,7 +102,6 @@ describe("row bookkeeping (§3)", () => {
 
       expect(next.id).toBe(row.id);
       expect(next.photo_path).toBe(row.photo_path);
-      expect(next.local_uri).toBe(row.local_uri);
       expect(next.gallery_asset_id).toBe(row.gallery_asset_id);
       expect(Object.keys(next)).toEqual(
         expect.not.arrayContaining(["deleted", "archived", "state"]),
@@ -142,7 +143,7 @@ describe("row bookkeeping (§3)", () => {
     const next = applyUploadEvent(row, "upload_confirmed", NOW_ISO);
 
     expect(next.upload_status).toBe("uploaded");
-    expect(next.local_uri).toBe(row.local_uri);
+    expect(next.photo_path).toBe(row.photo_path);
     expect(next.gallery_asset_id).toBe(row.gallery_asset_id);
   });
 });

@@ -96,7 +96,6 @@ export function makeRow(overrides: Partial<PhotoUploadRow> = {}): PhotoUploadRow
     id: "photo-1",
     photo_path: "damage-report-uuid/photo-1.jpg",
     upload_status: "pending",
-    local_uri: "file:///gallery/photo-1.jpg",
     gallery_asset_id: "asset-1",
     attempts: 0,
     last_attempt_at: null,

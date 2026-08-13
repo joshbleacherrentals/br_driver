@@ -22,6 +22,17 @@ export const UPLOAD_STATUSES = [
 export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
 
 /**
+ * `last_error` sentinel meaning the local file is gone: the background worker
+ * physically cannot upload it, so the row is *parked* — excluded from claims and
+ * from the "actionable" count — until the user re-adds the photo (§6). It still
+ * counts as unresolved, and it is still never deleted or archived (§3).
+ *
+ * Lives here rather than beside the table adapters so the pure repair logic can
+ * recognise a parked row without pulling in the PowerSync runtime.
+ */
+export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
+
+/**
  * Events that the upload logic — and only the upload logic (§3) — may apply
  * to a row. There is intentionally no "give up" / "archive" event (§5).
  */
@@ -41,7 +52,6 @@ export type PhotoUploadRow = {
   id: string;
   photo_path: string;
   upload_status: UploadStatus;
-  local_uri: string | null;
   gallery_asset_id: string | null;
   attempts: number;
   last_attempt_at: string | null;
