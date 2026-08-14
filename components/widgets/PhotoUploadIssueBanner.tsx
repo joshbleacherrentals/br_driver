@@ -32,7 +32,7 @@ export default function PhotoUploadIssueBanner() {
   }
 
   const handlePress = () => {
-    void photoUploadService?.triggerFast();
+    void photoUploadService?.triggerFast("manual-retry");
     router.push({
       pathname: "/damage-report",
       params: { damageReportId: targetReportUuid },

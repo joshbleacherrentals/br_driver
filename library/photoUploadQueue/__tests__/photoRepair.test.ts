@@ -105,6 +105,36 @@ describe("repair affordances (bucket-confirmed gate)", () => {
     expect(actions.replaceableRows.map((r) => r.id)).toEqual(["a"]);
   });
 
+  // §12 — the sweep un-parks a row by clearing `last_error`, and this module
+  // reads nothing else. So a healed row becomes retryable again on its own, with
+  // no repair-specific plumbing: the manual Retry button reappears for exactly
+  // the rows that now have something to retry with.
+  //
+  // The confirmed-missing set is deliberately left stale here (it is only
+  // re-derived by the next §6.2 pass), which is safe: it just means both
+  // affordances are offered at once — the same precedent as "offers Retry and
+  // replacement together when the local file still exists" above.
+  it("offers Retry again once the sweep has healed a previously parked row", () => {
+    const beforeHeal = derivePhotoRepairActions(
+      [parked("a")],
+      new Set(["a"]),
+      EDITABLE,
+    );
+    expect(beforeHeal.canRetry).toBe(false);
+
+    // The sweep's `local_file_recovered` event clears `last_error` and returns
+    // the row to `pending`; nothing else about the row changes.
+    const afterHeal = derivePhotoRepairActions(
+      [row("a", { uploadStatus: "pending", lastError: null })],
+      new Set(["a"]),
+      EDITABLE,
+    );
+
+    expect(afterHeal.canRetry).toBe(true);
+    expect(afterHeal.canReplace).toBe(true);
+    expect(afterHeal.replaceableRows.map((r) => r.id)).toEqual(["a"]);
+  });
+
   it("never touches a row that already reached the bucket", () => {
     const actions = derivePhotoRepairActions(
       [row("done", { uploadStatus: "uploaded", lastError: null })],

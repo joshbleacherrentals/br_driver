@@ -23,7 +23,8 @@ Copy saved to phone Gallery (MediaLibrary) ── permanent home for the origina
 Same DamageReportPhotos row updated (new fields, upload_status = pending)
       │
       ▼
-Queue worker (one active run at a time, no parallel races)
+Queue worker (bounded concurrency — up to MAX_CONCURRENT_UPLOADS uploads
+in flight at once, claim-exclusive so no two slots ever work the same row)
       │
       ├─ app in foreground, user waiting → fast retries + progress modal
       └─ app just opened, old pending rows exist → background pass with backoff
@@ -102,6 +103,22 @@ Timeout here solves a narrow problem: don't let one hung network request (dead s
 - Side note: Supabase Storage's standard upload already has a built-in default timeout of ~5 minutes — too long for our case (the user is standing there waiting), so our own shorter `AbortSignal` makes sense.
 - **Timeout ≠ "stop trying."** After a timeout abort, the row stays `pending`/`failed`, and the queue picks it up again on the next attempt. There is no global "5 minutes and that's it" — that would recreate the exact photo-loss problem we're moving away from.
 
+### 5.1 Timeout does not mean cancelled — verify, don't just retry
+
+§5 assumed that when our deadline fires, the request is over. On this stack it isn't.
+
+`@supabase/storage-js` never forwards an `AbortSignal` to the `fetch` it performs: `uploadOrUpdate` calls its internal `put`/`post` helpers without the `parameters` argument that would carry one. So `uploadWithTimeout`'s abort ends *our* wait, not the HTTP request. The request keeps running, and it can still succeed — minutes later, on a server we've stopped listening to. Observed live: after a timeout the retry hits `StorageApiError: The resource already exists` against the insert-only bucket, and the row climbs through attempts 8 → 9 → … → 14 before something finally sticks. Every one of those attempts re-uploaded a file that was already there.
+
+True cancellation is not pursued as the primary fix, because it isn't reliably available: we do not control the SDK's request construction, and even an abort that reaches the platform layer is not guaranteed to tear down a native connection mid-body. Building correctness on it would mean building on a maybe.
+
+The fix instead reclassifies what a timeout *is*. A timeout is now an **ambiguous signal** — the same kind of evidence as the insert-only bucket's "already exists" duplicate error, and treated identically: `UploadEvidence` carries a `timedOutSignal` alongside `duplicatePathSignal`, and `needsBucketVerification` fires on either. The queue then asks the bucket directly whether the object is there:
+
+- object present ⇒ the orphaned request landed after all; the row goes straight to `uploaded`, with no second upload attempted and no attempt wasted;
+- object absent ⇒ a genuine failure; the row stays `failed`/retryable exactly as before;
+- lookup can't run (offline, auth, rate limit) ⇒ `unknown`, which is *not* success — the row stays retryable. `isUploadSuccessful` is deliberately unchanged: only `apiConfirmed` or an affirmative bucket lookup may ever produce `uploaded`, so a bare timeout can never flip a row on its own.
+
+Complementary, best-effort: the custom `global.fetch` in [`supabaseFetch.ts`](../library/powersync/supabaseFetch.ts) (the one `BackendConnector` hands to the Supabase client, which already force-refreshes the Clerk JWT for storage writes) now also attaches a real `AbortController` scoped to storage uploads only, using the same `UPLOAD_TIMEOUT_MS` constant so the two deadlines cannot drift apart. That is the one layer that actually owns the `fetch` call, so it is the only place the request can be cancelled at all. It *reduces* orphaned server-side requests; it does not eliminate them, and nothing above depends on it working.
+
 ## 6. Backoff and failed-upload notifications
 
 Two different situations with different behavior:
@@ -144,7 +161,7 @@ Concrete UX for scenario 2 (decision made):
 |                                         | PowerSync `@powersync/attachments`                                     | Custom queue                                                                                  |
 | --------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Source of "is this photo still needed"  | SQL JOIN across 3 tables, recomputed on every change                   | The row's own `upload_status` field on `DamageReportPhotos` — nothing external decides for it |
-| Race risk from parallel watch callbacks | Yes, confirmed in the library's current code                           | None — a single serialized worker                                                             |
+| Race risk from parallel watch callbacks | Yes, confirmed in the library's current code                           | None — a single claim gatekeeper (bounded, `MAX_CONCURRENT_UPLOADS`-way concurrent execution; exclusivity comes from claim reservation, not from running one row at a time) |
 | Where the original is stored            | App's `documentDirectory` (managed by the library)                     | Phone Gallery — outside the app's cache logic                                                 |
 | How "success" is determined             | Text match on an error message (`already exists`) — can false-positive | Explicit confirmation from the API response                                                   |
 | Request timeout                         | Not set explicitly (client default, risk of hanging)                   | Explicit, short `AbortSignal` on the request                                                  |
@@ -155,8 +172,13 @@ Concrete UX for scenario 2 (decision made):
 
 - **Success verification** — don't rely on a text match on an error message ("already exists" ⇒ success). Explicitly check the API response; if needed, add a lightweight check that the object exists in the bucket before the final `status = uploaded`.
 - **Insert-only bucket** (`damage-report-photos` doesn't allow upsert) — retry logic needs to account for the fact that a repeat upload to the same path when the file already exists is likely a genuine duplicate (a previous attempt actually landed), not an error; a text-based check is fine only as a secondary signal here, not the sole one.
-- **One active worker for the whole queue** — no races from parallel runs (just an `isRunning` flag or a serialized promise chain), unlike the current per-id guard, which doesn't protect against parallel watch cycles.
-- **Multiple photos in one report** — processed sequentially by the same worker; the progress bar counts N of M, rather than running through separate independent parallel runs.
+- **One worker run for the whole queue, with bounded concurrency** — there is still exactly one run at a time (overlapping triggers join the single in-flight run via an `isRunning` flag, unlike the current per-id guard, which doesn't protect against parallel watch cycles), but that run drains through a small pool of lanes rather than a single cursor: `MAX_CONCURRENT_UPLOADS = 3` uploads may be in flight at once.
+
+  Three, because a typical damage report has ~3 photos — the goal is a full report's photos uploading roughly together instead of trickling in behind each other's ~35s timeout budget. The limit is global rather than per table, because what it bounds is concurrent network and memory use on a phone, and that cost doesn't care which table a row came from. The pool is a sliding window, not batches of three: a freed lane claims again immediately, which is what stops one slow or wedged row from stalling the rest.
+
+  Crucially, **exclusivity no longer comes from running one row at a time — it comes from the claim**. `claimNext` is a plain `SELECT`, and nothing beneath the app layer stops two lanes reading the same not-yet-reserved row, so "pick a row" and "mark it `uploading`" are performed as one indivisible step behind an async lock (`withClaimLock` in `photoUploadService.ts`). Once a row is reserved it is no longer `pending`/`failed`, so it is invisible to every subsequent claim. If that reservation write fails even after retries, the claim returns `null` immediately — it does not try the next table, and the lane simply ends; the row is untouched and the existing pass cadence (4s fast / 60s backoff) brings it back. That deliberate refusal to keep trying in-place is what keeps a sick database from turning into a hot loop.
+
+- **Multiple photos in one report** — a report's photos are processed by that same single run, up to `MAX_CONCURRENT_UPLOADS` at a time, never by separate independent parallel runs. The §7 progress bar is unaffected: it counts how many of the report's rows are `uploaded`, which says nothing about how many happen to be in flight at any instant.
 - **Retention of bookkeeping fields** (not files, not rows!) — unlike a separate table, a `DamageReportPhotos` row can't be deleted (it _is_ the record that the photo exists on the report). At most, `last_error` could be periodically cleared after success so stale diagnostics don't linger; the file in the Gallery is unaffected either way.
 - **Postgres migration + `database.types.ts`** — new fields on a synced table mean a real DB migration on the backend (not just editing `AppSchema.ts`), and regenerating types before `PowerSyncColsFor<"DamageReportPhotos">` will accept the new columns.
 - **Correct Content-Type for PDF** — fix the `media_type: "image/jpeg"` hardcode in `PhotoAttachmentQueue.newAttachmentRecord` (see section 3) to derive it from the file extension, otherwise PDFs keep uploading with the wrong header.
@@ -172,3 +194,55 @@ Concrete UX for scenario 2 (decision made):
 4. ✅ Data shape for driver-documents — a new `DriverDocuments` table, one row per document, same template as `DamageReportPhotos`/`InspectionPhotos`.
 5. ✅ Banner with multiple problem reports — "N reports" counter, tap goes to the newest, count drops after a fix and moves to the next-most-recent (newest to oldest).
 6. ✅ Banner copy finalized: title **"Photo Upload Issue"**, subtitle **"N report(s) have photos that failed to upload — tap to retry."**
+7. ✅ Parked (`LOCAL_FILE_MISSING`) rows are no longer permanent: every pass re-checks them locally and un-parks any whose file is present, with zero driver taps (§12).
+8. ✅ Retry is network-gated via `expo-network`: the upload attempt and the §6.2 bucket verification are skipped while the phone is offline, so no doomed attempt burns an `attempts`/backoff increment (§13).
+9. ✅ The pass loop reschedules indefinitely (~60s plateau) while _anything_ is unresolved — including a permanently-missing row — so the §12 sweep keeps running for as long as the app is open.
+
+## 12. Self-healing parked rows (MISSING_LOCAL_FILE_ERROR)
+
+§5/§6 establish that attempts never truly end. There is one deliberate exception: when `uploadRow` finds no local file at a row's deterministic path (`localFile.ts`), it records `last_error = MISSING_LOCAL_FILE_ERROR` and the row is _parked_ — excluded from `claimNext`/`countActionable` in `tableAdapters.ts` — so the worker doesn't keep burning retry passes on a file that isn't coming back. Parking is not deletion or archival (§3 still holds): the row, `photo_path`, and `gallery_asset_id` are untouched.
+
+Parking used to be effectively permanent — the only way out was the driver manually re-adding or replacing the photo. That was fine as long as "the local file doesn't exist" was itself always accurate. It briefly wasn't, before the `local_uri` column was removed (see the container-drift fix history). Rows parked during that window can carry `MISSING_LOCAL_FILE_ERROR` even though their file was never actually missing.
+
+The rule going forward: every pass (`runPass()` in `photoUploadService.ts`) begins with a bounded _sweep_ of currently-parked rows (`runtime/parkedRowSweep.ts`): for each row still tagged `MISSING_LOCAL_FILE_ERROR`, re-run the same trustworthy `localPhotoExists(photo_path)` check `uploadRow` itself uses. A row whose file is found present is healed via a `local_file_recovered` event (§3's state machine): it returns to `pending` with `last_error` cleared, and re-enters the normal claim path on the very next iteration of the same pass — no driver interaction required. Like every other event, it never decreases `attempts` and never restamps `last_attempt_at`, so the backoff history a row has earned survives the heal.
+
+A row that's still genuinely missing costs the sweep exactly one local filesystem check per pass — no network call. Each table is swept with the same bounded ceiling the §6.2 verification uses (50 rows per table per pass), and a table with nothing parked is skipped on a single `countParked()` — the sweep does no filesystem work at all in the common case. The pass loop reschedules itself indefinitely (on the existing `BACKOFF_RESCHEDULE_MS` cadence) as long as ANY row remains unresolved — including a permanently-missing one — specifically so this sweep keeps running periodically for as long as the app stays open, not just while there's other actionable work. This is what keeps the sweep from becoming a new hot-loop risk: it rides the existing fast/backoff cadence rather than any new timer, and its per-pass cost for a permanently-missing file is bounded and network-free, forever.
+
+This does not change what "confirmed genuinely missing" means for the driver-facing Replace flow (§6.2): that determination is still made only by a direct bucket lookup, never by local file presence/absence.
+
+## 13. Network-aware retry gating
+
+§6's fast/backoff passes assumed a network attempt was always worth making. It isn't, on two counts the driver shouldn't pay for: no connectivity at all, and an upload doomed to time out anyway. Retrying in either case burns battery/data/CPU for a result that was already knowable in advance, and a network failure must never be misread as "the file is confirmed missing."
+
+Signal: `expo-network`'s `getNetworkStateAsync()`/`addNetworkStateListener` (`runtime/networkState.ts`). A phone is treated as offline only when `isConnected === false` or `isInternetReachable === false`; any other state, and any error from the check itself, is treated as online — deliberately fail-open, since a broken network-state read must never permanently silence the queue.
+
+That fail-open extends to the dependency itself. `expo-network` is a native module and resolves at *import* time, throwing when it isn't linked — so a static import would turn "JS shipped ahead of the native build" (an OTA landing on an older binary) into a crash on launch for every driver, which is strictly worse than the wasted attempts this gate exists to prevent. `networkState.ts` therefore resolves it lazily and treats its absence as "always online", i.e. exactly the pre-§13 behaviour. Note that adding this dependency is a native change: it needs an EAS Build (the CI pipeline already routes `package.json` changes that way) and a local `prebuild` before it works in a dev build.
+
+No pre-emptive "slow network" detection: `expo-network` doesn't expose connection-quality signals, and the existing per-request upload timeout (§5) already fails a too-slow attempt fast and hands it to the backoff schedule (§6), which naturally spaces out the next try.
+
+Where the gate applies: the §12 sweep is local-only and always runs, online or not. The actual upload attempt is skipped for the whole pass when offline — checked once per pass, not per row — so an offline session never ratchets `attempts` or `last_attempt_at` forward on a doomed try. The §6.2 direct bucket verification is also skipped when offline, leaving any existing recovery/banner state untouched (it is _not_ cleared — an offline pass is not evidence that the problem went away).
+
+Resuming automatically: `SystemProvider.tsx` subscribes to network-state changes the same way it subscribes to `AppState` foreground transitions. On the offline→online edge (the edge only, not every event), it re-runs the full §6 recovery pass. The pass loop's indefinite rescheduling (§12) is a backup in case a listener event is ever missed.
+
+Every pass, sweep result, network-gate decision, and per-row upload attempt is logged (via `DebugLogger`, which mirrors to `console`, under the greppable tag `PhotoQueue`) so this behaviour is directly observable in the Metro/Xcode console during manual testing.
+
+## 14. Persist-retry and stale-`uploading` reclaim
+
+§3's state machine is only as good as the writes that record it. Every transition is a local SQLite write through the typed Kysely wrappers, and those writes are fast but not guaranteed — the same database is being written concurrently by PowerSync's own sync/crud machinery, so a transient busy/locked error is entirely possible. Before this section, a single such failure was terminal for that row's bookkeeping: the terminal `persist()` inside `uploadRow` threw, the worker's bare `catch {}` swallowed it, and the row was left in `upload_status = 'uploading'`.
+
+That state is uniquely bad. `uploading` is not one of `tableAdapters.ts`'s `UNRESOLVED_STATUSES` (`['pending','failed']`), so `claimNext`, `countUnresolved`, `countActionable`, `countParked` and `listUnresolved` all skip such a row — and so does the driver-facing banner query in `usePhotoUploadBanner.ts`, which filters on the same pair. A row stuck there is unclaimable, uncounted, and never mentioned to anyone. That is correct while an attempt really is in flight and catastrophic once it isn't: an app killed mid-upload leaves exactly this. Real devices were found carrying rows stranded that way for 2–24 hours.
+
+The answer is two layers that stop it happening, and a third that clears whatever still slips through.
+
+**Layer 1 — persist-retry** ([`persistWithRetry.ts`](../library/photoUploadQueue/runtime/persistWithRetry.ts)). Any failing write is simply retried: 3 attempts, 100ms and then 300ms apart. It deliberately does **not** classify the error. There is no stable, driver-independent shape for "this was transient" across the project's two SQLite paths — `@op-engineering/op-sqlite` natively and `@powersync/adapter-sql-js` (WASM) in dev/Expo Go — so any substring or code match would fail open in precisely the situation it exists for. Blindly retrying a genuinely non-transient error costs under half a second and then rethrows, which is cheaper and far safer than being clever.
+
+**Layer 2 — the guaranteed-`failed` fallback** ([`persistUploadEvent.ts`](../library/photoUploadQueue/runtime/persistUploadEvent.ts)). Every terminal write in `uploadRow` goes through this wrapper. When the retries are exhausted it takes one more shot at the only outcome that is always safe to record: `attempt_failed` with `last_error = "Upload attempt result could not be saved after retries"`. `failed` is retryable, counted and banner-visible — strictly better than the truth being lost, even when the outcome we meant to record was `upload_confirmed`. A wrongly-`failed` row costs one redundant attempt that §5.1's verification then resolves to `uploaded`; a stuck `uploading` row costs a photo. With the fallback enabled the wrapper never throws, so no caller in `uploadRow` needs its own try/catch. If even the fallback write fails, it logs at `error` and hands the problem to layer 3.
+
+**Layer 3 — the stale-`uploading` sweep** ([`staleUploadingSweep.ts`](../library/photoUploadQueue/runtime/staleUploadingSweep.ts)). Every pass, immediately after the §12 parked sweep and before the network gate, each table is asked for rows that are still `uploading` with a `last_attempt_at` older than `STALE_UPLOADING_THRESHOLD_MS` (a null timestamp counts as maximally stale). Those rows are reclaimed. This is also what clears the backlog that already exists on drivers' phones from before this section shipped.
+
+- **The threshold is `3 × UPLOAD_TIMEOUT_MS` (~105s).** One deadline's worth would race the very attempt it is meant to protect — clock skew, a persist that lands late, a request finishing just past the deadline. Much longer would leave a genuinely stuck photo invisible to the driver for longer than necessary. Three deadlines sits comfortably past any attempt that is still legitimately alive while still resolving inside a single foreground session.
+- **The reclaim reuses `attempt_timed_out`; no new event was added.** That event already means exactly "a real attempt happened, its outcome is unknown, treat it as failed and retryable, and count it against backoff", which is precisely the situation. (Contrast `local_file_recovered`, which genuinely needed its own event because its semantics differ: it is a correction of a bad diagnosis and must *not* spend an attempt.) The reclaimed row gets its own `last_error` — "Upload interrupted (stale uploading row reclaimed)" — so support can tell a reclaim from a real timeout.
+- **A row the worker is currently uploading is never reclaimed.** With up to `MAX_CONCURRENT_UPLOADS` lanes running (§10), "stale-looking" and "abandoned" stop being the same thing: a concurrent pass can sweep while another pass's lanes are still working, and §5.1's post-timeout bucket verification can legitimately keep a row `uploading` well past the threshold. The service therefore tracks its own reserved-and-in-progress rows in a `Set` — added the moment a claim's reservation write succeeds, removed in a `finally` when `uploadRow` ends however it ends — and exposes `isRowInFlight`, which the sweep consults via its `isInFlight` option before touching anything. This is shipped and tested, not planned.
+- **Cost.** One selective, `LIMIT`ed query per table per pass, almost always returning zero rows — so unlike §12's sweep it needs no cheap count gate in front of it. Bounded at 50 rows per table per pass, local-only (it works offline), and never throwing: a table that errors on list or write is skipped and retried next pass.
+
+None of this widens `UNRESOLVED_STATUSES`. Keeping `uploading` out of the claim path is what stops a row being attempted twice; the sweep is how it stops being a trap.

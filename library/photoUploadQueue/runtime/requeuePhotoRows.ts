@@ -9,6 +9,12 @@
  * A row whose local file is gone is reported back as `needReAdd` instead: there
  * is physically nothing to send, so re-queueing it would only burn attempts. The
  * driver has to supply a new photo (see `applyPhotoRepair`).
+ *
+ * Since §12, this is an *override*, not a rescue: a parked row whose file is
+ * actually present is un-parked automatically by the sweep at the head of every
+ * pass. What manual Retry adds is impatience — it resets `attempts` (which the
+ * automatic path deliberately preserves) and opens the fast window immediately,
+ * instead of waiting out the backoff schedule.
  */
 
 import { db, photoUploadService } from "@/components/providers/SystemProvider";
@@ -96,7 +102,7 @@ export async function requeuePhotoRows(
   }
 
   if (retried > 0) {
-    void photoUploadService?.triggerFast();
+    void photoUploadService?.triggerFast("manual-retry");
   }
 
   return { retried, needReAdd };

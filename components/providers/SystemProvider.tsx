@@ -4,6 +4,8 @@ import { BackendConnector } from "@/library/powersync/BackendConnector";
 import {
   createForegroundRecovery,
   createPhotoUploadService,
+  PHOTO_QUEUE_LOG_TAG,
+  subscribeNetworkAvailability,
   type ForegroundRecovery,
   type PhotoUploadService,
 } from "@/library/photoUploadQueue";
@@ -122,6 +124,9 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const reconnectingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disposeStatusListenerRef = useRef<(() => void) | null>(null);
+  // §13 — assumed online until the platform says otherwise, so a phone that was
+  // already connected at launch doesn't count as a spurious "restored" edge.
+  const wasOnlineRef = useRef(true);
 
   const connector = useMemo(() => {
     const bc = new BackendConnector({
@@ -307,6 +312,32 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       subscription.remove();
       photoUploadRecovery?.dispose();
     };
+  }, []);
+
+  // §13 — the other half of the network gate. Passes made while offline skip
+  // their upload attempt, so the moment connectivity comes back is exactly when
+  // the queue should try again — without waiting out the backoff plateau.
+  // Only the offline→online *edge* runs a pass: the listener also fires for
+  // Wi-Fi↔cellular switches and other churn, and re-running recovery on every
+  // one of those would be its own small hot loop.
+  useEffect(() => {
+    const unsubscribe = subscribeNetworkAvailability((online) => {
+      const wasOnline = wasOnlineRef.current;
+      wasOnlineRef.current = online;
+      if (online && !wasOnline) {
+        DebugLogger.info(
+          PHOTO_QUEUE_LOG_TAG,
+          "network restored (offline→online) — re-running the recovery pass",
+        );
+        photoUploadRecovery?.run();
+      } else if (!online && wasOnline) {
+        DebugLogger.info(
+          PHOTO_QUEUE_LOG_TAG,
+          "network lost (online→offline) — upload attempts will be skipped until it returns",
+        );
+      }
+    });
+    return unsubscribe;
   }, []);
 
   return (

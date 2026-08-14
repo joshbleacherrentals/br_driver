@@ -18,8 +18,16 @@ import {
 } from "../types";
 import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 
-/** Statuses the queue still owns work for. `uploaded` is terminal (§3). */
+/**
+ * Statuses the queue still owns work for. `uploaded` is terminal (§3), and
+ * `uploading` is deliberately absent: a row mid-attempt must not be claimed a
+ * second time. The cost of that exclusion — a row stranded in `uploading` when
+ * its attempt dies — is covered by `listStaleUploading` + the §14 sweep, not by
+ * widening this list.
+ */
 const UNRESOLVED_STATUSES: UploadStatus[] = ["pending", "failed"];
+/** The mid-attempt status the §14 sweep reclaims from. */
+const UPLOADING_STATUS: UploadStatus = "uploading";
 /** How many candidates to pull per claim before filtering for eligibility. */
 const CLAIM_BATCH = 25;
 
@@ -165,6 +173,16 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
     return rows.length;
   },
 
+  async countParked() {
+    const rows = await db
+      .selectFrom("DamageReportPhotos")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
+      .execute();
+    return rows.length;
+  },
+
   async listUnresolved(limit) {
     const rows = await db
       .selectFrom("DamageReportPhotos")
@@ -180,6 +198,32 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
       .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.photo_path));
+  },
+
+  async listStaleUploading(beforeIso, limit) {
+    const rows = await db
+      .selectFrom("DamageReportPhotos")
+      .select([
+        "id",
+        "photo_path",
+        "upload_status",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "=", UPLOADING_STATUS)
+      .where((eb) =>
+        eb.or([
+          eb("last_attempt_at", "is", null),
+          eb("last_attempt_at", "<", beforeIso),
+        ]),
+      )
+      .orderBy("last_attempt_at", "asc")
       .limit(limit)
       .execute();
     return rows.map((row) => toPhotoUploadRow(row, row.photo_path));
@@ -255,6 +299,16 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
     return rows.length;
   },
 
+  async countParked() {
+    const rows = await db
+      .selectFrom("InspectionPhotos")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
+      .execute();
+    return rows.length;
+  },
+
   async listUnresolved(limit) {
     const rows = await db
       .selectFrom("InspectionPhotos")
@@ -270,6 +324,32 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
       .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.storage_path));
+  },
+
+  async listStaleUploading(beforeIso, limit) {
+    const rows = await db
+      .selectFrom("InspectionPhotos")
+      .select([
+        "id",
+        "storage_path",
+        "upload_status",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "=", UPLOADING_STATUS)
+      .where((eb) =>
+        eb.or([
+          eb("last_attempt_at", "is", null),
+          eb("last_attempt_at", "<", beforeIso),
+        ]),
+      )
+      .orderBy("last_attempt_at", "asc")
       .limit(limit)
       .execute();
     return rows.map((row) => toPhotoUploadRow(row, row.storage_path));
@@ -345,6 +425,16 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
     return rows.length;
   },
 
+  async countParked() {
+    const rows = await db
+      .selectFrom("DriverDocuments")
+      .select("id")
+      .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
+      .execute();
+    return rows.length;
+  },
+
   async listUnresolved(limit) {
     const rows = await db
       .selectFrom("DriverDocuments")
@@ -360,6 +450,32 @@ const driverDocumentsAdapter: PhotoQueueTableAdapter = {
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
       .orderBy("created_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map((row) => toPhotoUploadRow(row, row.photo_path));
+  },
+
+  async listStaleUploading(beforeIso, limit) {
+    const rows = await db
+      .selectFrom("DriverDocuments")
+      .select([
+        "id",
+        "photo_path",
+        "upload_status",
+        "gallery_asset_id",
+        "attempts",
+        "last_attempt_at",
+        "last_error",
+        "created_at",
+      ])
+      .where("upload_status", "=", UPLOADING_STATUS)
+      .where((eb) =>
+        eb.or([
+          eb("last_attempt_at", "is", null),
+          eb("last_attempt_at", "<", beforeIso),
+        ]),
+      )
+      .orderBy("last_attempt_at", "asc")
       .limit(limit)
       .execute();
     return rows.map((row) => toPhotoUploadRow(row, row.photo_path));

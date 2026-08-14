@@ -3,8 +3,9 @@
  * why it must not be edited to match a future implementation.
  *
  * Covers: design doc §9 ("How 'success' is determined": explicit confirmation
- * from the API response, not a text match on an error message) and §10
- * ("Success verification" + "Insert-only bucket").
+ * from the API response, not a text match on an error message), §10
+ * ("Success verification" + "Insert-only bucket") and §5.1 ("Timeout does not
+ * mean cancelled — verify, don't just retry").
  */
 
 import type { UploadEvidence } from "@/library/photoUploadQueue/types";
@@ -27,6 +28,7 @@ const DUPLICATE_PATH_ERROR = {
 const evidence = (overrides: Partial<UploadEvidence> = {}): UploadEvidence => ({
   apiConfirmed: false,
   duplicatePathSignal: false,
+  timedOutSignal: false,
   bucketObjectExists: null,
   ...overrides,
 });
@@ -105,5 +107,54 @@ describe("success determination (§9, §10)", () => {
 
   it("does not ask for a lookup when nothing suggests the object landed", () => {
     expect(needsBucketVerification(evidence())).toBe(false);
+  });
+});
+
+/**
+ * §5.1 — the storage SDK never forwards our `AbortSignal` to the underlying
+ * request, so hitting the §5 deadline does NOT mean the upload was cancelled;
+ * it may well be landing server-side right now. That makes a timeout exactly
+ * the same *kind* of evidence as a duplicate-path error: enough to demand a
+ * bucket lookup, never enough to decide anything on its own.
+ */
+describe("timeout as an ambiguous signal (§5.1)", () => {
+  it("asks for a bucket lookup after a timeout, since the request was never really cancelled", () => {
+    expect(
+      needsBucketVerification(
+        evidence({ timedOutSignal: true, bucketObjectExists: null }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not ask again once the bucket has answered", () => {
+    for (const answer of [true, false]) {
+      expect(
+        needsBucketVerification(
+          evidence({ timedOutSignal: true, bucketObjectExists: answer }),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  // The whole point of keeping it out of `isUploadSuccessful`: an upload that
+  // timed out and was never found is not an upload.
+  it("never calls a bare timeout a success", () => {
+    expect(isUploadSuccessful(evidence({ timedOutSignal: true }))).toBe(false);
+  });
+
+  it("accepts a timed-out attempt the bucket proves landed", () => {
+    expect(
+      isUploadSuccessful(
+        evidence({ timedOutSignal: true, bucketObjectExists: true }),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a timed-out attempt the bucket says is absent", () => {
+    expect(
+      isUploadSuccessful(
+        evidence({ timedOutSignal: true, bucketObjectExists: false }),
+      ),
+    ).toBe(false);
   });
 });

@@ -8,6 +8,7 @@
  */
 
 import {
+  MISSING_LOCAL_FILE_ERROR,
   UPLOAD_STATUSES,
   type UploadEvent,
   type UploadStatus,
@@ -26,6 +27,7 @@ const ALL_EVENTS: UploadEvent[] = [
   "attempt_failed",
   "attempt_timed_out",
   "retry_requested",
+  "local_file_recovered",
 ];
 
 const NOW_ISO = "2026-08-07T12:00:00.000Z";
@@ -64,6 +66,15 @@ describe("upload_status state machine (§3)", () => {
     expect(isTerminalUploadStatus("failed")).toBe(false);
     expect(isTerminalUploadStatus("pending")).toBe(false);
     expect(isTerminalUploadStatus("uploading")).toBe(false);
+  });
+
+  // §12 — the sweep's un-park event is the automatic twin of a manual retry:
+  // same destination, no driver involved.
+  it("puts a parked row back to pending when its local file is recovered", () => {
+    expect(nextUploadStatus("failed", "local_file_recovered")).toBe("pending");
+    expect(nextUploadStatus("pending", "local_file_recovered")).toBe("pending");
+    // Still terminal-safe: a healed-looking event can't resurrect an upload.
+    expect(nextUploadStatus("uploaded", "local_file_recovered")).toBe("uploaded");
   });
 
   // §3 — the state vocabulary is exactly pending/uploading/uploaded/failed.
@@ -136,6 +147,29 @@ describe("row bookkeeping (§3)", () => {
         applyUploadEvent(row, event, NOW_ISO, "boom").attempts,
       ).toBeGreaterThanOrEqual(row.attempts);
     }
+  });
+
+  // §12 — un-parking is a correction of a stale diagnosis, not an attempt.
+  // Clearing `last_error` is the whole mechanism (it is what `claimNext`
+  // filters on); touching the attempt bookkeeping would let a healed row jump
+  // its earned place in the backoff schedule.
+  it("clears the parked marker without spending an attempt when the file is recovered", () => {
+    const parked = makeRow({
+      upload_status: "failed",
+      attempts: 4,
+      last_attempt_at: "2026-08-01T09:00:00.000Z",
+      last_error: MISSING_LOCAL_FILE_ERROR,
+    });
+
+    const next = applyUploadEvent(parked, "local_file_recovered", NOW_ISO);
+
+    expect(next.last_error).toBeNull();
+    expect(next.upload_status).toBe("pending");
+    expect(next.attempts).toBe(parked.attempts);
+    expect(next.last_attempt_at).toBe(parked.last_attempt_at);
+    expect(next.id).toBe(parked.id);
+    expect(next.photo_path).toBe(parked.photo_path);
+    expect(next.gallery_asset_id).toBe(parked.gallery_asset_id);
   });
 
   it("keeps the local file reference after a confirmed upload", () => {

@@ -1,5 +1,9 @@
 import { DebugLogger } from "@/library/debug/DebugLogger";
 import {
+  createSupabaseFetch,
+  type TokenProvider,
+} from "@/library/powersync/supabaseFetch";
+import {
   AbstractPowerSyncDatabase,
   CrudEntry,
   PowerSyncBackendConnector,
@@ -18,14 +22,6 @@ const FATAL_RESPONSE_CODES = [
   new RegExp("^23...$"), // Constraint violation
   new RegExp("^42501$"), // RLS / insufficient privilege
 ];
-
-/**
- * Function that returns a JWT. Pass `forceRefresh` to bypass any client-side
- * token cache and mint a full-TTL token (used for slow storage uploads).
- */
-type TokenProvider = (opts?: {
-  forceRefresh?: boolean;
-}) => Promise<string | null>;
 
 type BackendConnectorTokenProviders = {
   /** Token for the PowerSync service connection (must include `aud`). */
@@ -60,56 +56,9 @@ export class BackendConnector implements PowerSyncBackendConnector {
         persistSession: false,
       },
       global: {
-        fetch: async (url, options = {}) => {
-          // Storage uploads can outlast the ~60s Clerk token TTL on slow
-          // connections. Supabase/Kong validates the JWT when the request is
-          // received (headers), so a full-TTL token lets a slow body upload
-          // finish without an "exp claim" failure. Force a fresh token for
-          // storage writes only; other requests keep the cached token to avoid
-          // hammering Clerk.
-          const urlStr = typeof url === "string" ? url : url.toString();
-          const method = (options.method ?? "GET").toUpperCase();
-          const isStorageUpload =
-            urlStr.includes("/storage/v1/object/") && method !== "GET";
-          const token = await this.getSupabaseToken(
-            isStorageUpload ? { forceRefresh: true } : undefined,
-          );
-
-          // DebugLogger.debug(TAG, "Supabase fetch", {
-          //   url: typeof url === "string" ? url : url.toString(),
-          //   method: options.method ?? "GET",
-          //   hasToken: !!token,
-          //   tokenLength: token?.length,
-          //   tokenPrefix: token?.substring(0, 30) + "...",
-          // });
-
-          const headers = new Headers(options.headers);
-          if (token) {
-            headers.set("Authorization", `Bearer ${token}`);
-          }
-
-          try {
-            const response = await fetch(url, {
-              ...options,
-              headers,
-            });
-
-            // DebugLogger.debug(TAG, "Supabase fetch response", {
-            //   url: typeof url === "string" ? url : url.toString(),
-            //   status: response.status,
-            //   statusText: response.statusText,
-            //   ok: response.ok,
-            // });
-
-            return response;
-          } catch (fetchError: any) {
-            DebugLogger.error(TAG, "Supabase fetch FAILED", {
-              url: typeof url === "string" ? url : url.toString(),
-              error: fetchError?.message ?? String(fetchError),
-            });
-            throw fetchError;
-          }
-        },
+        // Forced-fresh JWT + hard abort deadline for storage uploads only —
+        // see `createSupabaseFetch` above.
+        fetch: createSupabaseFetch(this.getSupabaseToken),
       },
     });
   }

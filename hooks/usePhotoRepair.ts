@@ -90,6 +90,13 @@ export function usePhotoRepair(input: {
     [photos, confirmedMissingPhotoIds, editable],
   );
 
+  /**
+   * Manual Retry. Since §12 the queue un-parks and re-attempts recoverable rows
+   * on its own, so this is no longer the only way out of a stuck state — it is
+   * an instant override for a driver who doesn't want to wait out the backoff
+   * schedule. It still resets `attempts`, which the automatic path deliberately
+   * does not.
+   */
   const retry = useCallback(async () => {
     if (!parent) return;
     const targets = photos

@@ -20,6 +20,8 @@ import { decideRecovery, FAST_RETRY_WINDOW_MS } from "../recovery";
 import type { PhotoUploadRow } from "../types";
 import { applyUploadEvent } from "../uploadStatus";
 import { lookupBucketObject } from "./bucketUpload";
+import { isNetworkAvailable } from "./networkState";
+import { photoQueueLog } from "./photoQueueLog";
 import type { PhotoUploadService } from "./photoUploadService";
 import {
   clearRecoveryState,
@@ -129,6 +131,17 @@ export function createForegroundRecovery(
       return;
     }
 
+    // §13 — a bucket lookup on an offline phone can only answer "unknown", so
+    // it is pure cost. Bail out *without* clearing: an offline pass is not
+    // evidence the problem went away, so whatever the driver is already being
+    // shown must survive untouched until a pass can actually verify.
+    if (!(await isNetworkAvailable())) {
+      photoQueueLog.info(
+        "recovery — offline, skipping bucket verification (existing banner/recovery state left as is)",
+      );
+      return;
+    }
+
     const confirmedMissing = await verifyAgainstBucket();
 
     // Only an affirmative "the bucket does not have this" counts as missing.
@@ -176,7 +189,7 @@ export function createForegroundRecovery(
           // Step 1 — a minute of quick retries before the driver is bothered.
           // `triggerFast` opens exactly that window and lapses into backoff on
           // its own, which is step 4.
-          void deps.service.triggerFast();
+          void deps.service.triggerFast("foreground-recovery");
 
           timer = setTimeout(() => {
             timer = null;

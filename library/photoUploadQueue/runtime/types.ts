@@ -2,7 +2,7 @@
  * Runtime-side contract that binds the pure queue logic to a concrete synced
  * table. Each photo-bearing table (DamageReportPhotos, InspectionPhotos,
  * DriverDocuments) provides one adapter; the service in `photoUploadService.ts`
- * drives them all through the single serialized worker (§10).
+ * drives them all through the single boundedly-concurrent worker (§10).
  */
 
 import type { PhotoUploadRow } from "../types";
@@ -48,8 +48,38 @@ export interface PhotoQueueTableAdapter {
 
   /**
    * Count of unresolved rows the worker can still act on — i.e. excluding those
-   * parked because their local file is gone. Drives whether the queue keeps
-   * scheduling retry passes, so a permanently-missing file never busy-loops.
+   * parked because their local file is gone.
    */
   countActionable(): Promise<number>;
+
+  /**
+   * The complement of {@link countActionable}: unresolved rows currently parked
+   * for a missing local file. A cheap gate for the §12 sweep, so a table with
+   * nothing parked costs one COUNT and no filesystem work at all.
+   */
+  countParked(): Promise<number>;
+
+  /**
+   * §14 — rows stuck in `uploading` whose `last_attempt_at` is older than
+   * `beforeIso` (a null `last_attempt_at` counts as maximally stale). These are
+   * invisible to every other query here on purpose: `uploading` is not an
+   * unresolved status, so `claimNext`/`countUnresolved`/`listUnresolved` all
+   * skip them — which is exactly how a row interrupted mid-attempt used to
+   * become permanently unreclaimable. Oldest first, and bounded.
+   */
+  listStaleUploading(beforeIso: string, limit: number): Promise<PhotoUploadRow[]>;
 }
+
+/**
+ * A row the claim step has already reserved (persisted as `uploading`) plus the
+ * adapter that owns it.
+ *
+ * Threaded by value from claim straight into the upload, rather than parked in
+ * a module-level "current adapter" ref: with several lanes claiming
+ * concurrently, shared claim state would let one lane read the adapter another
+ * lane just wrote.
+ */
+export type ClaimedRow = {
+  row: PhotoUploadRow;
+  adapter: PhotoQueueTableAdapter;
+};

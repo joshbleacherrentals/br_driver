@@ -35,13 +35,19 @@ export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
 /**
  * Events that the upload logic — and only the upload logic (§3) — may apply
  * to a row. There is intentionally no "give up" / "archive" event (§5).
+ *
+ * `local_file_recovered` is the automatic counterpart of `retry_requested`
+ * (§12): the parked-row sweep found the local file present after all, so the
+ * row is un-parked with no driver involvement. Same shape as a manual retry —
+ * back to `pending`, `last_error` cleared, backoff history preserved.
  */
 export type UploadEvent =
   | "attempt_started"
   | "upload_confirmed"
   | "attempt_failed"
   | "attempt_timed_out"
-  | "retry_requested";
+  | "retry_requested"
+  | "local_file_recovered";
 
 /**
  * §3 — the queue is a set of columns on the photo row itself
@@ -71,6 +77,15 @@ export type UploadEvidence = {
    * write because an object already sits at this path (§10).
    */
   duplicatePathSignal: boolean;
+  /**
+   * §5.1 — the attempt hit the client-side deadline. The storage SDK does not
+   * forward our `AbortSignal` to the underlying request, so the upload may
+   * still be in flight (and may still land) server-side. That makes a timeout
+   * exactly as ambiguous as a duplicate-path signal, and therefore equally
+   * grounds for a direct bucket lookup — never, on its own, grounds for
+   * success.
+   */
+  timedOutSignal: boolean;
   /**
    * Result of a direct bucket lookup. `null` means "not checked yet".
    */

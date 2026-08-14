@@ -37,6 +37,9 @@ export function nextUploadStatus(
       // §5 — a timeout is just another failed attempt, never a give-up.
       return "failed";
     case "retry_requested":
+    // §12 — the sweep proved the local file is there after all, so the row is
+    // retryable exactly as if the driver had asked for it themselves.
+    case "local_file_recovered":
       return "pending";
   }
 }
@@ -86,6 +89,14 @@ export function applyUploadEvent(
     case "retry_requested":
       // A user-driven reset to `pending`; the next `attempt_started` stamps the
       // timing. `attempts` is preserved so backoff history is not lost.
+      break;
+
+    case "local_file_recovered":
+      // §12 — un-parking is a correction of a stale diagnosis, not an attempt:
+      // clearing `last_error` is what returns the row to the claim path. Timing
+      // and `attempts` are deliberately untouched, so a healed row rejoins the
+      // backoff schedule exactly where it left off instead of jumping the queue.
+      next.last_error = null;
       break;
   }
 
