@@ -1,5 +1,5 @@
 import type { CompiledQuery } from "kysely";
-import { powerSyncDb } from '@/components/providers/SystemProvider';
+import { powerSyncDb } from "@/library/powersync/db";
 
 export type CompiledResultOf<C> = C extends CompiledQuery<infer R> ? R : never;
 

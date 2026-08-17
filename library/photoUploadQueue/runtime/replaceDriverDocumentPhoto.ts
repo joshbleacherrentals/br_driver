@@ -12,7 +12,7 @@
  * a replacement photo would upload a JPEG under `application/pdf`.
  */
 
-import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { db } from "@/library/powersync/db";
 import { executeTypedTransaction } from "@/library/powersync/typedMutation";
 import type { PickedPhoto } from "@/utils/pickPhotos";
 import { readAsBase64 } from "@/utils/readAsBase64";
@@ -20,6 +20,7 @@ import { readAsBase64 } from "@/utils/readAsBase64";
 import { writeLocalPhoto } from "./localFile";
 import { forgetConfirmedMissingPhotoIds } from "./recoveryStore";
 import { saveToGalleryIfCamera } from "./saveToGallery";
+import { getPhotoUploadService } from "./serviceRegistry";
 
 /** `doc_type` values, and the `Drivers` column each one mirrors to. */
 const DRIVER_PATH_COLUMN = {
@@ -91,7 +92,7 @@ export async function replaceDriverDocumentPhoto(
   // bucket verdict no longer describes it.
   forgetConfirmedMissingPhotoIds([input.rowId]);
 
-  void photoUploadService?.triggerFast();
+  void getPhotoUploadService()?.triggerFast();
 
   return { bucketPath, localUri };
 }

@@ -1,30 +1,32 @@
 import { DebugLogger } from "@/library/debug/DebugLogger";
-import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import {
   clearCurrentDriverContext,
   clearRecoveryState,
   createForegroundRecovery,
   createPhotoUploadService,
+  getPhotoUploadRecovery,
   PHOTO_QUEUE_LOG_TAG,
   setCurrentDriverContext,
+  setPhotoUploadRecovery,
+  setPhotoUploadService,
   subscribeNetworkAvailability,
-  type ForegroundRecovery,
-  type PhotoUploadService,
 } from "@/library/photoUploadQueue";
+import { db, powerSyncDb } from "@/library/powersync/db";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useAuth } from "@clerk/clerk-expo";
 import { AppState } from "react-native";
-import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
-import { wrapPowerSyncWithKysely } from "@powersync/kysely-driver";
-import {
-  createBaseLogger,
-  LogLevel,
-  PowerSyncContext,
-  PowerSyncDatabase,
-} from "@powersync/react-native";
-import Constants from "expo-constants";
+import { PowerSyncContext } from "@powersync/react-native";
 import React, { useEffect, useMemo, useRef } from "react";
+
+/**
+ * The database lives in `@/library/powersync/db` — a leaf module with no app
+ * imports — and is re-exported here so the ~26 call sites that already import
+ * `db`/`powerSyncDb` from this provider keep working. Owning it here meant this
+ * file both created `db` and imported the photo upload queue, while the queue's
+ * runtime modules imported `db` back out: the require cycle Metro warned about.
+ */
+export { db, powerSyncDb };
 
 const TAG = "PowerSync";
 
@@ -56,70 +58,6 @@ function decodeJwtExpMs(token: string): number | null {
     return null;
   }
 }
-
-const isExpoGo = Constants.executionEnvironment === "storeClient";
-
-const logger = createBaseLogger();
-logger.useDefaults();
-logger.setLevel(LogLevel.WARN);
-
-// Suppress noisy WebSocket timeout errors — PowerSync auto-reconnects
-const originalError = logger.error.bind(logger);
-logger.error = (...args: any[]) => {
-  const msg = args.map(String).join(" ");
-  if (msg.includes("No data received on WebSocket")) return;
-  originalError(...args);
-};
-
-function createOpenFactory() {
-  DebugLogger.info(
-    TAG,
-    `Execution environment: ${Constants.executionEnvironment}`,
-  );
-  if (isExpoGo) {
-    DebugLogger.info(TAG, "Using SQLJSOpenFactory (Expo Go)");
-    return new SQLJSOpenFactory({ dbFilename: "app.db" });
-  }
-
-  try {
-    const { OPSqliteOpenFactory } = require("@powersync/op-sqlite");
-    DebugLogger.info(TAG, "Using OPSqliteOpenFactory (native)");
-    return new OPSqliteOpenFactory({ dbFilename: "sqlite.db" });
-  } catch (err) {
-    DebugLogger.warn(
-      TAG,
-      "op-sqlite not available; falling back to SQL.js",
-      err,
-    );
-    return new SQLJSOpenFactory({ dbFilename: "app.db" });
-  }
-}
-
-const openFactory = createOpenFactory();
-
-export const powerSyncDb = new PowerSyncDatabase({
-  schema: AppSchema,
-  database: openFactory,
-  logger,
-});
-
-export const db = wrapPowerSyncWithKysely<PowerSyncDB>(powerSyncDb);
-
-/**
- * Custom photo upload queue (design doc: docs/custom-photo-upload-queue.md).
- * Replaces the deprecated `@powersync/attachments` queues, whose "recompute
- * which photos are needed" pass could archive + delete a photo before it
- * reached Storage. Screens write rows with `upload_status = pending` and call
- * `triggerFast()`; the service uploads them and never deletes the local copy.
- */
-export let photoUploadService: PhotoUploadService | undefined;
-
-/**
- * §6 — the "1 minute of fast retries → verify against the bucket → banner" pass.
- * Runs on connect and on every foreground transition; publishes its verdict to
- * the recovery store that `usePhotoUploadBanner` reads.
- */
-export let photoUploadRecovery: ForegroundRecovery | undefined;
 
 /** Row shapes for the §15 Clerk → `Users` → `Drivers` lookup below. */
 type UserIdRow = { id: string };
@@ -200,18 +138,28 @@ function CurrentDriverContextPublisher() {
   // indistinguishable, from the outside, from "this driver has no photos". The
   // bug this component was extracted to fix produced exactly that error on both
   // lookups and reported it nowhere; from here on it is one grep away.
-  const userError = userLookup.error;
-  const driverError = driverLookup.error;
+  //
+  // Two things keep it from crying wolf. First, `isDisabled`: both lookups are
+  // guarded (`compiledUserId` is null until Clerk resolves, `compiledDriverId`
+  // until `Users.id` does), and a guarded lookup runs the no-op placeholder
+  // query rather than the caller's — whatever it reports is not this component's
+  // answer, so it is not this component's error. Second, the dependencies are
+  // the error *messages*, not the `Error` objects: `useQuery` hands back a fresh
+  // instance on re-render, and keying on identity re-logged one unchanging
+  // failure on every unrelated render.
+  const userError = userLookup.isDisabled
+    ? null
+    : (userLookup.error?.message ?? null);
+  const driverError = driverLookup.isDisabled
+    ? null
+    : (driverLookup.error?.message ?? null);
   useEffect(() => {
     if (!userError && !driverError) return;
     DebugLogger.error(
       PHOTO_QUEUE_LOG_TAG,
       "§15 driver-context lookup failed — the queue stays unscoped and will " +
         "upload nothing until this resolves",
-      {
-        userError: userError?.message ?? null,
-        driverError: driverError?.message ?? null,
-      },
+      { userError, driverError },
     );
   }, [userError, driverError]);
 
@@ -252,13 +200,16 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     // Single custom photo upload queue for every photo type (damage report,
     // inspection, driver documents). Recreated with the fresh Supabase client;
     // it holds no watchers/timers of its own — screens and the foreground
-    // listener below drive it.
-    photoUploadService = createPhotoUploadService(bc.client);
-    photoUploadRecovery?.dispose();
-    photoUploadRecovery = createForegroundRecovery({
-      client: bc.client,
-      service: photoUploadService,
-    });
+    // listener below drive it. Published to `serviceRegistry.ts` so the queue's
+    // own runtime modules and the screens can reach it without importing this
+    // provider.
+    const service = createPhotoUploadService(bc.client);
+    setPhotoUploadService(service);
+
+    getPhotoUploadRecovery()?.dispose();
+    setPhotoUploadRecovery(
+      createForegroundRecovery({ client: bc.client, service }),
+    );
 
     return bc;
   }, [getToken]);
@@ -340,7 +291,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         // Recovery pass (§6): pick up any pending/failed photos left over from a
         // previous session — a minute of fast retries first, then a direct
         // bucket check, and only then the banner.
-        photoUploadRecovery?.run();
+        getPhotoUploadRecovery()?.run();
 
         attachStatusListener();
         await scheduleTokenRefreshReconnect();
@@ -412,12 +363,12 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        photoUploadRecovery?.run();
+        getPhotoUploadRecovery()?.run();
       }
     });
     return () => {
       subscription.remove();
-      photoUploadRecovery?.dispose();
+      getPhotoUploadRecovery()?.dispose();
     };
   }, []);
 
@@ -436,7 +387,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
           PHOTO_QUEUE_LOG_TAG,
           "network restored (offline→online) — re-running the recovery pass",
         );
-        photoUploadRecovery?.run();
+        getPhotoUploadRecovery()?.run();
       } else if (!online && wasOnline) {
         DebugLogger.info(
           PHOTO_QUEUE_LOG_TAG,

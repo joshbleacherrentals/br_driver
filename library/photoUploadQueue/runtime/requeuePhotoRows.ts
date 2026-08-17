@@ -17,10 +17,11 @@
  * instead of waiting out the backoff schedule.
  */
 
-import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { db } from "@/library/powersync/db";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 
 import { localPhotoExists } from "./localFile";
+import { getPhotoUploadService } from "./serviceRegistry";
 import type { PhotoQueueTableName } from "./types";
 
 export type RequeueTarget = {
@@ -102,7 +103,7 @@ export async function requeuePhotoRows(
   }
 
   if (retried > 0) {
-    void photoUploadService?.triggerFast("manual-retry");
+    void getPhotoUploadService()?.triggerFast("manual-retry");
   }
 
   return { retried, needReAdd };

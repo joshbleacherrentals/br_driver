@@ -41,7 +41,7 @@ jest.mock("@/library/photoUploadQueue/runtime/networkState", () => ({
 
 // The store is a module-level singleton shared with the banner; keep the real
 // one so "was the driver's banner preserved?" is a real question.
-jest.mock("@/components/providers/SystemProvider", () => ({
+jest.mock("@/library/powersync/db", () => ({
   __esModule: true,
   db: {},
 }));

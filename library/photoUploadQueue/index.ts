@@ -34,5 +34,6 @@ export * from "./runtime/recoveryStore";
 export * from "./runtime/replaceDriverDocumentPhoto";
 export * from "./runtime/requeuePhotoRows";
 export * from "./runtime/saveToGallery";
+export * from "./runtime/serviceRegistry";
 export * from "./runtime/staleUploadingSweep";
 export type { ClaimedRow, PhotoQueueTableName } from "./runtime/types";

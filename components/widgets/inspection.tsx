@@ -31,8 +31,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { db, photoUploadService } from "../providers/SystemProvider";
+import { db } from "../providers/SystemProvider";
 import {
+  getPhotoUploadService,
   saveToGalleryIfCamera,
   writeLocalPhoto,
 } from "@/library/photoUploadQueue";
@@ -424,7 +425,7 @@ export default function InspectionScreen({
       );
 
       // Kick the queue for the inspection (and damage) photos just recorded.
-      void photoUploadService?.triggerFast();
+      void getPhotoUploadService()?.triggerFast();
 
       Alert.alert(
         "Success",

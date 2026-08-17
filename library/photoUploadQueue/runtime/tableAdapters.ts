@@ -12,7 +12,7 @@
  * banner another driver's photos.
  */
 
-import { db } from "@/components/providers/SystemProvider";
+import { db } from "@/library/powersync/db";
 import type { PowerSyncDB } from "@/library/powersync/AppSchema";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import type { ExpressionBuilder } from "kysely";

@@ -1,5 +1,6 @@
 import type { CompiledQuery } from "kysely";
 import { usePowerSync, useQuery } from "@powersync/react-native";
+import { useMemo } from "react";
 
 import { DebugLogger } from "@/library/debug/DebugLogger";
 
@@ -55,13 +56,38 @@ function reportMissingPowerSyncContext(sql: string): void {
   );
 }
 
+/**
+ * The query run in place of a caller's query while that caller has nothing to
+ * ask yet (`compiled === null` — the standard "the id this query needs hasn't
+ * resolved" guard used by a dozen hooks in `hooks/db/`).
+ *
+ * It must be a *valid, zero-row, table-free* statement, and the reason is
+ * narrow. `useQuery` has no disabled mode: it always builds a `WatchedQuery`,
+ * and `OnChangeQueryProcessor.linkQuery` hands the SQL to
+ * `AbstractPowerSyncDatabase.resolveTables`, which runs `EXPLAIN ${sql}` to
+ * discover which tables to watch. The previous fallback here was the empty
+ * string, so that became the literal `"EXPLAIN "` — which op-sqlite rejects
+ * with `sqlite query error: incomplete input`, surfacing as `.error` on the
+ * result of a query the caller never actually asked for. It fired on the first
+ * render of every guarded hook in the app and was invisible everywhere except
+ * `SystemProvider`'s §15 lookups, the one place that reads `.error`.
+ *
+ * `SELECT 1 WHERE 0` fixes it end to end: it `EXPLAIN`s cleanly, its plan
+ * contains no `OpenRead` opcode so `resolveTables` returns `[]` and no
+ * table-change listener is registered (the disabled query can never re-fire on
+ * unrelated writes), and it yields zero rows, so `data` is `[]` exactly as
+ * callers already assume.
+ */
+export const DISABLED_QUERY_SQL = "SELECT 1 WHERE 0";
+
 // typedQuery.ts
 export function useTypedQuery<C extends CompiledQuery<any>, TExpected>(
   compiled: (C & EnsureExact<CompiledResultOf<C>, TExpected>) | null,
   _expected: TExpected
 ) {
-  // PowerSync's useQuery should handle empty queries gracefully
-  const sql = compiled?.sql ?? "";
+  const isDisabled = compiled === null;
+  // Never the empty string — see DISABLED_QUERY_SQL.
+  const sql = compiled?.sql ?? DISABLED_QUERY_SQL;
   const parameters = compiled?.parameters ?? [];
 
   // Read the same context `useQuery` reads, one call earlier, purely so a
@@ -73,5 +99,24 @@ export function useTypedQuery<C extends CompiledQuery<any>, TExpected>(
     reportMissingPowerSyncContext(sql);
   }
 
-  return useQuery<TExpected>(sql, parameters as any[]);
+  const result = useQuery<TExpected>(sql, parameters as any[]);
+
+  // Additive, and deliberately left to inference: every field `useQuery`
+  // returned is passed through untouched — `isDisabled` is the only new one —
+  // so all 38 existing call sites keep working. (Writing the return type by
+  // hand as `ReturnType<typeof useQuery<T>>` does *not* work: `useQuery` is
+  // overloaded, and `ReturnType` picks its last overload — the differential one,
+  // whose `data` is `readonly`. That silently made every call site that assigns
+  // `.data` to a mutable array fail to compile.)
+  return useMemo(() => ({ ...result, isDisabled }), [result, isDisabled]);
 }
+
+/**
+ * The result of {@link useTypedQuery} — `useQuery`'s result plus `isDisabled`,
+ * which is `true` when the caller passed `compiled === null` and this hook has
+ * no query to run yet. It distinguishes "nothing was asked" from "the query ran
+ * and matched nothing", which are otherwise both `data: []`.
+ */
+export type TypedQueryResult<TExpected> = ReturnType<
+  typeof useTypedQuery<CompiledQuery<TExpected>, TExpected>
+>;

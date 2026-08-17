@@ -2,7 +2,7 @@ import { ThemeColors, typeScale } from "@/constants/theme";
 import { usePhotoUploadBanner } from "@/hooks/usePhotoUploadBanner";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
-import { photoUploadService } from "@/components/providers/SystemProvider";
+import { getPhotoUploadService } from "@/library/photoUploadQueue";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -32,7 +32,7 @@ export default function PhotoUploadIssueBanner() {
   }
 
   const handlePress = () => {
-    void photoUploadService?.triggerFast("manual-retry");
+    void getPhotoUploadService()?.triggerFast("manual-retry");
     router.push({
       pathname: "/damage-report",
       params: { damageReportId: targetReportUuid },

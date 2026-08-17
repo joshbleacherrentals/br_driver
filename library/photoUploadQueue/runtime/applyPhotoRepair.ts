@@ -17,7 +17,7 @@
  * repaired.
  */
 
-import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { db } from "@/library/powersync/db";
 import { executeTypedTransaction } from "@/library/powersync/typedMutation";
 import { generateThumbnail } from "@/utils/generateThumbnail";
 import type { PickedPhoto } from "@/utils/pickPhotos";
@@ -33,6 +33,7 @@ import type { PhotoReplacementPlan } from "../photoRepair";
 import { writeLocalPhoto } from "./localFile";
 import { forgetConfirmedMissingPhotoIds } from "./recoveryStore";
 import { saveToGalleryIfCamera } from "./saveToGallery";
+import { getPhotoUploadService } from "./serviceRegistry";
 
 /** The parent record being repaired, and the table its photos live in. */
 export type RepairParent =
@@ -287,7 +288,7 @@ export async function applyPhotoRepair(
 
   // The driver is standing here waiting — retry hard, not on the background
   // cadence (§6/§7).
-  void photoUploadService?.triggerFast();
+  void getPhotoUploadService()?.triggerFast();
 
   return {
     replaced: reuses.length,

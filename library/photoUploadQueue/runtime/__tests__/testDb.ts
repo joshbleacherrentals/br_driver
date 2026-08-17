@@ -23,8 +23,9 @@ import type { PowerSyncDB } from "@/library/powersync/AppSchema";
 
 /**
  * Module-scope singleton, and `mock`-prefixed on purpose: Jest hoists
- * `jest.mock(...)` above every import, so a suite that swaps `SystemProvider`'s
- * `db` for this one has to reach it from inside the factory.
+ * `jest.mock(...)` above every import, so a suite that swaps
+ * `@/library/powersync/db`'s `db` for this one has to reach it from inside the
+ * factory.
  */
 export const mockDb = new Kysely<PowerSyncDB>({
   dialect: new SqliteDialect({ database: new Database(":memory:") }),

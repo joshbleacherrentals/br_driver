@@ -13,7 +13,7 @@
  * This suite runs the REAL adapters against a REAL SQLite database
  * (`testDb.ts`), because the fix *is* the SQL: a correlated `EXISTS`, an
  * OR-chain across `WorkTrackers.pre_inspection_uuid`/`post_inspection_uuid`,
- * and SQL's own NULL semantics. Only `SystemProvider`'s `db`/`powerSyncDb` are
+ * and SQL's own NULL semantics. Only `@/library/powersync/db`'s exports are
  * replaced; `tableAdapters.ts` and `currentDriverContext.ts` are untouched
  * production code.
  */
@@ -39,7 +39,11 @@ import {
 // Jest hoists this above every import, so the factory reaches the test database
 // through `require` rather than a closed-over binding that would still be in
 // its temporal dead zone when `tableAdapters.ts` is first loaded.
-jest.mock("@/components/providers/SystemProvider", () => {
+//
+// Mocks the leaf `@/library/powersync/db` module — where `db`/`powerSyncDb` now
+// live — rather than `SystemProvider`, which merely re-exports them and would
+// therefore leave the real database in place for anything importing it here.
+jest.mock("@/library/powersync/db", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { mockDb: database } = require("./testDb");
   // eslint-disable-next-line @typescript-eslint/no-require-imports

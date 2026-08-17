@@ -25,7 +25,17 @@ import {
   type SeededDriver,
 } from "@/library/photoUploadQueue/runtime/__tests__/testDb";
 
+// Two import paths reach the database here and both need mocking, or whichever
+// one is missed pulls in the real `@powersync/react-native` (ESM Jest can't
+// parse): the hook itself imports `db` straight from `SystemProvider`, while
+// `applyPhotoRepair.ts` (pulled in transitively via the queue barrel) imports
+// the leaf `@/library/powersync/db` module that `SystemProvider` now re-exports.
 jest.mock("@/components/providers/SystemProvider", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { mockDb: database } = require("@/library/photoUploadQueue/runtime/__tests__/testDb");
+  return { __esModule: true, db: database, powerSyncDb: {} };
+});
+jest.mock("@/library/powersync/db", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { mockDb: database } = require("@/library/photoUploadQueue/runtime/__tests__/testDb");
   return { __esModule: true, db: database, powerSyncDb: {} };

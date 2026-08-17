@@ -1,5 +1,6 @@
-import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { db } from "@/components/providers/SystemProvider";
 import {
+  getPhotoUploadService,
   isDriverDocType,
   localUriForPath,
   replaceDriverDocumentPhoto,
@@ -310,7 +311,7 @@ export default function EditProfileDocs({
       await executeTypedMutation(updateQuery);
 
       // Kick the queue: the user is here and waiting, so retry fast (§6/§7).
-      void photoUploadService?.triggerFast();
+      void getPhotoUploadService()?.triggerFast();
 
       Alert.alert(
         "Saved",

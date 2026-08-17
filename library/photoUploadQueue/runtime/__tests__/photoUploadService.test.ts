@@ -75,7 +75,7 @@ import { UPLOAD_TIMEOUT_MS } from "@/library/photoUploadQueue/uploadTimeout";
 import { MAX_CONCURRENT_UPLOADS } from "@/library/photoUploadQueue/worker";
 
 // The service only ever talks to its adapters through `PHOTO_QUEUE_ADAPTERS`
-// (never to `db`/`SystemProvider` directly), so replacing that export with an
+// (never to `db`/`powerSyncDb` directly), so replacing that export with an
 // empty, test-controlled array is enough to run the real `uploadRow` against
 // fully in-memory rows — no Kysely/PowerSync mocking needed.
 jest.mock("@/library/photoUploadQueue/runtime/tableAdapters", () => ({

@@ -1,5 +1,6 @@
-import { db, photoUploadService } from "@/components/providers/SystemProvider";
+import { db } from "@/components/providers/SystemProvider";
 import {
+  getPhotoUploadService,
   saveToGalleryIfCamera,
   writeLocalPhoto,
 } from "@/library/photoUploadQueue";
@@ -127,7 +128,7 @@ export async function createDamageReport(
   }
 
   // Kick the queue: the user is here and waiting, so retry fast (§6/§7).
-  void photoUploadService?.triggerFast();
+  void getPhotoUploadService()?.triggerFast();
 
   return { damageId, aborted: false, savedPhotoCount };
 }
