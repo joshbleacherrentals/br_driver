@@ -51,6 +51,11 @@ import {
   flushMicrotasks,
 } from "@/library/photoUploadQueue/__tests__/support";
 import { isDueForFastRetry, isDueForRetry } from "@/library/photoUploadQueue/backoff";
+import {
+  clearCurrentDriverContext,
+  getCurrentDriverContext,
+  setCurrentDriverContext,
+} from "@/library/photoUploadQueue/runtime/currentDriverContext";
 import { localUriForPath } from "@/library/photoUploadQueue/runtime/localFile";
 import { isNetworkAvailable } from "@/library/photoUploadQueue/runtime/networkState";
 import { PERSIST_FALLBACK_ERROR } from "@/library/photoUploadQueue/runtime/persistUploadEvent";
@@ -118,6 +123,12 @@ const CONTAINER_AFTER = "file:///container-B-after-rebuild/Documents/";
 
 /** Same array reference the mocked module exports — mutated per test. */
 const adapters = PHOTO_QUEUE_ADAPTERS as unknown as PhotoQueueTableAdapter[];
+
+/**
+ * §15's two ids, as `SystemProvider` eventually publishes them. `null` — the
+ * state before that resolution lands — is what the launch-race tests use.
+ */
+const SIGNED_IN_DRIVER = { userUuid: "user-1", driverUuid: "driver-1" };
 
 /**
  * `table` / `bucket` / `upsert` copied verbatim from the real adapters in
@@ -234,6 +245,45 @@ function makeFakeAdapter(
 }
 
 /**
+ * The same fake, wearing §15's driver scoping.
+ *
+ * The real `DamageReportPhotos`/`InspectionPhotos` adapters gate every read on
+ * `getCurrentDriverContext()` and return their empty answer — `null`, `0`, `[]`
+ * — without touching the database when there is none (`tableAdapters.ts`). That
+ * gate is the entire reason a `0` from `countUnresolved` is not evidence of an
+ * empty queue, so a fake that ignores it cannot reproduce the launch race at
+ * all. `persist` is left unscoped, exactly as the real adapters leave it.
+ */
+function makeDriverScopedAdapter(
+  meta: Pick<PhotoQueueTableAdapter, "table" | "bucket" | "upsert">,
+  initialRow: PhotoUploadRow,
+): PhotoQueueTableAdapter & { current: () => PhotoUploadRow } {
+  const inner = makeFakeAdapter(meta, initialRow);
+  const scoped = (): boolean => getCurrentDriverContext() !== null;
+  return {
+    ...inner,
+    async claimNext(mode, nowMs) {
+      return scoped() ? inner.claimNext(mode, nowMs) : null;
+    },
+    async countUnresolved() {
+      return scoped() ? inner.countUnresolved() : 0;
+    },
+    async countActionable() {
+      return scoped() ? inner.countActionable() : 0;
+    },
+    async countParked() {
+      return scoped() ? inner.countParked() : 0;
+    },
+    async listUnresolved(limit) {
+      return scoped() ? inner.listUnresolved(limit) : [];
+    },
+    async listStaleUploading(beforeIso, limit) {
+      return scoped() ? inner.listStaleUploading(beforeIso, limit) : [];
+    },
+  };
+}
+
+/**
  * The same fake, over several rows — needed to exercise the claim lock, which
  * is only observable when there is more than one row to hand out.
  */
@@ -338,11 +388,17 @@ beforeEach(() => {
   mockFs.readAsStringAsync.mockReset();
   mockFs.readAsStringAsync.mockResolvedValue("AAAA");
   setOnline(true);
+  // Steady state for every test below: a driver is signed in and §15's ids are
+  // published, so the counts the loop reasons about are real. The launch race —
+  // ids not resolved yet — is its own describe block at the bottom, and clears
+  // this explicitly.
+  setCurrentDriverContext(SIGNED_IN_DRIVER);
 });
 
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
+  clearCurrentDriverContext();
 });
 
 describe.each(REAL_ADAPTER_METADATA)(
@@ -600,6 +656,97 @@ describe("self-healing and network gating (§12/§13)", () => {
     await service.triggerFast();
 
     expect(adapter.current().upload_status).toBe("uploaded");
+    expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
+/**
+ * The launch race between the pass loop and §15's driver context.
+ *
+ * `SystemProvider` publishes the two ids from a reactive chain (Clerk user →
+ * `Users` → `Drivers`), so they do not exist for the first render or two after
+ * launch or a reconnect. Until they do, every scoped adapter method returns its
+ * empty answer, and `countUnresolved` reports 0 no matter how many rows are
+ * sitting there — the count is not wrong so much as unavailable.
+ *
+ * The loop's re-arm gate used to read that 0 as "queue empty" and simply not
+ * schedule another pass. Nothing else arms that timer, so a single mistimed
+ * pass took the retry loop down for the whole session while real `pending` rows
+ * waited — the failure mode these two tests pin down from both sides.
+ *
+ * Note that a fake adapter which ignores the context (`makeFakeAdapter`) cannot
+ * express this at all, which is exactly why the suite did not catch it: it is
+ * the *interaction* between the gate and the gate's consumer that breaks, not
+ * either one alone.
+ */
+describe("driver-context race on launch (§15)", () => {
+  const DAMAGE = REAL_ADAPTER_METADATA[0];
+
+  const fileIsPresentFor = (row: PhotoUploadRow) => {
+    const canonicalUri = localUriForPath(row.photo_path);
+    mockFs.getInfoAsync.mockImplementation(async (uri: string) => ({
+      exists: uri === canonicalUri,
+    }));
+  };
+
+  it("keeps the pass loop armed when unresolved=0 only because no driver context is established yet", async () => {
+    clearCurrentDriverContext();
+
+    const row = makeRow(DAMAGE, "launch-race-row");
+    fileIsPresentFor(row);
+
+    const adapter = makeDriverScopedAdapter(DAMAGE, row);
+    adapters.push(adapter);
+
+    const { client, upload } = makeSpyingSupabaseClient();
+    const service = createPhotoUploadService(client);
+    await service.triggerFast();
+
+    // The row is genuinely there and genuinely unresolved...
+    expect(adapter.current().upload_status).toBe("pending");
+    expect(adapter.current().attempts).toBe(0);
+    // ...but §15 gates every count to 0 while no driver is established, so this
+    // pass ended looking identical to an empty queue.
+    await expect(service.countUnresolved()).resolves.toBe(0);
+    expect(upload).not.toHaveBeenCalled();
+
+    // The regression: that 0 stopped the timer, and nothing ever re-armed it.
+    // The loop has to outlive the race instead.
+    expect(jest.getTimerCount()).toBe(1);
+
+    // Still nothing to go on one pass later — still armed, still cheap.
+    await jest.advanceTimersByTimeAsync(4_000);
+    expect(upload).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(1);
+
+    // `SystemProvider`'s Users→Drivers chain resolves; because the loop was
+    // still alive, the very next scheduled pass sees the real row and drains
+    // it, with no save, foreground or driver tap needed to restart anything.
+    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    await jest.advanceTimersByTimeAsync(4_000);
+
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(adapter.current().upload_status).toBe("uploaded");
+    // And once the count is both real and zero, the loop stands down.
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("still stops re-arming on a zero that was counted against an established driver", async () => {
+    // The other half of the fix: only an *unverifiable* zero may keep the timer
+    // alive. A real one still ends the loop, so this cannot become a wakeup
+    // every 60s for the lifetime of the app.
+    const row = makeRow(DAMAGE, "context-ready-row");
+    fileIsPresentFor(row);
+
+    const adapter = makeDriverScopedAdapter(DAMAGE, row);
+    adapters.push(adapter);
+
+    const service = createPhotoUploadService(makeFakeSupabaseClient());
+    await service.triggerFast();
+
+    expect(adapter.current().upload_status).toBe("uploaded");
+    await expect(service.countUnresolved()).resolves.toBe(0);
+    expect(getCurrentDriverContext()).not.toBeNull();
     expect(jest.getTimerCount()).toBe(0);
   });
 });

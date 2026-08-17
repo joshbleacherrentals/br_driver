@@ -197,6 +197,7 @@ Concrete UX for scenario 2 (decision made):
 7. ✅ Parked (`LOCAL_FILE_MISSING`) rows are no longer permanent: every pass re-checks them locally and un-parks any whose file is present, with zero driver taps (§12).
 8. ✅ Retry is network-gated via `expo-network`: the upload attempt and the §6.2 bucket verification are skipped while the phone is offline, so no doomed attempt burns an `attempts`/backoff increment (§13).
 9. ✅ The pass loop reschedules indefinitely (~60s plateau) while _anything_ is unresolved — including a permanently-missing row — so the §12 sweep keeps running for as long as the app is open.
+10. ✅ Every read on `DamageReportPhotos`/`InspectionPhotos` is scoped to the signed-in driver. These tables sync to every authenticated driver, so an unscoped queue was retrying, counting and bannering photos belonging to other drivers (§15). `DriverDocuments` stays deliberately unscoped — its RLS is already owner-scoped server-side.
 
 ## 12. Self-healing parked rows (MISSING_LOCAL_FILE_ERROR)
 
@@ -246,3 +247,33 @@ The answer is two layers that stop it happening, and a third that clears whateve
 - **Cost.** One selective, `LIMIT`ed query per table per pass, almost always returning zero rows — so unlike §12's sweep it needs no cheap count gate in front of it. Bounded at 50 rows per table per pass, local-only (it works offline), and never throwing: a table that errors on list or write is skipped and retried next pass.
 
 None of this widens `UNRESOLVED_STATUSES`. Keeping `uploading` out of the claim path is what stops a row being attempted twice; the sweep is how it stops being a trap.
+
+## 15. Driver scoping
+
+Everything above assumed the photo tables hold this driver's photos. They don't. `DamageReports`/`DamageReportPhotos` are readable by any authenticated driver — the Postgres RLS is `USING (get_current_driver_id() IS NOT NULL)`, not owner-scoped — so every driver's device syncs down every driver's rows. On a real device, a driver who had never been assigned a single trip was found holding 23 damage reports (one of them theirs) and 57 damage-report photos (one of them theirs).
+
+Until this section [`tableAdapters.ts`](../library/photoUploadQueue/runtime/tableAdapters.ts) filtered none of that. The queue claimed, retried, counted, swept and bannered other drivers' photos indiscriminately: a driver could be shown a non-dismissible banner demanding they fix a photo that was never theirs, and tapping it opened a stranger's damage report. Every attempt spent on such a row is also an attempt not spent on their own.
+
+The fix is client-side, deliberately. Tightening the RLS is a backend change with its own blast radius (the web app reads these tables across drivers by design), and it would do nothing about the rows already sitting on drivers' phones.
+
+**The ownership rule.**
+
+- A **`DamageReportPhotos`** row is the current driver's when its `DamageReports` row has `created_by_user_uuid = <Users.id>`.
+- An **`InspectionPhotos`** row is the current driver's when its `WorkTrackerInspections` row is referenced by one of that driver's trips: `WorkTrackers.driver_uuid = <Drivers.id>`, with the inspection id matching `pre_inspection_uuid` **or** `post_inspection_uuid`. A trip has a pickup inspection and a dropoff inspection, so both legs count and both are walked.
+- An **unattributed row is excluded by SQL itself**. `created_by_user_uuid IS NULL` simply fails `= ?` under SQL's null semantics — there is no separate check, and none is wanted: a photo nobody owns is a photo no driver's queue should be spending attempts on.
+
+**Why `WHERE EXISTS` and not `INNER JOIN`.** Two reasons, and the second is the load-bearing one. First, `EXISTS` composes with the twelve existing queries without touching a single `.select([...])`, `.orderBy(...)` or bare-column `.where(...)` — a join would force every one of those columns to be re-qualified, turning a scoping change into a rewrite. Second, a join can multiply the outer row set and `EXISTS` cannot. Nothing in the schema makes the inspection→trip relationship 1:1 — `WorkTrackerInspections` has no foreign key back to `WorkTrackers`, the reference runs the other way — so one inspection id matched by two trips is a shape the database permits, and under a join it would return the same photo twice: once duplicated inside `claimNext`'s candidate batch, once inside `listUnresolved`'s result. `EXISTS` asks a yes-or-no question and answers it once, whatever the join path underneath looks like. A test pins exactly that case.
+
+**Where the ids come from.** [`runtime/currentDriverContext.ts`](../library/photoUploadQueue/runtime/currentDriverContext.ts) — a plain module-level store holding `{ userUuid, driverUuid }`. [`SystemProvider.tsx`](../components/providers/SystemProvider.tsx) resolves both reactively from the local DB (Clerk user → `Users.id` → `Drivers.id`, the same chain the rest of the app uses) and pushes them in; `tableAdapters.ts` reads them synchronously. Not a hook and not React context, for the same reason `recoveryStore.ts` isn't: almost none of this code runs inside React. Passes are driven by a timer, an `AppState` transition or a network edge, and there is no render to read a context during.
+
+`null` — no driver established — is a first-class value, not an error case. Every adapter method checks for it first and returns its empty answer (`null`, `0`, `[]`) without querying at all, so an unresolved context can never degrade into an unscoped read. It is cleared on sign-out, and also the *instant* the Clerk user id changes, by an effect keyed on that id alone and declared before the effect that publishes a real context. React runs effects in declaration order, and on that commit the id lookups still hold the previous driver's values — so the window between two drivers on one device is always "nobody", never "the driver before".
+
+`persist()` is deliberately left unscoped on both adapters. It is only ever handed a row that a scoped read already returned, so re-checking ownership there would cost a subquery on the write path to re-prove something already proven.
+
+**Everyone else inherits it.** The §6.2 recovery pass, the §12 parked sweep, the §14 stale-`uploading` sweep and the pass loop's `countUnresolved` re-arm gate all work exclusively from rows a scoped adapter method handed them, so none of them needed changing. There is exactly one exception: [`usePhotoUploadBanner.ts`](../hooks/usePhotoUploadBanner.ts) runs its own join, because it needs the owning report's id and `created_at` and `PhotoUploadRow` carries neither. It repeats the same `created_by_user_uuid` filter, resolved through the same Clerk → `Users` chain, and builds no query at all until that resolves — so the banner stays silent rather than briefly counting everybody's photos on launch. Its query is exported separately from the hook so it can be asserted against a real database without rendering anything.
+
+**Attribution is now load-bearing.** `created_by_user_uuid` used to be metadata; it now decides whether a photo is ever uploaded. `createDamageReport` writes whatever its caller passes, and the inspection flow ([`components/widgets/inspection.tsx`](../components/widgets/inspection.tsx)) was passing nothing — which under this rule would leave those photos owned by nobody and therefore permanently unclaimable. It now passes the signed-in driver's `user_uuid`, as `DamageReportScreen` already did. Any future caller must do the same.
+
+**Indexes.** [`AppSchema.ts`](../library/powersync/AppSchema.ts) gained local indexes for the columns the new predicates filter and correlate on: `Users.clerk_user_id`, `DamageReports.created_by_user_uuid`, `InspectionPhotos.inspection_uuid`, `WorkTrackers.pre_inspection_uuid`, `WorkTrackers.post_inspection_uuid`. These are PowerSync client-side SQLite indexes only — no Postgres migration and no `database.types.ts` change.
+
+**`DriverDocuments` is deliberately not scoped.** Its Postgres RLS is already owner-scoped server-side, so a device never holds another driver's documents and there is nothing for a client-side filter to remove; a driver is also never shown another driver's documents anywhere in the UI. Its adapter is unchanged, and a test pins that as a decision rather than an oversight.

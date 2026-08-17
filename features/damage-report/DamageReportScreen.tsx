@@ -321,7 +321,6 @@ export default function DamageReportScreen() {
   const { damageReport } = useDamageReportById(viewOnlyId);
   const {
     photos: reportPhotos,
-    isLoading: photosLoading,
     hasPending: photosPending,
     hasFailed: photosFailed,
   } = useDamageReportPhotos(viewOnlyId);
@@ -382,6 +381,11 @@ export default function DamageReportScreen() {
   // `uploaded` or the driver chooses to let it finish in the background.
   const [uploadTrackedId, setUploadTrackedId] = useState<string | null>(null);
   const [uploadDismissed, setUploadDismissed] = useState(false);
+  // §7 — how many photo rows this submit actually wrote, taken from
+  // `createDamageReport`'s own return value. It is the modal's expected total
+  // until the reactive query catches up with the just-created report; see
+  // `trackedTotal` below for why a loading flag cannot do that job.
+  const [submittedPhotoCount, setSubmittedPhotoCount] = useState(0);
   const abortRef = useRef(false);
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>(
@@ -407,15 +411,35 @@ export default function DamageReportScreen() {
     [reportPhotos],
   );
 
-  // Stays up across the hand-off from the prep phase: the reactive photo query
-  // for the just-created report needs a beat to return, and the modal must not
-  // blink out in that gap. The driver can always leave via "Continue in
-  // Background", so a slow query can never trap them here.
+  // Stays up across the hand-off from the prep phase. On the commit where the
+  // screen flips to view-only, `useDamageReportPhotos` has been pointed at the
+  // new report but still holds the previous (empty) result, so
+  // `uploadProgress.total` reads 0 and `complete` reads vacuously true — the
+  // modal would blink out until the query returns.
+  //
+  // A loading flag cannot close that gap. PowerSync's `isLoading` is "hard
+  // loading" only: `AbstractQueryProcessor` sets it true once, in its initial
+  // state, and never again — `updateSettingsInternal` (what a changed query
+  // triggers) raises `isFetching`, not `isLoading` — and `useWatchedQuery`
+  // reuses one processor instance across query changes. It is therefore
+  // permanently false here after the first render of this screen.
+  //
+  // So the expected total comes from the submit itself instead: the count of
+  // rows `createDamageReport` actually inserted, which is known before the
+  // query is even asked. `Math.max` lets the live query take over as soon as it
+  // reports at least that many, and `uploaded` always comes from the live rows,
+  // so the bar still only advances on photos confirmed in the bucket. The
+  // driver can always leave via "Continue in Background", so a slow query can
+  // never trap them here either way.
+  const trackedTotal = Math.max(uploadProgress.total, submittedPhotoCount);
+  const trackedComplete = uploadProgress.uploaded >= trackedTotal;
+
   const showUploadModal =
     !!uploadTrackedId &&
     uploadTrackedId === viewOnlyId &&
     !uploadDismissed &&
-    (photosLoading || (uploadProgress.total > 0 && !uploadProgress.complete));
+    trackedTotal > 0 &&
+    !trackedComplete;
 
   const canSubmit =
     selectedBleacher &&
@@ -518,8 +542,11 @@ export default function DamageReportScreen() {
       dlog("SUBMIT: success! Navigating to view-only...");
       setIsSubmitting(false);
       // §7 — hand straight over to the upload phase: same modal, now counting
-      // photos confirmed in the bucket instead of photos written to disk.
+      // photos confirmed in the bucket instead of photos written to disk. The
+      // saved count is carried over in the same commit so the upload phase
+      // knows its total before the reactive query has answered.
       setUploadDismissed(false);
+      setSubmittedPhotoCount(result.savedPhotoCount);
       setUploadTrackedId(result.damageId);
       setViewOnlyId(result.damageId);
     } catch (error) {
@@ -537,7 +564,7 @@ export default function DamageReportScreen() {
       visible={isSubmitting || showUploadModal}
       phase={isSubmitting ? "preparing" : "uploading"}
       current={isSubmitting ? prepProgress.current : uploadProgress.uploaded}
-      total={isSubmitting ? prepProgress.total : uploadProgress.total}
+      total={isSubmitting ? prepProgress.total : trackedTotal}
       onAbort={handleAbort}
       onDismiss={() => setUploadDismissed(true)}
     />

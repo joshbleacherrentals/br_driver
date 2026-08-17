@@ -2,13 +2,17 @@ import { DebugLogger } from "@/library/debug/DebugLogger";
 import { AppSchema, PowerSyncDB } from "@/library/powersync/AppSchema";
 import { BackendConnector } from "@/library/powersync/BackendConnector";
 import {
+  clearCurrentDriverContext,
+  clearRecoveryState,
   createForegroundRecovery,
   createPhotoUploadService,
   PHOTO_QUEUE_LOG_TAG,
+  setCurrentDriverContext,
   subscribeNetworkAvailability,
   type ForegroundRecovery,
   type PhotoUploadService,
 } from "@/library/photoUploadQueue";
+import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useAuth } from "@clerk/clerk-expo";
 import { AppState } from "react-native";
 import { SQLJSOpenFactory } from "@powersync/adapter-sql-js";
@@ -116,6 +120,103 @@ export let photoUploadService: PhotoUploadService | undefined;
  * the recovery store that `usePhotoUploadBanner` reads.
  */
 export let photoUploadRecovery: ForegroundRecovery | undefined;
+
+/** Row shapes for the §15 Clerk → `Users` → `Drivers` lookup below. */
+type UserIdRow = { id: string };
+type DriverIdRow = { id: string };
+
+/**
+ * §15 — publishes the signed-in driver's ids to the photo upload queue.
+ *
+ * `DamageReportPhotos`/`InspectionPhotos` sync to every authenticated driver,
+ * so `tableAdapters.ts` has to filter every read by owner. The queue runs
+ * outside React (timer/AppState/network-driven), so the ids are pushed into a
+ * plain module store rather than read from a hook. Same local-DB chain the rest
+ * of the app uses: Clerk user → `Users.id` → `Drivers.id`.
+ *
+ * This is a separate component, rendered as a *child* of the
+ * `PowerSyncContext.Provider` below, and that placement is the entire reason it
+ * exists. `useTypedQuery` → `useQuery` → `usePowerSync()` is a plain
+ * `useContext(PowerSyncContext)`, and `useContext` resolves by walking *up* from
+ * the calling component — a component never sees a provider that lives inside
+ * its own returned element tree. Run from `SystemProvider`'s body (where this
+ * block used to live) both lookups therefore read the context default, `null`,
+ * and `@powersync/react`'s `useQuery` answers a null database with a silent
+ * `{ data: [], isLoading: false, error: Error('PowerSync not configured.') }` —
+ * no throw, no warning. `userUuid`/`driverUuid` stayed `null` for the whole
+ * session, `setCurrentDriverContext` was unreachable, and every adapter in
+ * `tableAdapters.ts` short-circuited to its empty result: total photo-upload
+ * blockage, invisible in the logs. As a child of the provider the same hooks
+ * resolve normally.
+ */
+function CurrentDriverContextPublisher() {
+  const { isSignedIn, userId: clerkUserId } = useAuth();
+
+  const compiledUserId = useMemo(() => {
+    if (!clerkUserId) return null;
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
+
+  const userLookup = useTypedQuery(compiledUserId, expect<UserIdRow>());
+  const userUuid = userLookup.data?.[0]?.id ?? null;
+
+  const compiledDriverId = useMemo(() => {
+    if (!userUuid) return null;
+    return db
+      .selectFrom("Drivers as d")
+      .select(["d.id as id"])
+      .where("user_uuid", "=", userUuid)
+      .limit(1)
+      .compile();
+  }, [userUuid]);
+
+  const driverLookup = useTypedQuery(compiledDriverId, expect<DriverIdRow>());
+  const driverUuid = driverLookup.data?.[0]?.id ?? null;
+
+  // Declared BEFORE the effect that sets a context, and keyed on the Clerk id
+  // alone, so the two can never race: React runs effects in declaration order,
+  // and on the commit where the Clerk id changes the id lookups above still
+  // hold the *previous* driver's values. Clearing here means the window between
+  // two drivers on one device is always "nobody", never "the driver before".
+  useEffect(() => {
+    clearCurrentDriverContext();
+  }, [clerkUserId]);
+
+  useEffect(() => {
+    if (!isSignedIn || !userUuid || !driverUuid) {
+      clearCurrentDriverContext();
+      return;
+    }
+    setCurrentDriverContext({ userUuid, driverUuid });
+  }, [isSignedIn, userUuid, driverUuid]);
+
+  // Either lookup erroring is not survivable in silence. Without both ids every
+  // adapter short-circuits and the queue uploads nothing at all — which is
+  // indistinguishable, from the outside, from "this driver has no photos". The
+  // bug this component was extracted to fix produced exactly that error on both
+  // lookups and reported it nowhere; from here on it is one grep away.
+  const userError = userLookup.error;
+  const driverError = driverLookup.error;
+  useEffect(() => {
+    if (!userError && !driverError) return;
+    DebugLogger.error(
+      PHOTO_QUEUE_LOG_TAG,
+      "§15 driver-context lookup failed — the queue stays unscoped and will " +
+        "upload nothing until this resolves",
+      {
+        userError: userError?.message ?? null,
+        driverError: driverError?.message ?? null,
+      },
+    );
+  }, [userError, driverError]);
+
+  return null;
+}
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -278,6 +379,12 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isSignedIn) {
       clearRefreshTimer();
       clearStatusListener();
+      // Belt and braces with the §15 effect above and the §6 gate: the whole
+      // sign-out teardown is visible in one place, and neither the queue's
+      // driver scope nor a banner verdict can outlive the session that earned
+      // it.
+      clearCurrentDriverContext();
+      clearRecoveryState();
       if (connectedRef.current) {
         DebugLogger.info(TAG, "Signing out → disconnect");
         powerSyncDb.disconnectAndClear?.();
@@ -342,6 +449,10 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <PowerSyncContext.Provider value={powerSyncDb}>
+      {/* §15 — must be *inside* the provider: its `useTypedQuery` calls resolve
+          the database through `useContext`, which only sees providers above the
+          calling component. See the component's own doc comment. */}
+      <CurrentDriverContextPublisher />
       {children}
     </PowerSyncContext.Provider>
   );

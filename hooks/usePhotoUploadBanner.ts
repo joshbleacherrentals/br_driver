@@ -7,7 +7,39 @@ import {
   type ProblemPhotoRow,
 } from "@/library/photoUploadQueue";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
+import { useUser } from "@clerk/clerk-expo";
 import { useMemo } from "react";
+
+type UserRow = { id: string };
+
+/**
+ * The banner's own read of unresolved damage-report photos, driver-scoped (§15).
+ *
+ * This is the one consumer that does not go through `tableAdapters.ts` — it
+ * needs the owning report's id and timestamp, which the queue's row shape does
+ * not carry — so it is also the one place that has to repeat the ownership
+ * filter itself. Without it the banner would count, and tap through to, damage
+ * reports belonging to other drivers, which sync to this device too (§15).
+ *
+ * Exported apart from the hook so the SQL can be exercised directly against a
+ * database in tests, with no React involved.
+ */
+export function buildProblemPhotoRowsQuery(userUuid: string) {
+  return db
+    .selectFrom("DamageReportPhotos")
+    .innerJoin(
+      "DamageReports",
+      "DamageReports.id",
+      "DamageReportPhotos.damage_report_uuid",
+    )
+    .select([
+      "DamageReportPhotos.id as photo_id",
+      "DamageReports.id as report_uuid",
+      "DamageReports.created_at as report_created_at",
+    ])
+    .where("DamageReportPhotos.upload_status", "in", ["pending", "failed"])
+    .where("DamageReports.created_by_user_uuid", "=", userUuid);
+}
 
 /**
  * §6 — state for the app-wide "Photo Upload Issue" banner.
@@ -25,28 +57,37 @@ import { useMemo } from "react";
  * through to one report, which inspection photos and driver documents have no
  * equivalent of. They are still uploaded, retried and backed off by the same
  * queue, and still surface in-context on their own screens.
+ *
+ * Which reports, in turn, is scoped to the signed-in driver (§15) — resolved
+ * from Clerk through `Users`, the same chain `useMyDamageReports` uses. Until
+ * that resolves there is no query at all, so the banner stays silent rather
+ * than briefly counting everyone's photos.
  */
 export function usePhotoUploadBanner(): BannerState {
   const confirmedMissingPhotoIds = useConfirmedMissingPhotoIds();
 
-  const compiled = useMemo(
-    () =>
-      db
-        .selectFrom("DamageReportPhotos")
-        .innerJoin(
-          "DamageReports",
-          "DamageReports.id",
-          "DamageReportPhotos.damage_report_uuid",
-        )
-        .select([
-          "DamageReportPhotos.id as photo_id",
-          "DamageReports.id as report_uuid",
-          "DamageReports.created_at as report_created_at",
-        ])
-        .where("DamageReportPhotos.upload_status", "in", ["pending", "failed"])
-        .compile(),
-    [],
-  );
+  const { user } = useUser();
+  const clerkUserId = user?.id ?? null;
+
+  const compiledUser = useMemo(() => {
+    if (!clerkUserId) return null;
+
+    return db
+      .selectFrom("Users as u")
+      .select(["u.id as id"])
+      .where("clerk_user_id", "=", clerkUserId)
+      .limit(1)
+      .compile();
+  }, [clerkUserId]);
+
+  const userData = useTypedQuery(compiledUser, expect<UserRow>());
+
+  const compiled = useMemo(() => {
+    const userUuid = userData.data?.[0]?.id;
+    if (!userUuid) return null;
+
+    return buildProblemPhotoRowsQuery(userUuid).compile();
+  }, [userData.data]);
 
   const { data } = useTypedQuery(compiled, expect<ProblemPhotoRow>());
 

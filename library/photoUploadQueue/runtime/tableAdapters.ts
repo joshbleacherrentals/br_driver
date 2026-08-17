@@ -5,10 +5,17 @@
  * wrappers — no raw SQL, no PowerSync `@powersync/attachments` recompute. The
  * tables differ only in the bucket-path column (`photo_path` vs InspectionPhotos'
  * `storage_path`); everything else is shared through the helpers below.
+ *
+ * §15 — every read on `DamageReportPhotos`/`InspectionPhotos` is additionally
+ * scoped to the signed-in driver. These tables sync to every authenticated
+ * driver, so an unscoped read here is what let the queue retry, count and
+ * banner another driver's photos.
  */
 
 import { db } from "@/components/providers/SystemProvider";
+import type { PowerSyncDB } from "@/library/powersync/AppSchema";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import type { ExpressionBuilder } from "kysely";
 
 import { isDueForFastRetry, isDueForRetry } from "../backoff";
 import {
@@ -16,6 +23,7 @@ import {
   type PhotoUploadRow,
   type UploadStatus,
 } from "../types";
+import { getCurrentDriverContext } from "./currentDriverContext";
 import type { PhotoQueueMode, PhotoQueueTableAdapter } from "./types";
 
 /**
@@ -104,6 +112,78 @@ function firstEligible<
   return null;
 }
 
+// ── §15 driver scoping ──────────────────────────────────────────────────────
+//
+// Both predicates are `WHERE EXISTS` rather than an `INNER JOIN`, deliberately:
+//
+//   1. They compose with the methods below without touching a single existing
+//      `.select([...])`, `.orderBy(...)` or bare-column `.where(...)`. A join
+//      would force every one of those columns to be re-qualified, turning a
+//      scoping change into a rewrite of all twelve queries.
+//   2. `EXISTS` cannot multiply the outer row set. That is load-bearing for
+//      `InspectionPhotos`: the path to `WorkTrackers` is an OR over
+//      `pre_inspection_uuid`/`post_inspection_uuid`, and nothing in the schema
+//      makes it 1:1 — `WorkTrackerInspections` has no foreign key back to
+//      `WorkTrackers`, the reference runs the other way. An inspection id
+//      matched by two `WorkTrackers` rows would, under a join, duplicate its
+//      photo inside `claimNext`'s candidate batch and inside
+//      `listUnresolved`'s result. `EXISTS` answers yes-or-no, once.
+//
+// A NULL creator/driver needs no special case: SQL equality against NULL is
+// never true, so an unattributed row simply fails the predicate.
+
+/** `DamageReportPhotos` whose report was created by this user. */
+function ownedByCurrentUser(
+  eb: ExpressionBuilder<PowerSyncDB, "DamageReportPhotos">,
+  userUuid: string,
+) {
+  return eb.exists(
+    eb
+      .selectFrom("DamageReports")
+      .select("DamageReports.id")
+      .whereRef(
+        "DamageReports.id",
+        "=",
+        "DamageReportPhotos.damage_report_uuid",
+      )
+      .where("DamageReports.created_by_user_uuid", "=", userUuid),
+  );
+}
+
+/** `InspectionPhotos` whose inspection is a leg of one of this driver's trips. */
+function ownedByCurrentDriver(
+  eb: ExpressionBuilder<PowerSyncDB, "InspectionPhotos">,
+  driverUuid: string,
+) {
+  return eb.exists(
+    eb
+      .selectFrom("WorkTrackerInspections")
+      .innerJoin("WorkTrackers", (join) =>
+        join.on((eb2) =>
+          eb2.or([
+            eb2(
+              "WorkTrackers.pre_inspection_uuid",
+              "=",
+              eb2.ref("WorkTrackerInspections.id"),
+            ),
+            eb2(
+              "WorkTrackers.post_inspection_uuid",
+              "=",
+              eb2.ref("WorkTrackerInspections.id"),
+            ),
+          ]),
+        ),
+      )
+      .select("WorkTrackerInspections.id")
+      .whereRef(
+        "WorkTrackerInspections.id",
+        "=",
+        "InspectionPhotos.inspection_uuid",
+      )
+      .where("WorkTrackers.driver_uuid", "=", driverUuid),
+  );
+}
+
 // ── DamageReportPhotos (bucket path column: photo_path) ─────────────────────
 
 const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
@@ -112,6 +192,9 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
   upsert: false,
 
   async claimNext(mode, nowMs) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return null;
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select([
@@ -131,6 +214,7 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
         ]),
       )
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .orderBy("created_at", "asc")
       .limit(CLAIM_BATCH)
       .execute();
@@ -139,6 +223,9 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
     return row ? toPhotoUploadRow(row, row.photo_path) : null;
   },
 
+  // Not scoped, on purpose: `persist` is only ever handed a row that a scoped
+  // read above already returned, so re-checking ownership here would buy
+  // nothing and cost a subquery on the hot write path.
   async persist(row) {
     await executeTypedMutationVoid(
       db
@@ -150,15 +237,22 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
   },
 
   async countUnresolved() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .execute();
     return rows.length;
   },
 
   async countActionable() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select("id")
@@ -169,21 +263,29 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
         ]),
       )
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .execute();
     return rows.length;
   },
 
   async countParked() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
       .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .execute();
     return rows.length;
   },
 
   async listUnresolved(limit) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return [];
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select([
@@ -197,6 +299,7 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
         "created_at",
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .orderBy("created_at", "asc")
       .limit(limit)
       .execute();
@@ -204,6 +307,9 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
   },
 
   async listStaleUploading(beforeIso, limit) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return [];
+
     const rows = await db
       .selectFrom("DamageReportPhotos")
       .select([
@@ -223,6 +329,7 @@ const damageReportPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_attempt_at", "<", beforeIso),
         ]),
       )
+      .where((eb) => ownedByCurrentUser(eb, ctx.userUuid))
       .orderBy("last_attempt_at", "asc")
       .limit(limit)
       .execute();
@@ -238,6 +345,9 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
   upsert: true,
 
   async claimNext(mode, nowMs) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return null;
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select([
@@ -257,6 +367,7 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
         ]),
       )
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .orderBy("created_at", "asc")
       .limit(CLAIM_BATCH)
       .execute();
@@ -265,6 +376,7 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
     return row ? toPhotoUploadRow(row, row.storage_path) : null;
   },
 
+  // Unscoped for the same reason as `DamageReportPhotos.persist` above.
   async persist(row) {
     await executeTypedMutationVoid(
       db
@@ -276,15 +388,22 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
   },
 
   async countUnresolved() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .execute();
     return rows.length;
   },
 
   async countActionable() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select("id")
@@ -295,21 +414,29 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
         ]),
       )
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .execute();
     return rows.length;
   },
 
   async countParked() {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return 0;
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select("id")
       .where("upload_status", "in", UNRESOLVED_STATUSES)
       .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .execute();
     return rows.length;
   },
 
   async listUnresolved(limit) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return [];
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select([
@@ -323,6 +450,7 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
         "created_at",
       ])
       .where("upload_status", "in", UNRESOLVED_STATUSES)
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .orderBy("created_at", "asc")
       .limit(limit)
       .execute();
@@ -330,6 +458,9 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
   },
 
   async listStaleUploading(beforeIso, limit) {
+    const ctx = getCurrentDriverContext();
+    if (!ctx) return [];
+
     const rows = await db
       .selectFrom("InspectionPhotos")
       .select([
@@ -349,6 +480,7 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
           eb("last_attempt_at", "<", beforeIso),
         ]),
       )
+      .where((eb) => ownedByCurrentDriver(eb, ctx.driverUuid))
       .orderBy("last_attempt_at", "asc")
       .limit(limit)
       .execute();
@@ -357,6 +489,12 @@ const inspectionPhotosAdapter: PhotoQueueTableAdapter = {
 };
 
 // ── DriverDocuments (bucket path column: photo_path) ────────────────────────
+//
+// §15 deliberately does NOT scope this table. Its Postgres RLS is already
+// owner-scoped server-side, so a device only ever holds its own driver's
+// documents — the mis-attribution the other two adapters had is structurally
+// impossible here, and adding a client-side filter would only duplicate a
+// guarantee that already holds.
 
 const driverDocumentsAdapter: PhotoQueueTableAdapter = {
   table: "DriverDocuments",

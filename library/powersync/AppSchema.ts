@@ -27,7 +27,12 @@ const UsersCols = {
   expo_push_token: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
-  indexes: { status_uuid: ["status_uuid"] },
+  // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
+  // every driver-scoped query starts from (photo queue §15, useDriver, …).
+  indexes: {
+    status_uuid: ["status_uuid"],
+    clerk_user_id: ["clerk_user_id"],
+  },
 });
 
 const DriverAvailabilityCols = {
@@ -167,7 +172,12 @@ const DamageReportsCols = {
   deleted: column.integer,
 } satisfies PowerSyncColsFor<"DamageReports">;
 const DamageReports = new Table(DamageReportsCols, {
-  indexes: { bleacher_uuid: ["bleacher_uuid"] },
+  // `created_by_user_uuid` backs the photo queue's ownership subquery (§15) and
+  // the "my damage reports" history screen.
+  indexes: {
+    bleacher_uuid: ["bleacher_uuid"],
+    created_by_user_uuid: ["created_by_user_uuid"],
+  },
 });
 
 // damage report photos
@@ -202,7 +212,9 @@ const InspectionsPhotosCols = {
   last_error: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, {
-  indexes: { id: ["id"] },
+  // `inspection_uuid` is both the per-inspection photo lookup and the correlated
+  // column of the photo queue's ownership subquery (§15).
+  indexes: { id: ["id"], inspection_uuid: ["inspection_uuid"] },
 });
 
 // driver documents (license / insurance / medical card) — one row per document,
@@ -259,7 +271,14 @@ const WorkTrackersCols = {
   created_by_user_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
-  indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
+  // The two inspection columns are the OR-chain the photo queue walks to decide
+  // whether an InspectionPhotos row belongs to this driver (§15).
+  indexes: {
+    user_uuid: ["user_uuid"],
+    driver_uuid: ["driver_uuid"],
+    pre_inspection_uuid: ["pre_inspection_uuid"],
+    post_inspection_uuid: ["post_inspection_uuid"],
+  },
 });
 
 // Vehicles

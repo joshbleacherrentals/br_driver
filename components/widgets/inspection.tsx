@@ -1,4 +1,5 @@
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { useDriver } from "@/hooks/db/useDriver";
 import {
   InspectionQuestion,
   useInspectionQuestions,
@@ -180,6 +181,9 @@ export default function InspectionScreen({
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { questions } = useInspectionQuestions();
+  // Needed only to attribute the damage report this screen can create — see the
+  // `createdByUserUuid` note in `handleSubmit`.
+  const { driver } = useDriver();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const checkboxQuestions = questions.filter(
     (q) => q.question_type === "checkbox",
@@ -398,6 +402,11 @@ export default function InspectionScreen({
           haulDamage: damageDetails.haulDamage,
           note: damageDetails.note,
           photos: damageDetails.photos,
+          // Required, not cosmetic: the upload queue decides whose photos it may
+          // work on from `DamageReports.created_by_user_uuid` (§15). A report
+          // left unattributed here would own photos no driver's queue can ever
+          // claim — they would sit on the phone and never reach the bucket.
+          createdByUserUuid: driver?.user_uuid ?? null,
         });
       }
 

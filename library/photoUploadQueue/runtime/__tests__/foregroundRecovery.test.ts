@@ -17,6 +17,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { flushMicrotasks } from "@/library/photoUploadQueue/__tests__/support";
+import {
+  clearCurrentDriverContext,
+  setCurrentDriverContext,
+} from "@/library/photoUploadQueue/runtime/currentDriverContext";
 import { createForegroundRecovery } from "@/library/photoUploadQueue/runtime/foregroundRecovery";
 import { isNetworkAvailable } from "@/library/photoUploadQueue/runtime/networkState";
 import type { PhotoUploadService } from "@/library/photoUploadQueue/runtime/photoUploadService";
@@ -86,6 +91,26 @@ function makeService(unresolved: number): PhotoUploadService {
   };
 }
 
+/**
+ * The launch race as the recovery pass actually experiences it: the first count
+ * is §15's gated 0 (no driver context published yet), every later one is the
+ * truth. `run()` fires on every `connect()`, so this is the ordinary case on a
+ * cold start, not an exotic one.
+ */
+function makeRacingService(afterContextResolves: number): PhotoUploadService {
+  const countUnresolved = jest.fn(async () => afterContextResolves);
+  countUnresolved.mockResolvedValueOnce(0);
+  return {
+    triggerFast: jest.fn(async () => {}),
+    triggerBackoff: jest.fn(async () => {}),
+    isRunning: false,
+    countUnresolved,
+  };
+}
+
+/** §15's ids, as `SystemProvider` publishes them once the chain resolves. */
+const SIGNED_IN_DRIVER = { userUuid: "user-a", driverUuid: "driver-a" };
+
 function makeClient(): { client: SupabaseClient; list: jest.Mock } {
   const list = jest.fn(async () => ({ data: [], error: null }));
   return {
@@ -98,12 +123,17 @@ beforeEach(() => {
   jest.useFakeTimers();
   mockIsNetworkAvailable.mockResolvedValue(true);
   setConfirmedMissingPhotoIds(new Set());
+  // Steady state: the driver is signed in and §15's ids are published, so the
+  // counts these tests feed the pass are trustworthy. The startup race is its
+  // own describe block, and clears this explicitly.
+  setCurrentDriverContext(SIGNED_IN_DRIVER);
 });
 
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   setConfirmedMissingPhotoIds(new Set());
+  clearCurrentDriverContext();
 });
 
 /** Runs one pass all the way through its 60s fast window. */
@@ -184,5 +214,76 @@ describe("foreground recovery — network gating (§13)", () => {
 
     expect(list).not.toHaveBeenCalled();
     expect(getRecoveryState().confirmedMissingPhotoIds.size).toBe(0);
+  });
+});
+
+/**
+ * The §15 driver-context race, on the one branch of `run()` that ends a pass
+ * early.
+ *
+ * `run()` fires on every `connect()` — launch, token refresh, JWT-expiry
+ * reconnect — and its opening count is §15-scoped, so on a cold start it
+ * routinely lands while `SystemProvider` is still resolving Clerk user →
+ * `Users` → `Drivers`. Until that lands the count is 0 for every driver alive,
+ * which `decideRecovery` reads as `idle`.
+ *
+ * Treating that as a genuine idle did two things at once: it skipped
+ * `triggerFast` and the 60s verification timer — so `verifyAgainstBucket` never
+ * ran, `recoveryStore` was never populated, and the banner had nothing to show
+ * for real `failed` rows — and it called `clearRecoveryState()`, destroying a
+ * verdict on the strength of a number nothing was in a position to compute.
+ */
+describe("foreground recovery — the §15 driver-context race", () => {
+  it("never clears recovery state on a 0 counted before the driver context existed", async () => {
+    clearCurrentDriverContext();
+    // The driver is already being shown a confirmed-missing photo from an
+    // earlier pass. An unverifiable 0 is not grounds to take it away.
+    setConfirmedMissingPhotoIds(new Set(["already-confirmed"]));
+
+    const service = makeRacingService(1);
+    const adapter = makeAdapter([makeRow("a")]);
+    const { client, list } = makeClient();
+
+    const recovery = createForegroundRecovery({ client, service, adapters: [adapter] });
+    recovery.run();
+    await flushMicrotasks();
+
+    expect(getRecoveryState().confirmedMissingPhotoIds.size).toBeGreaterThan(0);
+    expect([...getRecoveryState().confirmedMissingPhotoIds]).toEqual([
+      "already-confirmed",
+    ]);
+    // Instead of idling out, the pass takes the fast path: a retry window now,
+    // and a verification armed for the far end of it.
+    expect(service.triggerFast).toHaveBeenCalledWith("foreground-recovery");
+    expect(jest.getTimerCount()).toBe(1);
+
+    // By the time that timer fires the ids have long since landed, so the pass
+    // finishes on real numbers — which is the whole point of not clearing.
+    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    await jest.advanceTimersByTimeAsync(FAST_RETRY_WINDOW_MS + 1);
+
+    expect(adapter.listUnresolved).toHaveBeenCalled();
+    expect(list).toHaveBeenCalled();
+    expect([...getRecoveryState().confirmedMissingPhotoIds]).toEqual(["a"]);
+  });
+
+  it("still idles out and clears when the 0 was counted against an established driver", async () => {
+    // The inverse: a trustworthy 0 must keep its old, cheap behaviour — no fast
+    // window, no verification timer, and a stale verdict retired immediately.
+    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    setConfirmedMissingPhotoIds(new Set(["stale"]));
+
+    const service = makeService(0);
+    const { client, list } = makeClient();
+    const adapter = makeAdapter([]);
+
+    const recovery = createForegroundRecovery({ client, service, adapters: [adapter] });
+    recovery.run();
+    await flushMicrotasks();
+
+    expect(getRecoveryState().confirmedMissingPhotoIds.size).toBe(0);
+    expect(service.triggerFast).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+    expect(list).not.toHaveBeenCalled();
   });
 });

@@ -60,6 +60,7 @@ import {
   objectExistsInBucket,
   uploadToBucket,
 } from "./bucketUpload";
+import { getCurrentDriverContext } from "./currentDriverContext";
 import { localPhotoExists, localUriForPath } from "./localFile";
 import { isNetworkAvailable } from "./networkState";
 import { sweepParkedRows } from "./parkedRowSweep";
@@ -364,6 +365,16 @@ export function createPhotoUploadService(
    * it. That is affordable precisely because the sweep is bounded and offline —
    * this is still not the old busy `for(;;)` loop, just a spaced timer that
    * outlives the actionable work.
+   *
+   * It also re-arms while the §15 driver context is still unset, because every
+   * count is scoped to that context and reports 0 without it. Treating that 0
+   * as "nothing to do" is how the loop used to die on launch: `SystemProvider`
+   * resolves the ids reactively (Clerk user → `Users` → `Drivers`), so the
+   * first pass after launch or a reconnect routinely runs before they exist,
+   * and once the timer was not re-armed nothing ever armed it again for the
+   * rest of the session. Bounded the same way as the parked-row case: the extra
+   * passes are the same spaced timer, and they stop as soon as the context
+   * resolves and the count becomes real.
    */
   const runPass = async (trigger: PhotoQueuePassTrigger): Promise<void> => {
     const startedAtMs = Date.now();
@@ -405,12 +416,38 @@ export function createPhotoUploadService(
     }
 
     const unresolved = await countUnresolved();
+    // §15 — every count is scoped to the signed-in driver, and an adapter with
+    // no driver context answers 0 without looking at the database at all. Read
+    // the context here so a zero can be told apart from a zero that only means
+    // "not knowable yet".
+    const contextReady = getCurrentDriverContext() !== null;
     photoQueueLog.info(
       `pass end — trigger=${trigger}, online=${online}, ` +
-        `unresolved=${unresolved}, took ${Date.now() - startedAtMs}ms`,
+        `unresolved=${unresolved}, contextReady=${contextReady}, ` +
+        `took ${Date.now() - startedAtMs}ms`,
     );
 
-    if (unresolved > 0) {
+    // The two ways a pass can end with nothing to show for itself look
+    // identical in the count and are opposites in the log, because only one of
+    // them is allowed to stop the loop.
+    if (unresolved === 0) {
+      photoQueueLog.info(
+        contextReady
+          ? "pass idle — nothing unresolved for this driver; loop stands down " +
+              "until the next save, foreground or network edge"
+          : "pass idle (unverified) — unresolved=0 only because no driver " +
+              "context is established yet (§15 gates every count to 0 until " +
+              "SystemProvider resolves Users→Drivers); re-arming so the loop " +
+              "is still alive when it does",
+      );
+    }
+
+    // A zero taken while the context is still resolving is not evidence that
+    // there is no work — it is the absence of evidence either way, and letting
+    // it stop the loop is what silently killed every retry for a whole session.
+    // Keeping the timer armed rides the existing 4s-fast / 60s-backoff cadence,
+    // so this costs one extra spaced pass, and only during startup.
+    if (unresolved > 0 || !contextReady) {
       scheduleNextPass();
     }
   };

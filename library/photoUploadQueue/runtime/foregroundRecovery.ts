@@ -11,7 +11,11 @@
  *   4. the worker's fast window lapses on its own, dropping back to backoff.
  *
  * The decision at each step is `decideRecovery` (pure, spec-tested); this module
- * only supplies it with real numbers and carries out what it returns.
+ * only supplies it with real numbers and carries out what it returns. "Real" is
+ * the load-bearing word: the counts are §15-scoped to the signed-in driver, so
+ * before that context exists they are not numbers at all, and the one verdict
+ * that ends the pass early — `idle`, which clears the driver's recovery state —
+ * is never taken on one.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -20,6 +24,7 @@ import { decideRecovery, FAST_RETRY_WINDOW_MS } from "../recovery";
 import type { PhotoUploadRow } from "../types";
 import { applyUploadEvent } from "../uploadStatus";
 import { lookupBucketObject } from "./bucketUpload";
+import { getCurrentDriverContext } from "./currentDriverContext";
 import { isNetworkAvailable } from "./networkState";
 import { photoQueueLog } from "./photoQueueLog";
 import type { PhotoUploadService } from "./photoUploadService";
@@ -174,16 +179,44 @@ export function createForegroundRecovery(
 
       void (async () => {
         try {
+          // §15 — the count below is scoped to the signed-in driver, and an
+          // adapter with no driver context answers 0 outright. `run()` fires on
+          // every `connect()` — launch, token refresh, JWT-expiry reconnect —
+          // which is exactly when `SystemProvider` is still resolving those ids
+          // (Clerk user → `Users` → `Drivers`), so this pass regularly races
+          // them. Sampled *before* the count, so an "idle" verdict is only ever
+          // trusted when the count that produced it could see this driver's
+          // rows in the first place.
+          const contextReady = getCurrentDriverContext() !== null;
+
           const decision = decideRecovery({
             elapsedMs: 0,
             unresolvedPhotoCount: await deps.service.countUnresolved(),
             bucketVerification: "not_run",
           });
 
-          if (decision.retryMode === "idle") {
+          if (decision.retryMode === "idle" && contextReady) {
+            photoQueueLog.info(
+              "recovery — nothing unresolved for this driver; pass ends here",
+            );
             clearRecoveryState();
             passInFlight = false;
             return;
+          }
+
+          if (decision.retryMode === "idle") {
+            // Deliberately NOT `clearRecoveryState()`. That is a destructive
+            // act — it drops the banner verdict the driver is entitled to — and
+            // it must never be taken on a 0 that nothing was in a position to
+            // verify. Falling through to the fast path instead costs one
+            // recovery window and settles the question honestly: by the time
+            // `finishPass` runs, `FAST_RETRY_WINDOW_MS` later, the ids have
+            // long since resolved and its own counts are real.
+            photoQueueLog.info(
+              "recovery — unresolved=0 but no driver context yet (§15); " +
+                "leaving recovery state alone and proceeding to the fast-retry " +
+                "window, which re-counts for real at the 60s mark",
+            );
           }
 
           // Step 1 — a minute of quick retries before the driver is bothered.
