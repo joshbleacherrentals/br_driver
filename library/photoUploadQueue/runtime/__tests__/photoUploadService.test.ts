@@ -52,10 +52,10 @@ import {
 } from "@/library/photoUploadQueue/__tests__/support";
 import { isDueForFastRetry, isDueForRetry } from "@/library/photoUploadQueue/backoff";
 import {
-  clearCurrentDriverContext,
-  getCurrentDriverContext,
-  setCurrentDriverContext,
-} from "@/library/photoUploadQueue/runtime/currentDriverContext";
+  clearDriverScope,
+  getDriverScope,
+  publishDriverScope,
+} from "@/library/powersync/scoping/driverScope";
 import { localUriForPath } from "@/library/photoUploadQueue/runtime/localFile";
 import { isNetworkAvailable } from "@/library/photoUploadQueue/runtime/networkState";
 import { PERSIST_FALLBACK_ERROR } from "@/library/photoUploadQueue/runtime/persistUploadEvent";
@@ -248,7 +248,7 @@ function makeFakeAdapter(
  * The same fake, wearing §15's driver scoping.
  *
  * The real `DamageReportPhotos`/`InspectionPhotos` adapters gate every read on
- * `getCurrentDriverContext()` and return their empty answer — `null`, `0`, `[]`
+ * `getDriverScope()` and return their empty answer — `null`, `0`, `[]`
  * — without touching the database when there is none (`tableAdapters.ts`). That
  * gate is the entire reason a `0` from `countUnresolved` is not evidence of an
  * empty queue, so a fake that ignores it cannot reproduce the launch race at
@@ -259,7 +259,7 @@ function makeDriverScopedAdapter(
   initialRow: PhotoUploadRow,
 ): PhotoQueueTableAdapter & { current: () => PhotoUploadRow } {
   const inner = makeFakeAdapter(meta, initialRow);
-  const scoped = (): boolean => getCurrentDriverContext() !== null;
+  const scoped = (): boolean => getDriverScope() !== null;
   return {
     ...inner,
     async claimNext(mode, nowMs) {
@@ -392,13 +392,13 @@ beforeEach(() => {
   // published, so the counts the loop reasons about are real. The launch race —
   // ids not resolved yet — is its own describe block at the bottom, and clears
   // this explicitly.
-  setCurrentDriverContext(SIGNED_IN_DRIVER);
+  publishDriverScope(SIGNED_IN_DRIVER.userUuid, SIGNED_IN_DRIVER.driverUuid);
 });
 
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
-  clearCurrentDriverContext();
+  clearDriverScope();
 });
 
 describe.each(REAL_ADAPTER_METADATA)(
@@ -690,7 +690,7 @@ describe("driver-context race on launch (§15)", () => {
   };
 
   it("keeps the pass loop armed when unresolved=0 only because no driver context is established yet", async () => {
-    clearCurrentDriverContext();
+    clearDriverScope();
 
     const row = makeRow(DAMAGE, "launch-race-row");
     fileIsPresentFor(row);
@@ -722,7 +722,7 @@ describe("driver-context race on launch (§15)", () => {
     // `SystemProvider`'s Users→Drivers chain resolves; because the loop was
     // still alive, the very next scheduled pass sees the real row and drains
     // it, with no save, foreground or driver tap needed to restart anything.
-    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    publishDriverScope(SIGNED_IN_DRIVER.userUuid, SIGNED_IN_DRIVER.driverUuid);
     await jest.advanceTimersByTimeAsync(4_000);
 
     expect(upload).toHaveBeenCalledTimes(1);
@@ -746,7 +746,7 @@ describe("driver-context race on launch (§15)", () => {
 
     expect(adapter.current().upload_status).toBe("uploaded");
     await expect(service.countUnresolved()).resolves.toBe(0);
-    expect(getCurrentDriverContext()).not.toBeNull();
+    expect(getDriverScope()).not.toBeNull();
     expect(jest.getTimerCount()).toBe(0);
   });
 });

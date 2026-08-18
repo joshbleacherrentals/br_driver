@@ -60,7 +60,7 @@ import {
   objectExistsInBucket,
   uploadToBucket,
 } from "./bucketUpload";
-import { getCurrentDriverContext } from "./currentDriverContext";
+import { getDriverScope } from "@/library/powersync/scoping/driverScope";
 import { localPhotoExists, localUriForPath } from "./localFile";
 import { isNetworkAvailable } from "./networkState";
 import { sweepParkedRows } from "./parkedRowSweep";
@@ -420,7 +420,7 @@ export function createPhotoUploadService(
     // no driver context answers 0 without looking at the database at all. Read
     // the context here so a zero can be told apart from a zero that only means
     // "not knowable yet".
-    const contextReady = getCurrentDriverContext() !== null;
+    const contextReady = getDriverScope() !== null;
     photoQueueLog.info(
       `pass end — trigger=${trigger}, online=${online}, ` +
         `unresolved=${unresolved}, contextReady=${contextReady}, ` +

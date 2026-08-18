@@ -14,14 +14,14 @@
  * (`testDb.ts`), because the fix *is* the SQL: a correlated `EXISTS`, an
  * OR-chain across `WorkTrackers.pre_inspection_uuid`/`post_inspection_uuid`,
  * and SQL's own NULL semantics. Only `@/library/powersync/db`'s exports are
- * replaced; `tableAdapters.ts` and `currentDriverContext.ts` are untouched
+ * replaced; `tableAdapters.ts` and the scoping layer are untouched
  * production code.
  */
 
 import {
-  clearCurrentDriverContext,
-  setCurrentDriverContext,
-} from "@/library/photoUploadQueue/runtime/currentDriverContext";
+  clearDriverScope,
+  publishDriverScope,
+} from "@/library/powersync/scoping/driverScope";
 import { PHOTO_QUEUE_ADAPTERS } from "@/library/photoUploadQueue/runtime/tableAdapters";
 import type { PhotoQueueTableAdapter } from "@/library/photoUploadQueue/runtime/types";
 import { MISSING_LOCAL_FILE_ERROR } from "@/library/photoUploadQueue/types";
@@ -97,13 +97,13 @@ let driverB: SeededDriver;
 
 beforeEach(async () => {
   await resetTestDb();
-  clearCurrentDriverContext();
+  clearDriverScope();
   driverA = await seedDriver("a");
   driverB = await seedDriver("b");
 });
 
 afterEach(() => {
-  clearCurrentDriverContext();
+  clearDriverScope();
 });
 
 /** One pending, one parked and one stale-`uploading` photo per owner. */
@@ -216,10 +216,7 @@ describe("with no driver context (§15)", () => {
 describe("DamageReportPhotos scoping (§15)", () => {
   beforeEach(async () => {
     await seedMixedDamagePhotos();
-    setCurrentDriverContext({
-      userUuid: driverA.userUuid,
-      driverUuid: driverA.driverUuid,
-    });
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
   });
 
   it("never claims another driver's photo, however many times it is asked", async () => {
@@ -266,17 +263,14 @@ describe("DamageReportPhotos scoping (§15)", () => {
   it("sees nothing at all once the context is withdrawn mid-session", async () => {
     await expect(damagePhotos.countUnresolved()).resolves.toBe(2);
 
-    clearCurrentDriverContext();
+    clearDriverScope();
 
     await expect(damagePhotos.countUnresolved()).resolves.toBe(0);
     await expect(damagePhotos.claimNext("fast", NOW_MS)).resolves.toBeNull();
   });
 
   it("switches cleanly to the other driver's rows and only those", async () => {
-    setCurrentDriverContext({
-      userUuid: driverB.userUuid,
-      driverUuid: driverB.driverUuid,
-    });
+    publishDriverScope(driverB.userUuid, driverB.driverUuid);
 
     expect(ids(await damagePhotos.listUnresolved(50))).toEqual([
       "dr-b-parked",
@@ -293,10 +287,7 @@ describe("DamageReportPhotos scoping (§15)", () => {
 describe("InspectionPhotos scoping (§15)", () => {
   beforeEach(async () => {
     await seedMixedInspectionPhotos();
-    setCurrentDriverContext({
-      userUuid: driverA.userUuid,
-      driverUuid: driverA.driverUuid,
-    });
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
   });
 
   it("never claims another driver's photo, however many times it is asked", async () => {
@@ -346,10 +337,7 @@ describe("InspectionPhotos scoping (§15)", () => {
  */
 describe("InspectionPhotos ownership through both trip legs (§15)", () => {
   beforeEach(() => {
-    setCurrentDriverContext({
-      userUuid: driverA.userUuid,
-      driverUuid: driverA.driverUuid,
-    });
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
   });
 
   it("recognises an inspection referenced as the trip's pre-inspection", async () => {

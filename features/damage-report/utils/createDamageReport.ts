@@ -4,6 +4,7 @@ import {
   saveToGalleryIfCamera,
   writeLocalPhoto,
 } from "@/library/photoUploadQueue";
+import type { DriverScope } from "@/library/powersync/scoping";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { generateThumbnail } from "@/utils/generateThumbnail";
 import { readAsBase64 } from "@/utils/readAsBase64";
@@ -22,7 +23,18 @@ export type CreateDamageReportInput = {
   haulDamage: DamageSeverityValue;
   note: string;
   photos: DocumentPhoto[];
-  createdByUserUuid?: string | null;
+  /**
+   * §15 — required, and a `DriverScope` rather than a string.
+   *
+   * `created_by_user_uuid` stopped being metadata: it is what decides whether
+   * the upload queue may ever claim this report's photos, and what
+   * `useDamageReportById`/`useDamageReportPhotos` scope their reads by. A
+   * report left unattributed would own photos no driver's queue can claim —
+   * they would sit on the phone forever and never reach the bucket. Taking the
+   * branded scope, not an optional string, makes "forgot to attribute it" and
+   * "attributed it to whatever the caller had lying around" both unwriteable.
+   */
+  scope: DriverScope;
   /** When true, abort mid-photo loop (e.g. user cancelled progress modal). */
   shouldAbort?: () => boolean;
   onPhotoProgress?: (current: number, total: number) => void;
@@ -59,7 +71,7 @@ export async function createDamageReport(
         created_at: now,
         resolved_at: null,
         maintenance_event_uuid: null,
-        created_by_user_uuid: input.createdByUserUuid ?? null,
+        created_by_user_uuid: input.scope.userUuid,
       })
       .compile(),
   );

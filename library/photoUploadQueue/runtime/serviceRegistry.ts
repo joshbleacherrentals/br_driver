@@ -8,8 +8,9 @@
  * after a write, and screens call `triggerFast()` after saving a photo.
  *
  * A plain module-level store rather than context or a hook, for the same reason
- * `currentDriverContext.ts` is one: the callers are ordinary async functions
- * with no render to read a context during. It also breaks the require cycle
+ * `library/powersync/scoping/driverScope.ts` is one: the callers are ordinary
+ * async functions with no render to read a context during. It also breaks the
+ * require cycle
  * those runtime modules used to form — they reached back into
  * `SystemProvider.tsx` for the mutable `photoUploadService` binding while
  * `SystemProvider.tsx` imported the queue's barrel. `SystemProvider.tsx` is

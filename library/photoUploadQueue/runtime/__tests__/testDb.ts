@@ -20,6 +20,11 @@ import Database from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 
 import type { PowerSyncDB } from "@/library/powersync/AppSchema";
+import {
+  getDriverScope,
+  publishDriverScope,
+  type DriverScope,
+} from "@/library/powersync/scoping/driverScope";
 
 /**
  * Module-scope singleton, and `mock`-prefixed on purpose: Jest hoists
@@ -72,13 +77,27 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
   await db.schema
     .createTable("WorkTrackerInspections")
     .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("created_at", "text")
+    .addColumn("walk_around_complete", "integer")
+    .addColumn("issues_found", "integer")
+    .addColumn("issue_description", "text")
+    .addColumn("answers_json", "text")
     .execute();
 
   await db.schema
     .createTable("DamageReports")
     .addColumn("id", "text", (col) => col.primaryKey())
-    .addColumn("created_by_user_uuid", "text")
+    .addColumn("inspection_uuid", "text")
+    .addColumn("bleacher_uuid", "text")
+    .addColumn("is_safe_to_sit", "integer")
+    .addColumn("is_safe_to_haul", "integer")
+    .addColumn("seat_damage", "text")
+    .addColumn("haul_damage", "text")
+    .addColumn("note", "text")
     .addColumn("created_at", "text")
+    .addColumn("resolved_at", "text")
+    .addColumn("maintenance_event_uuid", "text")
+    .addColumn("created_by_user_uuid", "text")
     .execute();
 
   await db.schema
@@ -86,6 +105,7 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("damage_report_uuid", "text")
     .addColumn("photo_path", "text")
+    .addColumn("thumbnail", "text")
     .addColumn("upload_status", "text")
     .addColumn("gallery_asset_id", "text")
     .addColumn("attempts", "integer")
@@ -99,6 +119,7 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("inspection_uuid", "text")
     .addColumn("storage_path", "text")
+    .addColumn("caption", "text")
     .addColumn("upload_status", "text")
     .addColumn("gallery_asset_id", "text")
     .addColumn("attempts", "integer")
@@ -124,6 +145,25 @@ export type SeededDriver = {
   /** `Drivers.id` — what `WorkTrackers.driver_uuid` points at. */
   driverUuid: string;
 };
+
+/**
+ * A real `DriverScope` for a seeded driver.
+ *
+ * `DriverScope` is branded (`library/powersync/scoping/driverScope.ts`) and can
+ * only be minted by `publishDriverScope`, deliberately — a test cannot hand a
+ * scoped query builder a hand-rolled `{ userUuid, driverUuid }` object any more
+ * than production code can. So this publishes and reads back, which also leaves
+ * the module store pointing at the same driver for anything reading it
+ * synchronously (the queue's adapters).
+ */
+export function scopeFor(driver: SeededDriver): DriverScope {
+  publishDriverScope(driver.userUuid, driver.driverUuid);
+  const scope = getDriverScope();
+  if (!scope) {
+    throw new Error("publishDriverScope did not produce a scope");
+  }
+  return scope;
+}
 
 /** One driver, as the Clerk → Users → Drivers chain would leave them locally. */
 export async function seedDriver(name: string): Promise<SeededDriver> {

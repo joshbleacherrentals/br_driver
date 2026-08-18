@@ -15,7 +15,7 @@ import {
   DamageReportPhotoWithStatus,
   useDamageReportPhotos,
 } from "@/hooks/db/useDamageReportPhotos";
-import { useDriver } from "@/hooks/db/useDriver";
+import { useDriverScope } from "@/hooks/useDriverScope";
 import { usePhotoRepair, type RepairablePhoto } from "@/hooks/usePhotoRepair";
 import { deriveUploadProgress } from "@/library/photoUploadQueue";
 import { PhotoRepairBanner } from "@/components/widgets/PhotoRepairBanner";
@@ -50,6 +50,7 @@ import { DebugUploadTracker } from "./components/DebugUploadTracker";
 import { ImageViewer, ImageViewerItem } from "./components/ImageViewer";
 import { PhotoUploadIndicator } from "./components/PhotoUploadIndicator";
 import { PhotoUploadStatusBanner } from "./components/PhotoUploadStatusBanner";
+import { ReportUnavailable } from "./components/ReportUnavailable";
 import { SubmitProgressModal } from "./components/SubmitProgressModal";
 import { createDamageReport } from "./utils/createDamageReport";
 import { resolvePhotoUri } from "./utils/resolvePhotoUri";
@@ -311,14 +312,17 @@ export default function DamageReportScreen() {
   const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
   const params = useLocalSearchParams<{ damageReportId?: string }>();
   const { bleachers } = useAllBleachers();
-  const { driver } = useDriver();
+  // §15 — the signed-in driver's scope. Needed twice here: to attribute a new
+  // report, and (inside the hooks below) to scope what this screen may read.
+  const scope = useDriverScope();
 
   const [viewOnlyId, setViewOnlyId] = useState<string | null>(
     params.damageReportId ?? null,
   );
   const isViewOnly = !!viewOnlyId;
 
-  const { damageReport } = useDamageReportById(viewOnlyId);
+  const { damageReport, isLoading: isReportLoading } =
+    useDamageReportById(viewOnlyId);
   const {
     photos: reportPhotos,
     hasPending: photosPending,
@@ -344,8 +348,11 @@ export default function DamageReportScreen() {
   );
 
   const photoRepair = usePhotoRepair({
-    parent: viewOnlyId
-      ? { table: "DamageReportPhotos", damageReportUuid: viewOnlyId }
+    // §15 — derived from the row the *scoped* read actually returned, never
+    // from the route param. A foreign or unknown id leaves `damageReport` null,
+    // and with it there is no parent for Retry/Replace to write through.
+    parent: damageReport
+      ? { table: "DamageReportPhotos", damageReportUuid: damageReport.id }
       : null,
     photos: repairablePhotos,
     editable: isReportEditable,
@@ -441,7 +448,11 @@ export default function DamageReportScreen() {
     trackedTotal > 0 &&
     !trackedComplete;
 
+  // §15 — no scope, no attribution, no submit. `createDamageReport` requires a
+  // `DriverScope`, so this is enforced by the type too; the flag is what stops
+  // the button being tappable in the seconds before the scope resolves.
   const canSubmit =
+    !!scope &&
     selectedBleacher &&
     (details.seatDamage !== null || details.haulDamage !== null) &&
     details.note.trim().length > 0 &&
@@ -491,6 +502,13 @@ export default function DamageReportScreen() {
   }, [reportPhotos]);
 
   const handleSubmit = async () => {
+    if (!scope) {
+      Alert.alert(
+        "Just a moment",
+        "Your driver profile is still loading. Please try again in a moment.",
+      );
+      return;
+    }
     if (!selectedBleacher) {
       Alert.alert("Required", "Please select a bleacher");
       return;
@@ -520,7 +538,7 @@ export default function DamageReportScreen() {
         haulDamage: details.haulDamage,
         note: details.note,
         photos: details.photos,
-        createdByUserUuid: driver?.user_uuid ?? null,
+        scope,
         shouldAbort: () => abortRef.current,
         onPhotoProgress: (current, total) =>
           setPrepProgress({ current, total }),
@@ -569,6 +587,20 @@ export default function DamageReportScreen() {
       onDismiss={() => setUploadDismissed(true)}
     />
   );
+
+  // §15 — a route param that resolves to no readable report (unknown id, or
+  // another driver's, which the scoped read refuses) gets its own state rather
+  // than the normal view-only screen with every field showing "—". Restricted to
+  // the route-param path on purpose: a report this screen just created is also
+  // momentarily absent from the reactive query, and that is not the same thing.
+  const openedFromRoute =
+    !!params.damageReportId && viewOnlyId === params.damageReportId;
+  const reportUnavailable =
+    isViewOnly && openedFromRoute && !isReportLoading && !damageReport;
+
+  if (reportUnavailable) {
+    return <ReportUnavailable onBack={() => router.back()} />;
+  }
 
   if (isViewOnly) {
     return (

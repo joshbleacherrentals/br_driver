@@ -19,9 +19,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { flushMicrotasks } from "@/library/photoUploadQueue/__tests__/support";
 import {
-  clearCurrentDriverContext,
-  setCurrentDriverContext,
-} from "@/library/photoUploadQueue/runtime/currentDriverContext";
+  clearDriverScope,
+  publishDriverScope,
+} from "@/library/powersync/scoping/driverScope";
 import { createForegroundRecovery } from "@/library/photoUploadQueue/runtime/foregroundRecovery";
 import { isNetworkAvailable } from "@/library/photoUploadQueue/runtime/networkState";
 import type { PhotoUploadService } from "@/library/photoUploadQueue/runtime/photoUploadService";
@@ -126,14 +126,14 @@ beforeEach(() => {
   // Steady state: the driver is signed in and §15's ids are published, so the
   // counts these tests feed the pass are trustworthy. The startup race is its
   // own describe block, and clears this explicitly.
-  setCurrentDriverContext(SIGNED_IN_DRIVER);
+  publishDriverScope(SIGNED_IN_DRIVER.userUuid, SIGNED_IN_DRIVER.driverUuid);
 });
 
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   setConfirmedMissingPhotoIds(new Set());
-  clearCurrentDriverContext();
+  clearDriverScope();
 });
 
 /** Runs one pass all the way through its 60s fast window. */
@@ -235,7 +235,7 @@ describe("foreground recovery — network gating (§13)", () => {
  */
 describe("foreground recovery — the §15 driver-context race", () => {
   it("never clears recovery state on a 0 counted before the driver context existed", async () => {
-    clearCurrentDriverContext();
+    clearDriverScope();
     // The driver is already being shown a confirmed-missing photo from an
     // earlier pass. An unverifiable 0 is not grounds to take it away.
     setConfirmedMissingPhotoIds(new Set(["already-confirmed"]));
@@ -259,7 +259,7 @@ describe("foreground recovery — the §15 driver-context race", () => {
 
     // By the time that timer fires the ids have long since landed, so the pass
     // finishes on real numbers — which is the whole point of not clearing.
-    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    publishDriverScope(SIGNED_IN_DRIVER.userUuid, SIGNED_IN_DRIVER.driverUuid);
     await jest.advanceTimersByTimeAsync(FAST_RETRY_WINDOW_MS + 1);
 
     expect(adapter.listUnresolved).toHaveBeenCalled();
@@ -270,7 +270,7 @@ describe("foreground recovery — the §15 driver-context race", () => {
   it("still idles out and clears when the 0 was counted against an established driver", async () => {
     // The inverse: a trustworthy 0 must keep its old, cheap behaviour — no fast
     // window, no verification timer, and a stale verdict retired immediately.
-    setCurrentDriverContext(SIGNED_IN_DRIVER);
+    publishDriverScope(SIGNED_IN_DRIVER.userUuid, SIGNED_IN_DRIVER.driverUuid);
     setConfirmedMissingPhotoIds(new Set(["stale"]));
 
     const service = makeService(0);

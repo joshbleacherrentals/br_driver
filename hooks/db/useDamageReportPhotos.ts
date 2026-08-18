@@ -1,4 +1,8 @@
-import { db } from "@/components/providers/SystemProvider";
+import { useDriverScope } from "@/hooks/useDriverScope";
+import {
+  damageReportPhotosOf,
+  type DriverScope,
+} from "@/library/powersync/scoping";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
 import { useMemo } from "react";
 
@@ -29,6 +33,37 @@ function toUploadStatus(raw: string | null): PhotoUploadStatus {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The query this hook runs, exported separately so it can be exercised directly
+ * against a database in tests (same rationale as `usePhotoUploadBanner.ts`'s
+ * `buildProblemPhotoRowsQuery`).
+ *
+ * §15 — built from `damageReportPhotosOf(scope)`, so a report id alone can no
+ * longer produce rows. `DamageReportPhotos` syncs every driver's rows to every
+ * device, and `DamageReportScreen` takes its `damageReportId` straight from
+ * `useLocalSearchParams()` — a caller-controlled route param. Before scoping, a
+ * deep link or a routing bug pointed at another driver's report id rendered that
+ * driver's photos and, through `usePhotoRepair`, exposed Retry/Replace against
+ * their rows.
+ */
+export function buildDamageReportPhotosQuery(
+  scope: DriverScope,
+  damageReportUuid: string,
+) {
+  return damageReportPhotosOf(scope)
+    .select([
+      "id",
+      "damage_report_uuid",
+      "photo_path",
+      "thumbnail",
+      "upload_status",
+      "last_error",
+      "created_at",
+    ])
+    .where("damage_report_uuid", "=", damageReportUuid)
+    .orderBy("created_at", "asc");
+}
+
 export function useDamageReportPhotos(
   damageReportUuid: string | null | undefined,
 ): {
@@ -37,25 +72,16 @@ export function useDamageReportPhotos(
   hasPending: boolean;
   hasFailed: boolean;
 } {
-  const safeId = damageReportUuid ?? "__none__";
+  const scope = useDriverScope();
 
+  // No scope, no query — not a placeholder id that would compile to a real read
+  // against every driver's rows. `useTypedQuery` treats `null` as "disabled".
   const compiled = useMemo(
     () =>
-      db
-        .selectFrom("DamageReportPhotos")
-        .select([
-          "id",
-          "damage_report_uuid",
-          "photo_path",
-          "thumbnail",
-          "upload_status",
-          "last_error",
-          "created_at",
-        ])
-        .where("damage_report_uuid", "=", safeId)
-        .orderBy("created_at", "asc")
-        .compile(),
-    [safeId],
+      scope && damageReportUuid
+        ? buildDamageReportPhotosQuery(scope, damageReportUuid).compile()
+        : null,
+    [scope, damageReportUuid],
   );
 
   const { data, isLoading } = useTypedQuery(

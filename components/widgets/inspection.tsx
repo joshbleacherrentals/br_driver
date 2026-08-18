@@ -1,5 +1,5 @@
 import { useThemedStyles } from "@/hooks/useThemedStyles";
-import { useDriver } from "@/hooks/db/useDriver";
+import { useDriverScope } from "@/hooks/useDriverScope";
 import {
   InspectionQuestion,
   useInspectionQuestions,
@@ -182,9 +182,9 @@ export default function InspectionScreen({
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { questions } = useInspectionQuestions();
-  // Needed only to attribute the damage report this screen can create — see the
-  // `createdByUserUuid` note in `handleSubmit`.
-  const { driver } = useDriver();
+  // §15 — needed to attribute the damage report this screen can create, and
+  // gated on before *any* write happens; see `handleSubmit`.
+  const scope = useDriverScope();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const checkboxQuestions = questions.filter(
     (q) => q.question_type === "checkbox",
@@ -323,6 +323,21 @@ export default function InspectionScreen({
       return;
     }
 
+    // §15 — gate the WHOLE submit on the driver scope, not just the
+    // damage-report branch below. This method writes three things in sequence
+    // (the `WorkTrackerInspections` row, optionally the damage report, then the
+    // `WorkTrackers` link), and discovering a missing scope partway through
+    // would leave an inspection already committed with no way to finish it.
+    // Bailing here costs the driver one retry; bailing halfway costs data
+    // consistency.
+    if (!scope) {
+      Alert.alert(
+        "Just a moment",
+        "Your driver profile is still loading. Please try again in a moment.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -407,7 +422,7 @@ export default function InspectionScreen({
           // work on from `DamageReports.created_by_user_uuid` (§15). A report
           // left unattributed here would own photos no driver's queue can ever
           // claim — they would sit on the phone and never reach the bucket.
-          createdByUserUuid: driver?.user_uuid ?? null,
+          scope,
         });
       }
 

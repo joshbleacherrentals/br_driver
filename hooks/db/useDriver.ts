@@ -1,8 +1,7 @@
-import { db } from "@/components/providers/SystemProvider";
+import { useDriverScope } from "@/hooks/useDriverScope";
+import { db } from "@/library/powersync/db";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useUser } from "@clerk/clerk-expo";
 import { useMemo } from "react";
-import { UserData } from "./useWorkTrackers";
 
 
 export type DriverData = {
@@ -36,29 +35,20 @@ export type VehicleData = {
 };
 
 /**
- * Fetch DriverData belonging to the user_id
+ * The signed-in driver's full `Drivers` row.
+ *
+ * Not a wrapper around `useDriverScope()` — it returns the whole row (pay,
+ * vehicle, document paths and expiries), which the scope deliberately does not
+ * carry. What it no longer does is re-derive *which* driver that is: it used to
+ * run its own Clerk → `Users` → `Drivers` chain, the third copy of a lookup
+ * `CurrentDriverScopePublisher` already performs once for the whole app. It now
+ * starts from the published scope and asks one question instead of two.
  */
 export function useDriver(): { driver: DriverData | null } {
-  const { user } = useUser();
-  const clerkUserId = user?.id ?? null;
-
-  // 1. Get user_id from Users table
-  const compiled = useMemo(() => {
-    if (!clerkUserId) return null;
-
-    return db
-      .selectFrom("Users as u")
-      .select(["u.id as id"])
-      .where("clerk_user_id", "=", clerkUserId)
-      .limit(1)
-      .compile();
-  }, [clerkUserId]);
-
-  const userData = useTypedQuery(compiled, expect<UserData>());
+  const scope = useDriverScope();
 
   const compiledDriver = useMemo(() => {
-    const userId = userData.data?.[0]?.id;
-    if (!userId) return null;
+    if (!scope) return null;
 
     return db
     .selectFrom("Drivers")
@@ -82,10 +72,10 @@ export function useDriver(): { driver: DriverData | null } {
         "medical_card_expires_on",
         "vehicle_uuid"
     ])
-    .where("user_uuid", "=", userId)
+    .where("id", "=", scope.driverUuid)
     .limit(1)
     .compile();
-  }, [userData.data]);
+  }, [scope]);
 
   const DriverData = useTypedQuery(compiledDriver, expect<DriverData>());
 

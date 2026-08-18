@@ -24,7 +24,7 @@ import { decideRecovery, FAST_RETRY_WINDOW_MS } from "../recovery";
 import type { PhotoUploadRow } from "../types";
 import { applyUploadEvent } from "../uploadStatus";
 import { lookupBucketObject } from "./bucketUpload";
-import { getCurrentDriverContext } from "./currentDriverContext";
+import { getDriverScope } from "@/library/powersync/scoping/driverScope";
 import { isNetworkAvailable } from "./networkState";
 import { photoQueueLog } from "./photoQueueLog";
 import type { PhotoUploadService } from "./photoUploadService";
@@ -187,7 +187,7 @@ export function createForegroundRecovery(
           // them. Sampled *before* the count, so an "idle" verdict is only ever
           // trusted when the count that produced it could see this driver's
           // rows in the first place.
-          const contextReady = getCurrentDriverContext() !== null;
+          const contextReady = getDriverScope() !== null;
 
           const decision = decideRecovery({
             elapsedMs: 0,
