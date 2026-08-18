@@ -138,6 +138,20 @@ describe("buildProblemPhotoRowsQuery (§15)", () => {
     );
   });
 
+  it("excludes a photo whose report is already resolved", async () => {
+    await seedDamageReportPhoto({
+      photoId: "mine-resolved",
+      reportId: "report-mine-resolved",
+      createdByUserUuid: driverA.userUuid,
+      resolvedAt: "2026-08-15T00:00:00.000Z",
+    });
+
+    const rows = await runQuery(driverA);
+
+    expect(photoIds(rows)).not.toContain("mine-resolved");
+    expect(photoIds(rows)).toEqual(["mine-parked", "mine-pending"]);
+  });
+
   it("returns the other driver's photos when they are the one signed in", async () => {
     expect(photoIds(await runQuery(driverB))).toEqual([
       "theirs-pending",

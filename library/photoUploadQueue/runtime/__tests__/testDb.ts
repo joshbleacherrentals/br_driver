@@ -208,9 +208,16 @@ export async function seedDamageReportPhoto(args: {
   photoId: string;
   reportId: string;
   createdByUserUuid: string | null;
+  resolvedAt?: string | null;
   queue?: QueueColumns;
 }): Promise<string> {
-  const { photoId, reportId, createdByUserUuid, queue = {} } = args;
+  const {
+    photoId,
+    reportId,
+    createdByUserUuid,
+    resolvedAt = null,
+    queue = {},
+  } = args;
 
   const existingReport = await mockDb
     .selectFrom("DamageReports")
@@ -225,6 +232,7 @@ export async function seedDamageReportPhoto(args: {
         id: reportId,
         created_by_user_uuid: createdByUserUuid,
         created_at: "2026-08-01T00:00:00.000Z",
+        resolved_at: resolvedAt,
       })
       .execute();
   }

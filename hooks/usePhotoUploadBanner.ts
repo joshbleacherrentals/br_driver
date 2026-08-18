@@ -25,6 +25,11 @@ import { useMemo } from "react";
  * through to, damage reports belonging to other drivers, which sync to this
  * device too (§15).
  *
+ * Resolved reports are excluded (`resolved_at IS NULL`, same convention as
+ * `hooks/db/useDamageReport.ts`): once a report is closed its photo can never
+ * be replaced, so a still-missing photo on one is not a problem the banner can
+ * do anything about, and would otherwise never stop counting.
+ *
  * Exported apart from the hook so the SQL can be exercised directly against a
  * database in tests, with no React involved.
  */
@@ -40,7 +45,8 @@ export function buildProblemPhotoRowsQuery(scope: DriverScope) {
       "DamageReports.id as report_uuid",
       "DamageReports.created_at as report_created_at",
     ])
-    .where("DamageReportPhotos.upload_status", "in", ["pending", "failed"]);
+    .where("DamageReportPhotos.upload_status", "in", ["pending", "failed"])
+    .where("DamageReports.resolved_at", "is", null);
 }
 
 /**
