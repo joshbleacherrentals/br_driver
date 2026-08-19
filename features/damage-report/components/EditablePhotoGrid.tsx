@@ -1,14 +1,9 @@
 import { ThemeColors, radius, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React from "react";
-import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { DocumentPhoto } from "../types";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -60,6 +55,13 @@ export function EditablePhotoGrid({
         </TouchableOpacity>
       </View>
 
+      {/* A plain wrapping `View`, not a `FlatList`: this grid lives inside the
+          form's `ScrollView`, and nesting a virtualised list in one is its own
+          well-known problem. What made the grid expensive was never the number
+          of `<Image>` elements — it was that each one decoded a full-resolution
+          capture to fill a 100pt tile. `previewUri` (≈320px, built once at pick
+          time) is the fix; `expo-image` adds recycling and downsampling on top,
+          and covers the fallback case where no preview could be made. */}
       {photos.length > 0 && (
         <View style={styles.photoGrid}>
           {photos.map((photo, index) => (
@@ -68,8 +70,11 @@ export function EditablePhotoGrid({
               style={styles.photoContainer}
             >
               <Image
-                source={{ uri: photo.uri ?? undefined }}
+                source={photo.previewUri ?? photo.uri ?? undefined}
                 style={styles.photo}
+                contentFit="cover"
+                recyclingKey={photo.uri ?? String(index)}
+                cachePolicy="memory-disk"
               />
               <TouchableOpacity
                 style={styles.removePhotoButton}

@@ -850,6 +850,164 @@ function makeUnwritableAdapter(
   };
 }
 
+/**
+ * The lifecycle guarantee behind the memory-retention fix.
+ *
+ * `runPass` re-arms `scheduleNextPass` for as long as anything is unresolved,
+ * and that timer chain is completely independent of whether React still holds a
+ * reference to the service. A superseded instance therefore ran forever —
+ * claiming rows through a stale Supabase client and keeping its whole retained
+ * graph alive — which is why RAM stayed elevated long after every visible
+ * upload had finished. `dispose()` is what makes an instance mortal, and this
+ * is the test that proves the timer chain actually dies.
+ */
+describe("dispose — a retired service acquires no new work (lifecycle)", () => {
+  /** An upload that always fails, so the row stays unresolved and claimable. */
+  const alwaysFailingUpload = () =>
+    jest.fn(async () => ({ data: null, error: { message: "network down" } }));
+
+  it("cancels the armed pass and never re-arms it — the memory-retention regression", async () => {
+    // The row fails, so the queue still has work: this is exactly the state in
+    // which the loop re-arms itself indefinitely, which is what kept an
+    // orphaned instance (and its Supabase client, lanes and closures) alive for
+    // the rest of the session.
+    const row = queueRow(DAMAGE, "after-dispose");
+    const adapter = makeMultiRowAdapter(DAMAGE, [row]);
+    adapters.push(adapter);
+    filesOnDisk(row.photo_path);
+
+    const claimSpy = jest.spyOn(adapter, "claimNext");
+    const gate = createDeferred<void>();
+    const { client, upload } = clientWith({
+      upload: jest.fn(async () => {
+        await gate.promise;
+        return { data: null, error: { message: "network down" } };
+      }),
+    });
+    const service = createPhotoUploadService(client);
+
+    // Disposed *while a pass is in flight* — the case that matters. A dispose
+    // between passes only has to cancel one pending timer; a dispose mid-pass
+    // has to stop the pass from arming the next one on its way out.
+    const pass = service.triggerFast();
+    await flushMicrotasks();
+    expect(upload).toHaveBeenCalledTimes(1);
+
+    service.dispose();
+    gate.resolve();
+    await pass;
+
+    // The attempt still recorded its outcome (§5 — dispose never loses a row)…
+    expect(adapter.find("after-dispose")!.upload_status).toBe("failed");
+    await expect(service.countUnresolved()).resolves.toBe(1);
+    // …but the pass did not schedule its successor, so the chain ends here.
+    expect(jest.getTimerCount()).toBe(0);
+
+    claimSpy.mockClear();
+    upload.mockClear();
+    // Well past both the fast (4s) and backoff (60s) cadences.
+    await jest.advanceTimersByTimeAsync(120_000);
+
+    expect(claimSpy).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("stops handing out rows the moment it is disposed, mid-drain", async () => {
+    // Five rows, three lanes: the last two can only be reached by a claim made
+    // *after* dispose. They must never be.
+    const rows = ["r1", "r2", "r3", "r4", "r5"].map((id) => queueRow(DAMAGE, id));
+    const adapter = makeMultiRowAdapter(DAMAGE, rows);
+    adapters.push(adapter);
+    filesOnDisk(...rows.map((r) => r.photo_path));
+
+    const gate = createDeferred<void>();
+    const { client, upload } = clientWith({
+      upload: jest.fn(async (path: string) => {
+        await gate.promise;
+        return { data: { path }, error: null };
+      }),
+    });
+
+    const service = createPhotoUploadService(client);
+    const pass = service.triggerFast();
+    await flushMicrotasks();
+
+    expect(upload).toHaveBeenCalledTimes(MAX_CONCURRENT_UPLOADS);
+
+    service.dispose();
+    gate.resolve();
+    await pass;
+
+    // The three already claimed finished; nothing new was claimed after that.
+    expect(upload).toHaveBeenCalledTimes(MAX_CONCURRENT_UPLOADS);
+    expect(
+      adapter.rows().filter((r) => r.upload_status === "uploaded"),
+    ).toHaveLength(MAX_CONCURRENT_UPLOADS);
+    expect(
+      adapter.rows().filter((r) => r.upload_status === "pending"),
+    ).toHaveLength(rows.length - MAX_CONCURRENT_UPLOADS);
+  });
+
+  it("ignores triggers that arrive after dispose", async () => {
+    const row = queueRow(DAMAGE, "trigger-after-dispose");
+    const adapter = makeMultiRowAdapter(DAMAGE, [row]);
+    adapters.push(adapter);
+    filesOnDisk(row.photo_path);
+
+    const claimSpy = jest.spyOn(adapter, "claimNext");
+    const { client, upload } = clientWith();
+    const service = createPhotoUploadService(client);
+
+    service.dispose();
+    await service.triggerFast();
+    await service.triggerBackoff();
+
+    expect(claimSpy).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(adapter.find("trigger-after-dispose")!.upload_status).toBe("pending");
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("is idempotent", async () => {
+    const service = createPhotoUploadService(clientWith().client);
+
+    expect(() => {
+      service.dispose();
+      service.dispose();
+    }).not.toThrow();
+  });
+
+  it("lets an in-flight upload finish and record its outcome", async () => {
+    // §5's "never lose a row": dispose stops the service acquiring new work, it
+    // does not interrupt an attempt that is already talking to the bucket.
+    const row = queueRow(DAMAGE, "in-flight-at-dispose");
+    const adapter = makeMultiRowAdapter(DAMAGE, [row]);
+    adapters.push(adapter);
+    filesOnDisk(row.photo_path);
+
+    const gate = createDeferred<void>();
+    const { client, upload } = clientWith({
+      upload: jest.fn(async (path: string) => {
+        await gate.promise;
+        return { data: { path }, error: null };
+      }),
+    });
+
+    const service = createPhotoUploadService(client);
+    const pass = service.triggerFast();
+    await flushMicrotasks();
+
+    expect(upload).toHaveBeenCalledTimes(1);
+    service.dispose();
+
+    gate.resolve();
+    await pass;
+
+    expect(adapter.find("in-flight-at-dispose")!.upload_status).toBe("uploaded");
+  });
+});
+
 describe("bounded concurrency and claim exclusivity (§10)", () => {
   it("uploads a report's three photos in one concurrent pass, each exactly once", async () => {
     const rows = ["p1", "p2", "p3"].map((id) => queueRow(DAMAGE, id));

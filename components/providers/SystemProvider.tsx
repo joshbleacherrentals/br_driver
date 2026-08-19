@@ -13,6 +13,7 @@ import {
 } from "@/library/photoUploadQueue";
 import { db, powerSyncDb } from "@/library/powersync/db";
 import { clearDriverScope } from "@/library/powersync/scoping/driverScope";
+import { useStableCallback } from "@/hooks/useStableCallback";
 import { useAuth } from "@clerk/clerk-expo";
 import { AppState } from "react-native";
 import { PowerSyncContext } from "@powersync/react-native";
@@ -59,28 +60,49 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const connectedRef = useRef(false);
   const connectingRef = useRef(false);
   const reconnectingRef = useRef(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const disposeStatusListenerRef = useRef<(() => void) | null>(null);
   // §13 — assumed online until the platform says otherwise, so a phone that was
   // already connected at launch doesn't count as a spurious "restored" edge.
   const wasOnlineRef = useRef(true);
 
+  /**
+   * `useAuth` returns a brand-new `getToken` closure on every call (see
+   * `useStableCallback`'s doc comment), so memoizing on it memoized nothing:
+   * every render of this provider built a new `BackendConnector`, a new
+   * Supabase client and a new `PhotoUploadService`, each with its own upload
+   * lanes and its own self-perpetuating pass timer.
+   */
+  const stableGetToken = useStableCallback(getToken);
+
+  /**
+   * The connector, the Supabase client it owns and the photo upload queue built
+   * on it.
+   *
+   * Keyed on what actually means "a different connector is needed" — a
+   * different signed-in user — rather than on an identity this file does not
+   * control. `stableGetToken` is in the list because the rule requires it, not
+   * because it can change.
+   */
   const connector = useMemo(() => {
+    // One line per connector built. With `userId` as the key this should be one
+    // per signed-in session; anything more means the memo is churning again.
+    DebugLogger.info(TAG, "Building backend connector", { userId });
+
     const bc = new BackendConnector({
       getPowerSyncToken: async () => {
         try {
-          return await getToken({ template: "powersync" });
+          return await stableGetToken({ template: "powersync" });
         } catch {
           return null;
         }
       },
       getSupabaseToken: async (opts) => {
         try {
-          return await getToken(
+          return await stableGetToken(
             opts?.forceRefresh ? { skipCache: true } : undefined,
           );
         } catch {
@@ -91,21 +113,32 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Single custom photo upload queue for every photo type (damage report,
     // inspection, driver documents). Recreated with the fresh Supabase client;
-    // it holds no watchers/timers of its own — screens and the foreground
-    // listener below drive it. Published to `serviceRegistry.ts` so the queue's
-    // own runtime modules and the screens can reach it without importing this
-    // provider.
+    // it holds no watchers of its own beyond the §6 pass timer — screens and
+    // the foreground listener below drive it. Published to
+    // `serviceRegistry.ts`, which retires the previous service and recovery
+    // instance as part of publishing the new one, so at most one of each can
+    // ever be claiming rows or holding a timer.
     const service = createPhotoUploadService(bc.client);
     setPhotoUploadService(service);
-
-    getPhotoUploadRecovery()?.dispose();
     setPhotoUploadRecovery(
       createForegroundRecovery({ client: bc.client, service }),
     );
 
     return bc;
-  }, [getToken]);
+  }, [stableGetToken, userId]);
 
+  /**
+   * Reconnect, reachable from both effects below.
+   *
+   * The connection lifecycle owns it (it needs the effect's `connect`), but the
+   * status listener has to be able to call it too, and the two now live in
+   * separate effects — see the F1 note on the listener effect.
+   */
+  const reconnectRef = useRef<((reason: string) => Promise<void>) | null>(null);
+
+  // ── A. Connection lifecycle ───────────────────────────────────────────────
+  // Connect / disconnect / token-refresh reconnect. Deliberately free of the
+  // status listener, which has its own effect below.
   useEffect(() => {
     const clearRefreshTimer = () => {
       if (refreshTimerRef.current) {
@@ -114,19 +147,12 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    const clearStatusListener = () => {
-      if (disposeStatusListenerRef.current) {
-        disposeStatusListenerRef.current();
-        disposeStatusListenerRef.current = null;
-      }
-    };
-
     const scheduleTokenRefreshReconnect = async () => {
       clearRefreshTimer();
 
       let token: string | null = null;
       try {
-        token = await getToken({ template: "powersync" });
+        token = await stableGetToken({ template: "powersync" });
       } catch {
         return;
       }
@@ -144,33 +170,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       }, delayMs);
     };
 
-    const attachStatusListener = () => {
-      clearStatusListener();
-
-      disposeStatusListenerRef.current = powerSyncDb.registerListener({
-        statusChanged: (status: any) => {
-          const flow = status?.dataFlowStatus;
-          const downloadErr: Error | undefined = flow?.downloadError;
-          const uploadErr: Error | undefined = flow?.uploadError;
-
-          if (downloadErr || uploadErr) {
-            DebugLogger.warn(TAG, "Status changed with errors", {
-              downloading: flow?.downloading,
-              uploading: flow?.uploading,
-              downloadError: downloadErr?.message,
-              uploadError: uploadErr?.message,
-            });
-          }
-
-          const msg = `${downloadErr?.message ?? ""} ${uploadErr?.message ?? ""}`;
-          if (/PSYNC_S2103|JWT has expired/i.test(msg)) {
-            DebugLogger.info(TAG, "JWT expired, triggering reconnect");
-            void reconnect("jwt_expired");
-          }
-        },
-      });
-    };
-
     const connect = async () => {
       if (connectingRef.current || connectedRef.current) return;
       connectingRef.current = true;
@@ -185,7 +184,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         // bucket check, and only then the banner.
         getPhotoUploadRecovery()?.run();
 
-        attachStatusListener();
         await scheduleTokenRefreshReconnect();
       } catch (err: any) {
         DebugLogger.error(TAG, "Connect FAILED", {
@@ -217,11 +215,14 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
+    // Published for the status-listener effect, which reconnects on an expired
+    // JWT but must not own the connection lifecycle to do it.
+    reconnectRef.current = reconnect;
+
     if (!isLoaded) return;
 
     if (!isSignedIn) {
       clearRefreshTimer();
-      clearStatusListener();
       // Belt and braces with the §15 effect above and the §6 gate: the whole
       // sign-out teardown is visible in one place, and neither the queue's
       // driver scope nor a banner verdict can outlive the session that earned
@@ -236,18 +237,71 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    if (connectedRef.current) {
+    if (!connectedRef.current) {
+      void connect();
+    } else {
       void scheduleTokenRefreshReconnect();
-      return;
     }
 
-    void connect();
-
+    // One cleanup for every signed-in path, including the already-connected
+    // one — which previously returned early and left its refresh timer behind.
     return () => {
       clearRefreshTimer();
-      clearStatusListener();
+      reconnectRef.current = null;
     };
-  }, [isLoaded, isSignedIn, connector, getToken]);
+  }, [isLoaded, isSignedIn, connector, stableGetToken]);
+
+  // ── B. Sync status listener ───────────────────────────────────────────────
+  /**
+   * Its own effect, with its own cleanup, so the listener can never be silently
+   * dropped.
+   *
+   * It used to be attached from inside `connect()` in the effect above, which
+   * meant a re-run whose `connectedRef.current` was already true took an
+   * early-return path that never re-attached it. That effect re-ran on every
+   * render (its `connector`/`getToken` dependencies were unstable), so in
+   * practice the very first re-render permanently removed the app's only
+   * `PSYNC_S2103 / JWT has expired` auto-reconnect — a silent sync failure with
+   * nothing to do with photos. Attach and detach now live in the same effect as
+   * a pair, so there is no path that does one without the other.
+   */
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    return powerSyncDb.registerListener({
+      statusChanged: (status: any) => {
+        const flow = status?.dataFlowStatus;
+        const downloadErr: Error | undefined = flow?.downloadError;
+        const uploadErr: Error | undefined = flow?.uploadError;
+
+        if (downloadErr || uploadErr) {
+          DebugLogger.warn(TAG, "Status changed with errors", {
+            downloading: flow?.downloading,
+            uploading: flow?.uploading,
+            downloadError: downloadErr?.message,
+            uploadError: uploadErr?.message,
+          });
+        }
+
+        const msg = `${downloadErr?.message ?? ""} ${uploadErr?.message ?? ""}`;
+        if (/PSYNC_S2103|JWT has expired/i.test(msg)) {
+          DebugLogger.info(TAG, "JWT expired, triggering reconnect");
+          void reconnectRef.current?.("jwt_expired");
+        }
+      },
+    });
+  }, [isLoaded, isSignedIn, connector]);
+
+  // The queue is created during this provider's render (see the memo above), so
+  // this provider is also where it has to be torn down. Passing `undefined`
+  // disposes whatever is installed — the registry owns that transition.
+  useEffect(
+    () => () => {
+      setPhotoUploadService(undefined);
+      setPhotoUploadRecovery(undefined);
+    },
+    [],
+  );
 
   // §6 — every time the app returns to the foreground, run the recovery pass so
   // photos stranded from a previous session get another chance to upload before
@@ -258,10 +312,10 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
         getPhotoUploadRecovery()?.run();
       }
     });
-    return () => {
-      subscription.remove();
-      getPhotoUploadRecovery()?.dispose();
-    };
+    // Only the listener is removed here. Retiring the recovery instance is the
+    // registry's job now (see the unmount effect above), not something two
+    // unrelated cleanups both reach for.
+    return () => subscription.remove();
   }, []);
 
   // §13 — the other half of the network gate. Passes made while offline skip

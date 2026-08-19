@@ -428,6 +428,121 @@ describe("InspectionPhotos ownership through both trip legs (§15)", () => {
 });
 
 /**
+ * Head-of-line blocking in `claimNext` — the reason a backlog with a non-trivial
+ * failure rate crawled, independently of how many upload lanes existed.
+ *
+ * `claimNext` took the `CLAIM_BATCH` (25) oldest unresolved rows and only then
+ * filtered them for backoff-eligibility in JS. `LIMIT` therefore ran before the
+ * predicate. Rows that fail tend to fail together and are the oldest together,
+ * so the 25-row window routinely consisted entirely of rows attempted seconds
+ * ago — and the claim answered `null` while dozens of never-attempted rows sat
+ * directly behind them. Every lane looked through the same starved window, so
+ * the pass simply ended.
+ *
+ * Reverting `claimNext`'s `.where((eb) => retryEligible(...))` makes both of
+ * these fail.
+ */
+describe("claim eligibility is applied before LIMIT, not after (F2)", () => {
+  /** Distinct, increasing `created_at` so claim order is unambiguous. */
+  const createdAt = (index: number) =>
+    new Date(Date.parse("2026-08-01T00:00:00.000Z") + index * 60_000).toISOString();
+
+  /**
+   * `blocked` recently-attempted photos ahead of `free` never-attempted ones,
+   * all owned by driver A and all on one report.
+   */
+  async function seedBacklog(blocked: number, free: number): Promise<void> {
+    for (let i = 0; i < blocked + free; i++) {
+      const isBlocked = i < blocked;
+      await seedDamageReportPhoto({
+        photoId: `dr-${String(i).padStart(3, "0")}`,
+        reportId: "report-backlog",
+        createdByUserUuid: driverA.userUuid,
+        queue: {
+          created_at: createdAt(i),
+          upload_status: isBlocked ? "failed" : "pending",
+          attempts: isBlocked ? 1 : 0,
+          // Attempted "just now": ineligible under both the fast spacing floor
+          // and the §6 backoff schedule.
+          last_attempt_at: isBlocked ? new Date(NOW_MS).toISOString() : null,
+        },
+      });
+    }
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
+  }
+
+  it.each([["fast"], ["backoff"]] as const)(
+    "%s mode — reaches an eligible row sitting behind a full batch of ineligible ones",
+    async (mode) => {
+      await seedBacklog(25, 35);
+
+      const row = await damagePhotos.claimNext(mode, NOW_MS);
+
+      // Not merely non-null: it is the oldest *eligible* row, i.e. the first
+      // one past the blocked window.
+      expect(row?.id).toBe("dr-025");
+    },
+  );
+
+  it("still refuses to claim when every row really is ineligible", async () => {
+    // The other half: filtering in SQL must not become "claim anything".
+    await seedBacklog(30, 0);
+
+    await expect(damagePhotos.claimNext("fast", NOW_MS)).resolves.toBeNull();
+    await expect(damagePhotos.claimNext("backoff", NOW_MS)).resolves.toBeNull();
+  });
+
+  it("honours the backoff schedule per attempt count", async () => {
+    // 30s after one failure the row is due; 30s after three it is not (the
+    // plateau step is 5 minutes).
+    await seedDamageReportPhoto({
+      photoId: "one-attempt",
+      reportId: "report-schedule",
+      createdByUserUuid: driverA.userUuid,
+      queue: {
+        created_at: createdAt(0),
+        upload_status: "failed",
+        attempts: 1,
+        last_attempt_at: new Date(NOW_MS - 31_000).toISOString(),
+      },
+    });
+    await seedDamageReportPhoto({
+      photoId: "three-attempts",
+      reportId: "report-schedule",
+      createdByUserUuid: driverA.userUuid,
+      queue: {
+        created_at: createdAt(1),
+        upload_status: "failed",
+        attempts: 3,
+        last_attempt_at: new Date(NOW_MS - 31_000).toISOString(),
+      },
+    });
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
+
+    await expect(
+      damagePhotos.claimNext("backoff", NOW_MS),
+    ).resolves.toMatchObject({ id: "one-attempt" });
+
+    // With the one-attempt row retired, the three-attempt row is still waiting
+    // out its 5-minute plateau...
+    await damagePhotos.persist({
+      id: "one-attempt",
+      photo_path: "",
+      upload_status: "uploaded",
+      gallery_asset_id: null,
+      attempts: 1,
+      last_attempt_at: null,
+      last_error: null,
+    });
+    await expect(damagePhotos.claimNext("backoff", NOW_MS)).resolves.toBeNull();
+    // ...and becomes claimable once it has elapsed.
+    await expect(
+      damagePhotos.claimNext("backoff", NOW_MS + 300_000),
+    ).resolves.toMatchObject({ id: "three-attempts" });
+  });
+});
+
+/**
  * `DriverDocuments` is deliberately out of §15's scope: its Postgres RLS is
  * already owner-scoped server-side, so a device never holds another driver's
  * documents in the first place. Pinned here so the omission reads as a decision

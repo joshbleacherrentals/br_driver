@@ -8,11 +8,22 @@ import { useMemo } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/**
+ * Deliberately without `thumbnail`.
+ *
+ * This query is reactive, and the upload queue writes to these very rows
+ * several times per photo (an `attempt_started` reservation, then a terminal
+ * outcome). Selecting the base64 `thumbnail` column meant every one of those
+ * writes re-delivered every thumbnail on the report through the JS bridge, and
+ * the screen then held a second copy for the image viewer — so a report's
+ * thumbnails were re-materialised, in duplicate, for the entire time the queue
+ * was working. Previews are now resolved once, non-reactively, by
+ * `useReportPhotoPreviews`.
+ */
 export type DamageReportPhotoRow = {
   id: string;
   damage_report_uuid: string | null;
   photo_path: string | null;
-  thumbnail: string | null;
   upload_status: string | null;
   /** `LOCAL_FILE_MISSING` means the row is parked — Retry can do nothing. */
   last_error: string | null;
@@ -55,7 +66,6 @@ export function buildDamageReportPhotosQuery(
       "id",
       "damage_report_uuid",
       "photo_path",
-      "thumbnail",
       "upload_status",
       "last_error",
       "created_at",

@@ -26,6 +26,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 import {
+  copyLocalPhoto,
   localPhotoExists,
   localUriForPath,
 } from "@/library/photoUploadQueue/runtime/localFile";
@@ -39,6 +40,7 @@ jest.mock("expo-file-system/legacy", () => ({
   readAsStringAsync: jest.fn(),
   writeAsStringAsync: jest.fn(),
   makeDirectoryAsync: jest.fn(),
+  copyAsync: jest.fn(),
 }));
 
 const CONTAINER_A =
@@ -50,6 +52,10 @@ const CONTAINER_B =
 const mockFs = FileSystem as unknown as {
   documentDirectory: string;
   getInfoAsync: jest.Mock;
+  readAsStringAsync: jest.Mock;
+  writeAsStringAsync: jest.Mock;
+  makeDirectoryAsync: jest.Mock;
+  copyAsync: jest.Mock;
 };
 
 afterEach(() => {
@@ -118,5 +124,45 @@ describe("localPhotoExists", () => {
     mockFs.getInfoAsync.mockImplementation(async () => ({ exists: false }));
 
     await expect(localPhotoExists("missing/photo.jpg")).resolves.toBe(false);
+  });
+});
+
+/**
+ * The damage-report save loop used to reach the queue's directory by reading
+ * each photo into a base64 string and writing that string back out — a plain
+ * file copy performed as a multi-megabyte JS-heap round-trip, once per photo,
+ * while the driver waited. What matters here is that the copy is a copy: no
+ * `readAsStringAsync`, no `writeAsStringAsync`, and the destination is still
+ * the path recomputed live from `photo_path`.
+ */
+describe("copyLocalPhoto", () => {
+  it("copies the file directly, without routing its bytes through the JS heap", async () => {
+    mockFs.documentDirectory = CONTAINER_A;
+    mockFs.getInfoAsync.mockImplementation(async () => ({ exists: true }));
+
+    const uri = await copyLocalPhoto(
+      "file:///cache/damage-photos/pick.jpg",
+      "report-1/photo_0.jpg",
+    );
+
+    expect(uri).toBe(`${CONTAINER_A}photo-upload-queue/report-1/photo_0.jpg`);
+    expect(mockFs.copyAsync).toHaveBeenCalledWith({
+      from: "file:///cache/damage-photos/pick.jpg",
+      to: uri,
+    });
+    expect(mockFs.readAsStringAsync).not.toHaveBeenCalled();
+    expect(mockFs.writeAsStringAsync).not.toHaveBeenCalled();
+  });
+
+  it("creates the destination directory when it does not exist yet", async () => {
+    mockFs.documentDirectory = CONTAINER_A;
+    mockFs.getInfoAsync.mockImplementation(async () => ({ exists: false }));
+
+    await copyLocalPhoto("file:///cache/pick.jpg", "report-2/photo_0.jpg");
+
+    expect(mockFs.makeDirectoryAsync).toHaveBeenCalledWith(
+      `${CONTAINER_A}photo-upload-queue/report-2`,
+      { intermediates: true },
+    );
   });
 });

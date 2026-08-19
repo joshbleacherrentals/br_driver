@@ -30,7 +30,12 @@ import {
 } from "@/library/powersync/scoping";
 import type { ExpressionBuilder, SelectQueryBuilder } from "kysely";
 
-import { isDueForFastRetry, isDueForRetry } from "../backoff";
+import {
+  backoffWindows,
+  FAST_RETRY_SPACING_MS,
+  isDueForFastRetry,
+  isDueForRetry,
+} from "../backoff";
 import {
   MISSING_LOCAL_FILE_ERROR,
   type PhotoUploadRow,
@@ -178,13 +183,84 @@ function queueUpdateSet(row: PhotoUploadRow) {
   };
 }
 
+type QueueExpressionBuilder = ExpressionBuilder<
+  { photoQueueRow: QueueColumnsView },
+  "photoQueueRow"
+>;
+
 /** Not parked for a missing local file (§12). */
-function notParked(
-  eb: ExpressionBuilder<{ photoQueueRow: QueueColumnsView }, "photoQueueRow">,
-) {
+function notParked(eb: QueueExpressionBuilder) {
   return eb.or([
     eb("last_error", "is", null),
     eb("last_error", "!=", MISSING_LOCAL_FILE_ERROR),
+  ]);
+}
+
+/**
+ * Retry-eligibility, in SQL rather than in JS after the fact.
+ *
+ * WHY THIS IS SQL AND NOT A `.filter()`
+ * `claimNext` used to take the `CLAIM_BATCH` oldest unresolved rows and only
+ * then look for one whose backoff had elapsed. `LIMIT` therefore ran *before*
+ * eligibility: if the 25 oldest rows had all just been attempted — precisely
+ * what happens after a burst of failures, since they fail together and are the
+ * oldest together — the claim returned `null` while hundreds of eligible rows
+ * sat further back in the queue. The lane broke, the pass ended, and throughput
+ * collapsed with the queue nowhere near drained. Raising the concurrency limit
+ * could not have helped: every lane looks through the same starved window.
+ *
+ * Expressing the predicate in SQL puts `LIMIT` back where it belongs — after
+ * filtering — so the batch is 25 *candidates*, not 25 rows that might all be
+ * ineligible.
+ *
+ * Cutoffs are compared as ISO-8601 UTC strings, which sort lexicographically in
+ * the same order as the instants they denote; every writer of these columns
+ * uses `new Date().toISOString()`. `firstEligible` still re-checks in JS, so
+ * SQL is only ever required to be no *narrower* than the real predicate.
+ */
+function retryEligible(
+  eb: QueueExpressionBuilder,
+  mode: PhotoQueueMode,
+  nowMs: number,
+) {
+  const neverAttempted = eb("last_attempt_at", "is", null);
+
+  if (mode === "fast") {
+    // §6 — fast mode skips the schedule but keeps a floor on re-attempt
+    // spacing, so one instantly-failing row can neither hot-loop nor starve
+    // the rest.
+    return eb.or([
+      neverAttempted,
+      eb(
+        "last_attempt_at",
+        "<=",
+        new Date(nowMs - FAST_RETRY_SPACING_MS).toISOString(),
+      ),
+    ]);
+  }
+
+  return eb.or([
+    neverAttempted,
+    ...backoffWindows(nowMs).map((window) => {
+      const dueBy = new Date(window.dueAtOrBeforeMs).toISOString();
+      const attemptsInBand =
+        window.minAttempts === 0
+          ? // `attempts` is nullable in the PowerSync schema, and the queue
+            // reads a NULL as 0 (`toPhotoUploadRow`); SQL comparisons would
+            // drop such a row instead.
+            eb.or([
+              eb("attempts", "is", null),
+              eb("attempts", "<=", window.maxAttempts ?? 0),
+            ])
+          : window.maxAttempts === null
+            ? eb("attempts", ">=", window.minAttempts)
+            : eb.and([
+                eb("attempts", ">=", window.minAttempts),
+                eb("attempts", "<=", window.maxAttempts),
+              ]);
+
+      return eb.and([attemptsInBand, eb("last_attempt_at", "<=", dueBy)]);
+    }),
   ]);
 }
 
@@ -243,6 +319,24 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
     row: RawQueueRow & Partial<Record<PathColumn, string | null>>,
   ) => toPhotoUploadRow(row, row[pathColumn] ?? null);
 
+  /**
+   * A count answered by SQL, not by materialising every matching row and taking
+   * its `.length`. The counts run on every pass and feed the §6 banner; the old
+   * shape pulled one row object per unresolved photo across the bridge purely
+   * to discard it.
+   */
+  const countRows = async (
+    narrow: (q: QueueSource) => QueueSource,
+  ): Promise<number> => {
+    const q = source();
+    if (!q) return 0;
+
+    const row = await narrow(q)
+      .select((eb) => eb.fn.countAll().as("count"))
+      .executeTakeFirst();
+    return Number((row as { count?: number | string } | undefined)?.count ?? 0);
+  };
+
   return {
     table,
     bucket,
@@ -255,10 +349,16 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
       const rows = await selectRow(q)
         .where("upload_status", "in", UNRESOLVED_STATUSES)
         .where(notParked)
+        .where((eb) => retryEligible(eb, mode, nowMs))
         .orderBy("created_at", "asc")
         .limit(CLAIM_BATCH)
         .execute();
 
+      // Kept as a safety net, not as the filter. The SQL above is authoritative
+      // for *which rows the LIMIT sees*; this re-checks the winner against the
+      // one canonical implementation of the schedule, so the two can never
+      // silently diverge — an over-broad predicate is caught here, and only an
+      // over-narrow one could lose a row.
       const row = firstEligible(rows, mode, nowMs);
       return row ? toRow(row) : null;
     },
@@ -277,38 +377,23 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
     },
 
     async countUnresolved() {
-      const q = source();
-      if (!q) return 0;
-
-      const rows = await q
-        .select("id")
-        .where("upload_status", "in", UNRESOLVED_STATUSES)
-        .execute();
-      return rows.length;
+      return countRows((q) =>
+        q.where("upload_status", "in", UNRESOLVED_STATUSES),
+      );
     },
 
     async countActionable() {
-      const q = source();
-      if (!q) return 0;
-
-      const rows = await q
-        .select("id")
-        .where("upload_status", "in", UNRESOLVED_STATUSES)
-        .where(notParked)
-        .execute();
-      return rows.length;
+      return countRows((q) =>
+        q.where("upload_status", "in", UNRESOLVED_STATUSES).where(notParked),
+      );
     },
 
     async countParked() {
-      const q = source();
-      if (!q) return 0;
-
-      const rows = await q
-        .select("id")
-        .where("upload_status", "in", UNRESOLVED_STATUSES)
-        .where("last_error", "=", MISSING_LOCAL_FILE_ERROR)
-        .execute();
-      return rows.length;
+      return countRows((q) =>
+        q
+          .where("upload_status", "in", UNRESOLVED_STATUSES)
+          .where("last_error", "=", MISSING_LOCAL_FILE_ERROR),
+      );
     },
 
     async listUnresolved(limit) {

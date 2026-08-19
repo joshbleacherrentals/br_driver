@@ -31,6 +31,9 @@ import {
 const STORAGE_UPLOAD_URL =
   "https://project.supabase.co/storage/v1/object/damage-report-photos/report/photo-1.jpg";
 const REST_URL = "https://project.supabase.co/rest/v1/DamageReportPhotos?id=eq.1";
+/** §5.1's bucket-existence lookup — a POST, but a directory query, not a write. */
+const STORAGE_LIST_URL =
+  "https://project.supabase.co/storage/v1/object/list/damage-report-photos";
 
 const getToken = jest.fn(async () => "jwt-token");
 
@@ -75,6 +78,19 @@ describe("isStorageUploadRequest (§5.1 scoping)", () => {
     expect(isStorageUploadRequest(STORAGE_UPLOAD_URL, "GET")).toBe(false);
     // ...and PostgREST is not storage at all.
     expect(isStorageUploadRequest(REST_URL, "POST")).toBe(false);
+  });
+
+  /**
+   * The bucket-existence lookup §5.1 depends on is a POST under
+   * `/storage/v1/object/`, so the original path+method test classified it as an
+   * upload. It therefore got a forced Clerk token refresh (churning the session
+   * that owns the Supabase client) and the 35s upload deadline — under exactly
+   * the load that made the lookup necessary in the first place. A timing-out
+   * verifier answers `unknown`, which keeps the row retryable and sends it
+   * round again: the mechanism built to end retry storms was feeding one.
+   */
+  it("does not treat the §5.1 bucket lookup as an upload", () => {
+    expect(isStorageUploadRequest(STORAGE_LIST_URL, "POST")).toBe(false);
   });
 });
 
@@ -143,6 +159,23 @@ describe("createSupabaseFetch deadline (§5.1)", () => {
 
     await jest.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS * 2);
     expect(signalOf(0)).toBeUndefined();
+  });
+
+  it("gives the §5.1 bucket lookup neither a deadline nor a forced token refresh", async () => {
+    const { spy, signalOf } = hangingFetch();
+    global.fetch = spy as unknown as typeof fetch;
+
+    const supabaseFetch = createSupabaseFetch(getToken);
+    void supabaseFetch(STORAGE_LIST_URL, { method: "POST" }).catch(
+      () => undefined,
+    );
+
+    await jest.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS * 2);
+
+    expect(signalOf(0)).toBeUndefined();
+    expect(jest.getTimerCount()).toBe(0);
+    expect(getToken).toHaveBeenCalledWith(undefined);
+    expect(getToken).not.toHaveBeenCalledWith({ forceRefresh: true });
   });
 
   it("clears its timer when the upload answers in time", async () => {

@@ -44,12 +44,30 @@ export type TokenProvider = (opts?: {
 }) => Promise<string | null>;
 
 /**
+ * Storage-API paths that are NOT a file upload despite a non-GET method.
+ *
+ * `list` is `POST /storage/v1/object/list/{bucket}` — how `lookupBucketObject`
+ * (`runtime/bucketUpload.ts`) asks the bucket whether an object landed. It is a
+ * small directory query with a JSON body, not a multi-megabyte upload, and it
+ * only runs when an upload's outcome was ambiguous, i.e. under exactly the load
+ * that produced the ambiguity. Giving it the upload treatment made it a
+ * self-inflicted wound twice over: the forced token refresh churned Clerk (each
+ * refresh re-rendered `SystemProvider`, which used to mean another upload
+ * service — see `serviceRegistry.ts`), and the upload deadline made the very
+ * mechanism §5.1 introduced to resolve timeouts into a timeout victim itself.
+ */
+const NON_UPLOAD_STORAGE_PATHS = ["/storage/v1/object/list/"] as const;
+
+/**
  * A write to Supabase Storage — the only requests that get a forced-fresh JWT
- * and a hard client-side deadline. Reads (`GET`) and PostgREST traffic are
- * ordinary short requests and are left completely alone.
+ * and a hard client-side deadline. Reads (`GET`), PostgREST traffic and the
+ * non-upload storage endpoints above are ordinary short requests and are left
+ * completely alone.
  */
 export function isStorageUploadRequest(url: string, method: string): boolean {
-  return url.includes("/storage/v1/object/") && method.toUpperCase() !== "GET";
+  if (method.toUpperCase() === "GET") return false;
+  if (!url.includes("/storage/v1/object/")) return false;
+  return !NON_UPLOAD_STORAGE_PATHS.some((path) => url.includes(path));
 }
 
 export function createSupabaseFetch(

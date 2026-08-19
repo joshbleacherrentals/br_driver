@@ -31,8 +31,16 @@ export type SubmitProgressPhase = "preparing" | "uploading";
 interface Props {
   visible: boolean;
   phase: SubmitProgressPhase;
+  /**
+   * Photos that have *actually* reached their destination — written to disk in
+   * `preparing`, confirmed in the bucket in `uploading`. Never a loop index:
+   * the counter used to advance on every photo the loop touched, so it always
+   * reached the total even when nothing was saved.
+   */
   current: number;
   total: number;
+  /** `preparing` — photos the loop has finished with but could not save. */
+  failedCount?: number;
   /** `preparing` only — abandons the report mid-save. */
   onAbort: () => void;
   /** `uploading` only — §7 "it'll finish uploading later, in the background". */
@@ -62,6 +70,7 @@ export function SubmitProgressModal({
   phase,
   current,
   total,
+  failedCount = 0,
   onAbort,
   onDismiss,
 }: Props) {
@@ -108,6 +117,15 @@ export function SubmitProgressModal({
           <Text style={styles.counter}>
             {current} of {total} {copy.unit}
           </Text>
+
+          {/* Silence would misrepresent the bar: with failures, it stops short
+              of full and nothing else would say why. */}
+          {failedCount > 0 ? (
+            <Text style={styles.failureNote}>
+              {failedCount} photo{failedCount === 1 ? "" : "s"} could not be
+              saved
+            </Text>
+          ) : null}
 
           <View style={styles.trackOuter}>
             <View
@@ -168,6 +186,13 @@ function makeStyles(theme: ThemeColors) {
     counter: {
       ...typeScale.subhead,
       color: theme.textTertiary,
+      marginBottom: 16,
+    },
+    failureNote: {
+      ...typeScale.footnote,
+      color: theme.danger,
+      textAlign: "center",
+      marginTop: -8,
       marginBottom: 16,
     },
     trackOuter: {

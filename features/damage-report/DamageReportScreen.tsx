@@ -22,17 +22,11 @@ import { PhotoRepairBanner } from "@/components/widgets/PhotoRepairBanner";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -51,8 +45,14 @@ import { ImageViewer, ImageViewerItem } from "./components/ImageViewer";
 import { PhotoUploadIndicator } from "./components/PhotoUploadIndicator";
 import { PhotoUploadStatusBanner } from "./components/PhotoUploadStatusBanner";
 import { ReportUnavailable } from "./components/ReportUnavailable";
+import { useReportPhotoPreviews } from "./hooks/useReportPhotoPreviews";
 import { SubmitProgressModal } from "./components/SubmitProgressModal";
 import { createDamageReport } from "./utils/createDamageReport";
+import type { PhotoPrepProgress } from "./utils/prepareDamageReportPhotos";
+import {
+  describeAllPhotosFailed,
+  describePartialPhotoFailure,
+} from "./utils/describePhotoPrepFailures";
 import { resolvePhotoUri } from "./utils/resolvePhotoUri";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -125,28 +125,33 @@ function ViewOnlyPhotoGrid({
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [fullSizeItems, setFullSizeItems] = useState<ImageViewerItem[]>([]);
+  const previews = useReportPhotoPreviews(photos);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function resolve() {
+  /**
+   * Full-size URIs are resolved when the viewer is opened, not up front.
+   *
+   * This used to be an effect keyed on the `photos` array's identity, running
+   * `Promise.all` of a `getInfoAsync` per photo — and that identity changes on
+   * every write the upload queue makes to any row on this report, which is
+   * several per photo. So the screen re-statted every file over and over, to
+   * fill a viewer the driver had not opened, and held the result the whole
+   * time. Nobody needs a full-size URI until there is something to show it in.
+   */
+  const openViewerAt = useCallback(
+    async (index: number) => {
       const items: ImageViewerItem[] = await Promise.all(
-        photos.map(async (p) => {
-          const uri = p.photo_path ? await resolvePhotoUri(p.photo_path) : "";
-          return {
-            id: p.id,
-            uri,
-            thumbnail: p.thumbnail ?? undefined,
-            storagePath: p.photo_path ?? undefined,
-          };
-        }),
+        photos.map(async (photo) => ({
+          id: photo.id,
+          uri: photo.photo_path ? await resolvePhotoUri(photo.photo_path) : "",
+          thumbnail: previews[photo.id]?.thumbnail,
+          storagePath: photo.photo_path ?? undefined,
+        })),
       );
-      if (!cancelled) setFullSizeItems(items);
-    }
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [photos]);
+      setFullSizeItems(items);
+      setViewerIndex(index);
+    },
+    [photos, previews],
+  );
 
   if (photos.length === 0) {
     return (
@@ -158,18 +163,22 @@ function ViewOnlyPhotoGrid({
     <>
       <View style={styles.photoGrid}>
         {photos.map((photo, index) => {
-          const thumbUri = photo.thumbnail
-            ? `data:image/jpeg;base64,${photo.thumbnail}`
-            : undefined;
+          const previewUri = previews[photo.id]?.uri;
           return (
             <TouchableOpacity
               key={photo.id}
               style={styles.photoContainer}
               activeOpacity={0.7}
-              onPress={() => setViewerIndex(index)}
+              onPress={() => void openViewerAt(index)}
             >
-              {thumbUri ? (
-                <Image source={{ uri: thumbUri }} style={styles.photo} />
+              {previewUri ? (
+                <Image
+                  source={previewUri}
+                  style={styles.photo}
+                  contentFit="cover"
+                  recyclingKey={photo.id}
+                  cachePolicy="memory-disk"
+                />
               ) : (
                 <View style={[styles.photo, styles.photoPlaceholder]}>
                   <Ionicons
@@ -382,7 +391,11 @@ export default function DamageReportScreen() {
   const [details, setDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0 });
+  const [prepProgress, setPrepProgress] = useState<PhotoPrepProgress>({
+    attempted: 0,
+    saved: 0,
+    total: 0,
+  });
   // §7 — the report whose photos this screen is watching land in the bucket.
   // Set on a successful submit; the modal below tracks it until every photo is
   // `uploaded` or the driver chooses to let it finish in the background.
@@ -540,19 +553,43 @@ export default function DamageReportScreen() {
         photos: details.photos,
         scope,
         shouldAbort: () => abortRef.current,
-        onPhotoProgress: (current, total) =>
-          setPrepProgress({ current, total }),
+        onPhotoProgress: setPrepProgress,
       });
 
-      if (result.aborted) {
-        dlog("SUBMIT: user cancelled — report row exists but photos are partial");
+      if (!result.ok) {
         setIsSubmitting(false);
+
+        if (result.reason === "aborted") {
+          // Nothing was written — the photo files are prepared before any row
+          // exists — so there is nothing to clean up and nothing to explain.
+          dlog("SUBMIT: user cancelled before any row was written");
+          return;
+        }
+
+        // A damage report may never exist without photos, so this blocks the
+        // submission outright rather than creating an empty report and
+        // apologising afterwards. The form keeps everything the driver typed.
+        dlog(
+          `SUBMIT: blocked — no photo could be saved (${result.failures.length} failed)`,
+        );
+        const { title, message } = describeAllPhotosFailed(result.failures);
+        Alert.alert(title, message);
         return;
       }
 
       dlog(
         `SUBMIT: done saved=${result.savedPhotoCount} id=${result.damageId.slice(0, 8)}`,
       );
+
+      // Partial save — the report exists and its saved photos are already
+      // queued, so this is told, not undone (§2).
+      if (result.failures.length > 0) {
+        const { title, message } = describePartialPhotoFailure(
+          result.savedPhotoCount,
+          result.failures,
+        );
+        Alert.alert(title, message);
+      }
       if (DEBUG_PHOTO_UPLOAD) {
         setTrackedAttachmentIds([result.damageId]);
       }
@@ -581,8 +618,11 @@ export default function DamageReportScreen() {
     <SubmitProgressModal
       visible={isSubmitting || showUploadModal}
       phase={isSubmitting ? "preparing" : "uploading"}
-      current={isSubmitting ? prepProgress.current : uploadProgress.uploaded}
+      current={isSubmitting ? prepProgress.saved : uploadProgress.uploaded}
       total={isSubmitting ? prepProgress.total : trackedTotal}
+      failedCount={
+        isSubmitting ? prepProgress.attempted - prepProgress.saved : 0
+      }
       onAbort={handleAbort}
       onDismiss={() => setUploadDismissed(true)}
     />

@@ -24,18 +24,45 @@
 
 import type { ForegroundRecovery } from "./foregroundRecovery";
 import type { PhotoUploadService } from "./photoUploadService";
+import { photoQueueLog } from "./photoQueueLog";
 
 let service: PhotoUploadService | undefined;
 let recovery: ForegroundRecovery | undefined;
 
 /**
- * Publishes the upload service for this session.
+ * How many services this process has installed. Dev-only, and deliberately so:
+ * "exactly one install per session" is the invariant the whole dispose design
+ * exists to protect, and it is otherwise invisible — an extra instance shows up
+ * as memory and duplicate upload lanes, never as an error. One log line per
+ * install makes a regression obvious in the Metro console during a normal
+ * submit, at zero production cost.
+ */
+let installCount = 0;
+
+/**
+ * Publishes the upload service for this session, retiring the previous one.
  *
  * Called only from `SystemProvider.tsx`, which rebuilds it alongside the
- * Supabase client.
+ * Supabase client. Disposal happens *here* rather than at the call site because
+ * the invariant — at most one service may be claiming rows at a time — has to
+ * hold structurally: a caller that installs a replacement and forgets to retire
+ * the old one leaves an immortal instance behind, and that is exactly the bug
+ * this used to have. There is now one place the transition can happen, so there
+ * is no way to do half of it.
  */
 export function setPhotoUploadService(next: PhotoUploadService | undefined) {
+  if (service && service !== next) {
+    service.dispose();
+  }
   service = next;
+
+  if (__DEV__ && next) {
+    installCount += 1;
+    photoQueueLog.info(
+      `service installed (#${installCount} this session) — a single submit ` +
+        `must not raise this number`,
+    );
+  }
 }
 
 /** The live upload service, or `undefined` before one is established. */
@@ -44,13 +71,17 @@ export function getPhotoUploadService(): PhotoUploadService | undefined {
 }
 
 /**
- * Publishes the §6 foreground-recovery instance for this session.
+ * Publishes the §6 foreground-recovery instance for this session, retiring the
+ * previous one.
  *
- * Disposing the previous one is the caller's job — `SystemProvider.tsx` does it
- * before creating the replacement, so a superseded instance can't keep a
- * verification timer alive against a stale Supabase client.
+ * Same reasoning as `setPhotoUploadService` above: a superseded instance would
+ * otherwise keep a verification timer alive against a stale Supabase client,
+ * and whether it does is not something a caller should have to remember.
  */
 export function setPhotoUploadRecovery(next: ForegroundRecovery | undefined) {
+  if (recovery && recovery !== next) {
+    recovery.dispose();
+  }
   recovery = next;
 }
 

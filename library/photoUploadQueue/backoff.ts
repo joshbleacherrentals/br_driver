@@ -1,8 +1,8 @@
 /**
  * §6 — background backoff schedule: 30s → 1min → 5min → plateau.
  *
- * NOT IMPLEMENTED. Backoff limits how often the network is hit, never how many
- * attempts are allowed — attempts do not end (§6).
+ * Backoff limits how often the network is hit, never how many attempts are
+ * allowed — attempts do not end (§6).
  */
 
 import type { PhotoUploadRow } from "./types";
@@ -50,6 +50,50 @@ export function isDueForRetry(
     return true;
   }
   return nowMs - lastMs >= backoffDelayMs(row.attempts);
+}
+
+/**
+ * One `attempts` band of {@link BACKOFF_SCHEDULE_MS}, expressed as data.
+ *
+ * Exists so backoff eligibility can be asked *of the database* instead of being
+ * re-derived in TypeScript over an already-`LIMIT`ed batch of candidates. The
+ * schedule itself stays defined exactly once, here; `tableAdapters.ts` only
+ * translates these bands into SQL predicates.
+ */
+export type BackoffWindow = {
+  /** Lowest `attempts` value in this band. 0 also covers a NULL `attempts`. */
+  minAttempts: number;
+  /** Highest, or `null` for the open-ended plateau band. */
+  maxAttempts: number | null;
+  /**
+   * A row in this band is due when its `last_attempt_at` is at or before this
+   * instant (ms since epoch).
+   */
+  dueAtOrBeforeMs: number;
+};
+
+/**
+ * {@link isDueForRetry}, restated as a set of `(attempts band, cutoff)` pairs a
+ * query can filter on. A row is due for a background retry iff it matches any
+ * one of them, or has never been attempted at all.
+ *
+ * Kept exhaustive by construction: one band per step of the schedule plus the
+ * "not yet attempted once" band, with the last step open-ended because
+ * {@link backoffDelayMs} plateaus there.
+ */
+export function backoffWindows(nowMs: number): BackoffWindow[] {
+  const lastIndex = BACKOFF_SCHEDULE_MS.length - 1;
+
+  return [
+    // No completed attempt yet — the first try must not wait (§6). No cutoff
+    // can hold it back, so the band's cutoff is `now` itself.
+    { minAttempts: 0, maxAttempts: 0, dueAtOrBeforeMs: nowMs },
+    ...BACKOFF_SCHEDULE_MS.map((delayMs, index) => ({
+      minAttempts: index + 1,
+      maxAttempts: index === lastIndex ? null : index + 1,
+      dueAtOrBeforeMs: nowMs - delayMs,
+    })),
+  ];
 }
 
 /**

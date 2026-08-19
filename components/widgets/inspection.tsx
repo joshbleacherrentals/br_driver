@@ -10,15 +10,19 @@ import {
 } from "@/features/damage-report/components/DamageDetailsForm";
 import { EditablePhotoGrid } from "@/features/damage-report/components/EditablePhotoGrid";
 import type { DocumentPhoto } from "@/features/damage-report/types";
-import { createDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import { commitDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import {
+  describeAllPhotosFailed,
+  describePartialPhotoFailure,
+} from "@/features/damage-report/utils/describePhotoPrepFailures";
 import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
 } from "@/features/damage-report/utils/pickDamagePhotos";
+import { prepareDamageReportPhotos } from "@/features/damage-report/utils/prepareDamageReportPhotos";
 import { type ThemeColors, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
-import { readAsBase64 } from "@/utils/readAsBase64";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
@@ -33,9 +37,9 @@ import {
 } from "react-native";
 import { db } from "../providers/SystemProvider";
 import {
+  copyLocalPhoto,
   getPhotoUploadService,
   saveToGalleryIfCamera,
-  writeLocalPhoto,
 } from "@/library/photoUploadQueue";
 
 type AnswerMap = Record<
@@ -289,12 +293,14 @@ export default function InspectionScreen({
 
     const ext = photo.ext ?? "jpg";
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
-    const base64 = await readAsBase64(photo.uri);
 
-    // Write the stable local copy, then record an InspectionPhotos row pointing
+    // Copy the stable local copy, then record an InspectionPhotos row pointing
     // at it with upload_status = pending. The custom queue uploads it in the
     // background with retry — no more inline, no-retry upload (design doc §3).
-    const localUri = await writeLocalPhoto(base64, filename);
+    // A direct file copy, not a base64 round-trip: the picked photo is already
+    // a file, and turning it into a multi-megabyte JS string just to write it
+    // back out is heap pressure for nothing (see `copyLocalPhoto`).
+    const localUri = await copyLocalPhoto(photo.uri, filename);
 
     // Camera captures are the only copy until now — duplicate to the gallery
     // as a safety backup (§4). Best-effort; never blocks the save.
@@ -341,6 +347,32 @@ export default function InspectionScreen({
     setIsSubmitting(true);
 
     try {
+      // The damage report's photos are copied to disk BEFORE anything is
+      // written, and the whole submit is abandoned if none of them can be.
+      //
+      // Ordering, not fussiness: this method writes `InspectionPhotos` rows,
+      // then the `WorkTrackerInspections` row, then the damage report, then the
+      // `WorkTrackers` link. A damage report may never exist without photos, so
+      // discovering that at the third step would leave a choice between an
+      // evidence-free report and an inspection that was saved but never linked.
+      // Asking the filesystem first removes the choice: either everything is
+      // written or nothing is.
+      const damagePrep = damageFound
+        ? await prepareDamageReportPhotos({ photos: damageDetails.photos })
+        : null;
+
+      if (damagePrep && !damagePrep.ok) {
+        const { title, message } = describeAllPhotosFailed(
+          damagePrep.reason === "all_photos_failed" ? damagePrep.failures : [],
+        );
+        Alert.alert(
+          title,
+          `${message}\n\nYour inspection has not been submitted yet, so nothing is lost.`,
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const inspectionId = randomUUID();
       const now = new Date().toISOString();
 
@@ -410,20 +442,31 @@ export default function InspectionScreen({
           .compile(),
       );
 
-      if (damageFound) {
-        await createDamageReport({
+      let damageFailureAlert: { title: string; message: string } | null = null;
+
+      if (damagePrep?.ok) {
+        const damageResult = await commitDamageReport(damagePrep.draft, {
           bleacherUuid,
           inspectionUuid: inspectionId,
           seatDamage: damageDetails.seatDamage,
           haulDamage: damageDetails.haulDamage,
           note: damageDetails.note,
-          photos: damageDetails.photos,
           // Required, not cosmetic: the upload queue decides whose photos it may
           // work on from `DamageReports.created_by_user_uuid` (§15). A report
           // left unattributed here would own photos no driver's queue can ever
           // claim — they would sit on the phone and never reach the bucket.
           scope,
         });
+
+        // Partial save (§2): the report and its saved photos stand, and the
+        // driver is told what is missing — after the success alert, so the two
+        // don't compete.
+        if (damageResult.ok && damageResult.failures.length > 0) {
+          damageFailureAlert = describePartialPhotoFailure(
+            damageResult.savedPhotoCount,
+            damageResult.failures,
+          );
+        }
       }
 
       const inspectionField =
@@ -445,7 +488,22 @@ export default function InspectionScreen({
       Alert.alert(
         "Success",
         `${inspectionType === "pickup" ? "Pickup" : "Dropoff"} inspection completed successfully!`,
-        [{ text: "OK", onPress: onComplete }],
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              if (damageFailureAlert) {
+                Alert.alert(
+                  damageFailureAlert.title,
+                  damageFailureAlert.message,
+                  [{ text: "OK", onPress: onComplete }],
+                );
+                return;
+              }
+              onComplete();
+            },
+          },
+        ],
       );
     } catch (error) {
       console.error("Error submitting inspection:", error);

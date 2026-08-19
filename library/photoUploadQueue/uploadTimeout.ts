@@ -1,8 +1,9 @@
 /**
  * §5 — per-request timeout via `AbortSignal`.
  *
- * NOT IMPLEMENTED. The placeholder passes a signal that is never aborted, so a
- * hung request would hang forever — the exact failure mode §5 describes.
+ * A timeout is not a verdict: see §5.1 and `uploadSuccess.ts`. The deadline
+ * here ends *our wait*, and the row stays retryable — the storage SDK never
+ * forwards the signal to its own `fetch`, so the request may still be landing.
  */
 
 /**

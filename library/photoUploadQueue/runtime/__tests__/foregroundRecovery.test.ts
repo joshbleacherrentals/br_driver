@@ -88,6 +88,7 @@ function makeService(unresolved: number): PhotoUploadService {
     triggerBackoff: jest.fn(async () => {}),
     isRunning: false,
     countUnresolved: jest.fn(async () => unresolved),
+    dispose: jest.fn(),
   };
 }
 
@@ -105,6 +106,7 @@ function makeRacingService(afterContextResolves: number): PhotoUploadService {
     triggerBackoff: jest.fn(async () => {}),
     isRunning: false,
     countUnresolved,
+    dispose: jest.fn(),
   };
 }
 

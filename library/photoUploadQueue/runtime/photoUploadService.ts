@@ -128,6 +128,26 @@ export type PhotoUploadService = {
   readonly isRunning: boolean;
   /** Total rows still not `uploaded`, across every photo table (§6). */
   countUnresolved(): Promise<number>;
+  /**
+   * Retires this instance. Idempotent, and part of the type on purpose: a
+   * service that cannot be retired is a service that lives forever.
+   *
+   * The pass loop re-arms itself on a timer for as long as anything is
+   * unresolved, and nothing about that timer depends on the instance still
+   * being reachable from React. A superseded instance therefore kept claiming
+   * rows, kept uploading through a stale Supabase client and kept its whole
+   * retained graph (client, `inFlightRows`, closures) alive for the rest of the
+   * session — the memory-retention bug behind RAM staying elevated long after
+   * every visible upload had finished.
+   *
+   * After `dispose()`: no new claim is handed out, no new pass is scheduled and
+   * no trigger does anything. Uploads already in flight are deliberately NOT
+   * cancelled — their terminal `persist` still runs, so no row is ever lost
+   * mid-attempt (§5, "never lose a row"); the lanes simply drain and end.
+   *
+   * `serviceRegistry.ts` owns the call, not the caller — see the note there.
+   */
+  dispose(): void;
 };
 
 export function createPhotoUploadService(
@@ -138,6 +158,13 @@ export function createPhotoUploadService(
   // pin the queue in fast mode forever.
   let fastUntil = 0;
   let scheduled: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Set once by `dispose()`, never cleared. Read at every point where this
+   * instance could otherwise acquire new work or a new timer — the claim, the
+   * scheduler and the three public entry points — so retirement is a property
+   * of the instance rather than something the caller has to keep enforcing.
+   */
+  let disposed = false;
 
   /**
    * Serializes claim-and-reserve. Every lane's claim queues behind the previous
@@ -176,6 +203,11 @@ export function createPhotoUploadService(
    */
   const claimNextPendingRow = (): Promise<ClaimedRow | null> =>
     withClaimLock(async () => {
+      // A retired instance hands out nothing. Checked inside the lock, so a
+      // dispose that lands mid-pass cannot race a claim that is already
+      // deciding; the lanes then break on `null` and the run ends by itself.
+      if (disposed) return null;
+
       const now = Date.now();
       const mode = effectiveMode();
 
@@ -346,6 +378,10 @@ export function createPhotoUploadService(
   };
 
   const scheduleNextPass = (): void => {
+    // The line that makes an orphaned instance mortal. Without it this timer
+    // re-arms unconditionally whenever anything is unresolved, forever, keeping
+    // the instance and everything it closes over alive for the whole session.
+    if (disposed) return;
     if (scheduled) return;
     const delay =
       Date.now() < fastUntil ? FAST_RESCHEDULE_MS : BACKOFF_RESCHEDULE_MS;
@@ -377,6 +413,8 @@ export function createPhotoUploadService(
    * resolves and the count becomes real.
    */
   const runPass = async (trigger: PhotoQueuePassTrigger): Promise<void> => {
+    if (disposed) return;
+
     const startedAtMs = Date.now();
     const mode = effectiveMode();
     photoQueueLog.info(`pass start — trigger=${trigger}, mode=${mode}`);
@@ -454,11 +492,13 @@ export function createPhotoUploadService(
 
   return {
     async triggerFast(trigger = "photo-saved") {
+      if (disposed) return;
       fastUntil = Date.now() + FAST_WINDOW_MS;
       clearScheduled();
       await runPass(trigger);
     },
     async triggerBackoff(trigger = "backoff-timer") {
+      if (disposed) return;
       clearScheduled();
       await runPass(trigger);
     },
@@ -466,5 +506,13 @@ export function createPhotoUploadService(
       return worker.isRunning;
     },
     countUnresolved,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      // Nothing to await: lanes still uploading finish their attempt and
+      // persist its outcome (§5/§14), then break on the next `null` claim.
+      clearScheduled();
+      photoQueueLog.info("service disposed — no further claims or passes");
+    },
   };
 }
