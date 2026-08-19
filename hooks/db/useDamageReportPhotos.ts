@@ -11,10 +11,10 @@ import { useMemo } from "react";
 /**
  * Deliberately without `thumbnail`.
  *
- * This query is reactive, and the upload queue writes to these very rows
- * several times per photo (an `attempt_started` reservation, then a terminal
- * outcome). Selecting the base64 `thumbnail` column meant every one of those
- * writes re-delivered every thumbnail on the report through the JS bridge, and
+ * This query is reactive, and the upload queue writes to these very rows as it
+ * works (a terminal outcome per attempt; it used to write a mid-attempt
+ * reservation too). Selecting the base64 `thumbnail` column meant every one of
+ * those writes re-delivered every thumbnail on the report through the JS bridge, and
  * the screen then held a second copy for the image viewer — so a report's
  * thumbnails were re-materialised, in duplicate, for the entire time the queue
  * was working. Previews are now resolved once, non-reactively, by

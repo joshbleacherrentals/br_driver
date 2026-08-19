@@ -9,6 +9,7 @@
  * file — the §2/§3 guarantee that the local original outlives the upload.
  */
 
+import { File } from "expo-file-system";
 import * as FileSystem from "expo-file-system/legacy";
 
 const QUEUE_DIR = "photo-upload-queue";
@@ -22,6 +23,32 @@ export function localUriForPath(bucketPath: string): string {
 export async function localPhotoExists(bucketPath: string): Promise<boolean> {
   const { exists } = await FileSystem.getInfoAsync(localUriForPath(bucketPath));
   return exists;
+}
+
+/**
+ * Reads the local copy for a bucket path as raw bytes, ready to be an upload
+ * body.
+ *
+ * Deliberately the *new* `expo-file-system` `File` API rather than the legacy
+ * `readAsStringAsync(…, { encoding: Base64 })` this used to be. The legacy
+ * route cost two full copies of every photo and a large synchronous decode on
+ * the JS thread: a ~1MB JPEG crossed the bridge as a ~1.35MB base64 *string*,
+ * which `base64-arraybuffer`'s `decode` then walked character by character to
+ * rebuild the bytes. With three upload lanes running (§10) that work landed in
+ * bursts on the same single thread PowerSync's CRUD-upload loop runs on, and
+ * measurably starved it — a status PATCH's round trip went from ~65-90ms to
+ * ~800-1250ms while a large backlog drained.
+ *
+ * `File.bytes()` returns the bytes from the native side directly: no base64
+ * string is ever materialised, and no JS-side decode loop runs at all. The
+ * returned `ArrayBuffer` is exactly the file's contents (the `Uint8Array` is
+ * its own exact-size view), so the upload body type is unchanged.
+ */
+export async function readLocalPhotoBytes(
+  bucketPath: string,
+): Promise<ArrayBuffer> {
+  const bytes = await new File(localUriForPath(bucketPath)).bytes();
+  return bytes.buffer;
 }
 
 /**

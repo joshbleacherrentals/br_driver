@@ -49,13 +49,17 @@ import type {
 
 /**
  * Statuses the queue still owns work for. `uploaded` is terminal (§3), and
- * `uploading` is deliberately absent: a row mid-attempt must not be claimed a
- * second time. The cost of that exclusion — a row stranded in `uploading` when
- * its attempt dies — is covered by `listStaleUploading` + the §14 sweep, not by
- * widening this list.
+ * `uploading` is deliberately absent.
+ *
+ * The queue no longer *writes* `uploading`: a mid-attempt reservation lives in
+ * the service's in-memory claim ledger (§10, `photoUploadService.ts`) instead of
+ * being persisted and synced. But the status stays excluded here, because rows
+ * stranded in it by the previous behaviour are still on drivers' devices, and
+ * claiming one would race an attempt that may or may not exist. Reclaiming them
+ * is `listStaleUploading` + the §14 sweep's job, not this list's.
  */
 const UNRESOLVED_STATUSES: UploadStatus[] = ["pending", "failed"];
-/** The mid-attempt status the §14 sweep reclaims from. */
+/** The legacy mid-attempt status the §14 sweep reclaims from. */
 const UPLOADING_STATUS: UploadStatus = "uploading";
 /** How many candidates to pull per claim before filtering for eligibility. */
 const CLAIM_BATCH = 25;
@@ -265,19 +269,59 @@ function retryEligible(
 }
 
 /**
+ * Claim priority: never-attempted rows first, then oldest first within each
+ * group.
+ *
+ * The second half is the obvious one — FIFO among peers. The first half is what
+ * keeps a driver's *current* work responsive: a report saved right now, with
+ * the driver standing there watching the §7 progress modal, must not queue
+ * behind a thousand-row backlog left over from previous sessions that is
+ * already grinding through its backoff schedule. `last_attempt_at IS NULL`
+ * means "the queue has never tried this", which is exactly the population that
+ * has a person waiting on it.
+ *
+ * This used to happen by accident. `created_at` was never written on insert, so
+ * a freshly-saved photo carried `NULL` — and SQLite sorts NULL first under
+ * `ORDER BY created_at ASC`. Fresh photos did jump the queue, but only because
+ * their timestamp was missing; the moment `created_at` started being written
+ * (which it had to, for `ORDER BY created_at` to mean anything at all) that
+ * behaviour would have silently inverted into strict FIFO, burying every new
+ * report behind the backlog. Stating the priority explicitly is what lets both
+ * facts be true at once.
+ *
+ * `IS NULL` yields 1/0 in SQLite, so `DESC` puts the never-attempted group
+ * first. Expressed through the expression builder rather than a raw SQL string,
+ * per the project's typed-DB rule.
+ */
+function claimPriority<Q extends QueueSource>(q: Q): Q {
+  return q
+    .orderBy((eb) => eb("last_attempt_at", "is", null), "desc")
+    .orderBy("created_at", "asc") as Q;
+}
+
+/**
  * First eligible row under the mode. `fast` uses a short cooldown so a failing
  * row can neither hot-loop nor starve the rest; `backoff` uses the §6 schedule.
- * Parked (missing-file) rows are never eligible.
+ * Parked (missing-file) rows are never eligible, and neither is a row the
+ * caller has already reserved (§10 — the claim ledger lives in memory, so SQL
+ * cannot see it).
  */
 function firstEligible<
   T extends {
+    id: string;
     attempts: number | null;
     last_attempt_at: string | null;
     last_error: string | null;
   },
->(rows: T[], mode: PhotoQueueMode, nowMs: number): T | null {
+>(
+  rows: T[],
+  mode: PhotoQueueMode,
+  nowMs: number,
+  isReserved?: (rowId: string) => boolean,
+): T | null {
   for (const row of rows) {
     if (row.last_error === MISSING_LOCAL_FILE_ERROR) continue;
+    if (isReserved?.(row.id)) continue;
     const eligible =
       mode === "fast"
         ? isDueForFastRetry({ last_attempt_at: row.last_attempt_at }, nowMs)
@@ -342,15 +386,16 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
     bucket,
     upsert,
 
-    async claimNext(mode, nowMs) {
+    async claimNext(mode, nowMs, isReserved) {
       const q = source();
       if (!q) return null;
 
-      const rows = await selectRow(q)
-        .where("upload_status", "in", UNRESOLVED_STATUSES)
-        .where(notParked)
-        .where((eb) => retryEligible(eb, mode, nowMs))
-        .orderBy("created_at", "asc")
+      const rows = await claimPriority(
+        selectRow(q)
+          .where("upload_status", "in", UNRESOLVED_STATUSES)
+          .where(notParked)
+          .where((eb) => retryEligible(eb, mode, nowMs)),
+      )
         .limit(CLAIM_BATCH)
         .execute();
 
@@ -359,7 +404,12 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
       // one canonical implementation of the schedule, so the two can never
       // silently diverge — an over-broad predicate is caught here, and only an
       // over-narrow one could lose a row.
-      const row = firstEligible(rows, mode, nowMs);
+      //
+      // The reservation filter is different in kind: it is the one predicate
+      // that CANNOT be pushed into SQL, because the claim ledger is in memory
+      // (§10). It costs nothing to apply here — at most `MAX_CONCURRENT_UPLOADS
+      // - 1` of the `CLAIM_BATCH` candidates can be reserved.
+      const row = firstEligible(rows, mode, nowMs, isReserved);
       return row ? toRow(row) : null;
     },
 

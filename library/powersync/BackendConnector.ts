@@ -124,7 +124,14 @@ export class BackendConnector implements PowerSyncBackendConnector {
           op: op.op,
           table: op.table,
           id: op.id,
-          data: op.opData,
+          // Column NAMES, never their values. `opData` carries whole photo
+          // payloads (`DamageReportPhotos.thumbnail` is a ~10KB base64 string),
+          // and `DebugLogger` retains the last 500 entries by reference while
+          // also handing them to `console` — so logging the payload cost both a
+          // megabytes-sized retained buffer and a serialization pass, per
+          // operation, on the CRUD upload path itself. Which columns a write
+          // touches is the part that was ever diagnostically useful.
+          columns: Object.keys(op.opData ?? {}),
         });
 
         switch (op.op) {
@@ -137,11 +144,21 @@ export class BackendConnector implements PowerSyncBackendConnector {
                   count: "exact",
                 },
               )
-              .select();
+              // `.select("id")`, never a bare `.select()`.
+              //
+              // PostgREST returns whatever the select names, and an unqualified
+              // `.select()` means `*` — the FULL updated row. On the photo
+              // tables that row carries a base64 `thumbnail` (~10KB), and the
+              // upload queue produces one status write per photo per attempt:
+              // draining a ~1000-photo backlog was pushing ~20MB of response
+              // body over the wire that nothing below ever reads. The only
+              // things this response is used for are the row-count check below
+              // (PATCH) and a log line, and an `id` satisfies both.
+              .select("id");
             break;
 
           case UpdateType.PATCH:
-            result = await table.update(op.opData).eq("id", op.id).select();
+            result = await table.update(op.opData).eq("id", op.id).select("id");
             break;
 
           case UpdateType.DELETE:

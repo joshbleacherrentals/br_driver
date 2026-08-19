@@ -543,6 +543,141 @@ describe("claim eligibility is applied before LIMIT, not after (F2)", () => {
 });
 
 /**
+ * Claim priority: never-attempted rows first, then oldest-first within each
+ * group.
+ *
+ * WHY THIS EXISTS (and why it used to pass by accident)
+ * `created_at` was never written on insert — not by `createDamageReport.ts`,
+ * `inspection.tsx` or `applyPhotoRepair.ts` — so a freshly-saved photo carried
+ * `NULL`, and SQLite sorts NULL first under `ORDER BY created_at ASC`. On a
+ * real device that produced exactly the behaviour a driver needs: a new
+ * report's photos were claimed within ~1s and uploaded within ~9s even with
+ * ~1000 backlog rows ahead of them by insertion order. But it was a side effect
+ * of a missing value, not a decision — and writing `created_at` (which
+ * `ORDER BY created_at` requires to mean anything at all) would silently have
+ * inverted it into strict FIFO, burying every new report behind the backlog
+ * while the driver watched the §7 progress modal.
+ *
+ * Both halves therefore have to land together, and this is the half that pins
+ * the behaviour: priority is now stated (`last_attempt_at IS NULL` first), so
+ * it survives `created_at` being populated.
+ */
+describe("claim priority — a fresh photo outranks an attempted backlog", () => {
+  const BACKLOG_SIZE = 60; // Comfortably more than `CLAIM_BATCH` (25).
+  const backlogCreatedAt = (index: number) =>
+    new Date(Date.parse("2026-08-01T00:00:00.000Z") + index * 60_000).toISOString();
+  /** Newer than every backlog row — so FIFO alone would put it dead last. */
+  const FRESH_CREATED_AT = "2026-08-14T11:59:00.000Z";
+
+  /**
+   * A backlog of rows that have all been attempted once, long enough ago to be
+   * eligible again under both modes — so nothing but the ordering decides which
+   * row is handed out.
+   */
+  async function seedAttemptedBacklog(): Promise<void> {
+    for (let i = 0; i < BACKLOG_SIZE; i++) {
+      await seedDamageReportPhoto({
+        photoId: `backlog-${String(i).padStart(3, "0")}`,
+        reportId: "report-backlog",
+        createdByUserUuid: driverA.userUuid,
+        queue: {
+          created_at: backlogCreatedAt(i),
+          upload_status: "failed",
+          attempts: 1,
+          last_attempt_at: new Date(NOW_MS - 600_000).toISOString(),
+        },
+      });
+    }
+  }
+
+  beforeEach(() => {
+    publishDriverScope(driverA.userUuid, driverA.driverUuid);
+  });
+
+  it.each([["fast"], ["backoff"]] as const)(
+    "%s mode — claims a just-saved photo first, not the oldest of 60 eligible backlog rows",
+    async (mode) => {
+      await seedAttemptedBacklog();
+      // Saved seconds ago: newest `created_at` of all, never attempted.
+      await seedDamageReportPhoto({
+        photoId: "just-saved",
+        reportId: "report-new",
+        createdByUserUuid: driverA.userUuid,
+        queue: { created_at: FRESH_CREATED_AT },
+      });
+
+      const row = await damagePhotos.claimNext(mode, NOW_MS);
+
+      // Under plain `ORDER BY created_at ASC` this row would not even reach
+      // `claimNext`'s 25-row candidate batch.
+      expect(row?.id).toBe("just-saved");
+    },
+  );
+
+  it("orders oldest-first within the never-attempted group", async () => {
+    for (const [id, createdAt] of [
+      ["fresh-late", "2026-08-14T11:59:00.000Z"],
+      ["fresh-early", "2026-08-14T09:00:00.000Z"],
+      ["fresh-middle", "2026-08-14T10:00:00.000Z"],
+    ] as const) {
+      await seedDamageReportPhoto({
+        photoId: id,
+        reportId: "report-new",
+        createdByUserUuid: driverA.userUuid,
+        queue: { created_at: createdAt },
+      });
+    }
+
+    await expect(damagePhotos.claimNext("fast", NOW_MS)).resolves.toMatchObject({
+      id: "fresh-early",
+    });
+  });
+
+  it("falls back to the oldest eligible backlog row once nothing is fresh", async () => {
+    // The priority is a tiebreak, not a filter: with no never-attempted rows
+    // left, the backlog still drains in `created_at` order.
+    await seedAttemptedBacklog();
+
+    await expect(damagePhotos.claimNext("fast", NOW_MS)).resolves.toMatchObject({
+      id: "backlog-000",
+    });
+  });
+
+  /**
+   * §10 — the claim reservation lives in the service's in-memory ledger, not in
+   * `upload_status`, so a row an upload lane already holds still satisfies every
+   * predicate in the SQL. `isReserved` is the only thing standing between it and
+   * a second lane.
+   */
+  it("skips rows the caller has already reserved, and returns the next one", async () => {
+    await seedAttemptedBacklog();
+
+    const first = await damagePhotos.claimNext("fast", NOW_MS);
+    expect(first?.id).toBe("backlog-000");
+
+    const reserved = new Set([first!.id]);
+    const second = await damagePhotos.claimNext("fast", NOW_MS, (id) =>
+      reserved.has(id),
+    );
+
+    expect(second?.id).toBe("backlog-001");
+  });
+
+  it("returns null rather than a duplicate when the only eligible row is reserved", async () => {
+    await seedDamageReportPhoto({
+      photoId: "only-row",
+      reportId: "report-new",
+      createdByUserUuid: driverA.userUuid,
+      queue: { created_at: FRESH_CREATED_AT },
+    });
+
+    await expect(
+      damagePhotos.claimNext("fast", NOW_MS, (id) => id === "only-row"),
+    ).resolves.toBeNull();
+  });
+});
+
+/**
  * `DriverDocuments` is deliberately out of §15's scope: its Postgres RLS is
  * already owner-scoped server-side, so a device never holds another driver's
  * documents in the first place. Pinned here so the omission reads as a decision

@@ -107,6 +107,11 @@ export async function commitDamageReport(
             thumbnail: photo.thumbnail,
             upload_status: "pending",
             attempts: 0,
+            // Same `now` as the report row above, and not optional: the upload
+            // queue orders its claims by `created_at`
+            // (`runtime/tableAdapters.ts`), so a row without one has no defined
+            // position in the queue at all.
+            created_at: now,
           })
           .compile(),
       );

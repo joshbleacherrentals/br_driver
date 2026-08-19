@@ -8,13 +8,14 @@
  *     intended event still lands, unchanged;
  *   - when the retries are exhausted AND the caller asked for the guarantee,
  *     the row is forced to `failed` with `PERSIST_FALLBACK_ERROR` — because a
- *     row left in `uploading` is invisible to `claimNext`, to every count, and
- *     to the driver-facing banner, whereas `failed` is retryable and visible;
+ *     lost attempt result is an attempt that never happened as far as backoff
+ *     and the driver-facing banner are concerned, whereas `failed` is retryable
+ *     and visible;
  *   - a caller that did NOT ask for the guarantee gets the error rethrown and
  *     no fallback write at all;
- *   - if even the fallback write fails, this resolves anyway and logs at
- *     `error` — the staleness sweep is the layer below, and throwing here would
- *     only cost the lane its remaining work.
+ *   - if even the fallback write fails, this resolves `false` anyway (never
+ *     throws) and logs at `error` — throwing would only cost the lane its
+ *     remaining work, and `false` is what tells the caller to hold its claim.
  *
  * `applyUploadEvent` is exercised for real; only the adapter is faked.
  */
@@ -69,29 +70,36 @@ function makeAdapter(): PhotoQueueTableAdapter & { persist: jest.Mock } {
   };
 }
 
-/** Settles `promise`, letting `persistWithRetry`'s pauses elapse. */
-async function runWithTimers(promise: Promise<void>): Promise<void> {
+/**
+ * Settles `promise`, letting `persistWithRetry`'s pauses elapse. Forwards the
+ * resolved value — `persistUploadEvent` answers whether *some* outcome reached
+ * the database, which is what decides whether the caller may release its claim.
+ */
+async function runWithTimers<T>(promise: Promise<T>): Promise<T> {
   const settled = promise.then(
-    () => ({ ok: true as const }),
+    (value) => ({ ok: true as const, value }),
     (error) => ({ ok: false as const, error }),
   );
   await jest.advanceTimersByTimeAsync(5_000);
   const result = await settled;
   if (!result.ok) throw result.error;
+  return result.value;
 }
 
 describe("persistUploadEvent (§14)", () => {
   it("writes the requested event when the database is healthy", async () => {
     const adapter = makeAdapter();
 
-    await persistUploadEvent(
-      adapter,
-      uploadingRow(),
-      "upload_confirmed",
-      NOW_ISO,
-      undefined,
-      { label: "DamageReportPhotos photo-1", guaranteedFailedFallback: true },
-    );
+    await expect(
+      persistUploadEvent(
+        adapter,
+        uploadingRow(),
+        "upload_confirmed",
+        NOW_ISO,
+        undefined,
+        { label: "DamageReportPhotos photo-1", guaranteedFailedFallback: true },
+      ),
+    ).resolves.toBe(true);
 
     expect(adapter.persist).toHaveBeenCalledTimes(1);
     const written = adapter.persist.mock.calls[0][0] as PhotoUploadRow;
@@ -133,12 +141,16 @@ describe("persistUploadEvent (§14)", () => {
       }
     });
 
-    await runWithTimers(
-      persistUploadEvent(adapter, row, "upload_confirmed", NOW_ISO, undefined, {
-        label: "DamageReportPhotos photo-1",
-        guaranteedFailedFallback: true,
-      }),
-    );
+    // `true`: the fallback landed, so *an* outcome is on record and the caller
+    // may release its claim.
+    await expect(
+      runWithTimers(
+        persistUploadEvent(adapter, row, "upload_confirmed", NOW_ISO, undefined, {
+          label: "DamageReportPhotos photo-1",
+          guaranteedFailedFallback: true,
+        }),
+      ),
+    ).resolves.toBe(true);
 
     // 3 attempts at the real event + 1 fallback write.
     expect(adapter.persist).toHaveBeenCalledTimes(PERSIST_RETRY_ATTEMPTS + 1);
@@ -186,7 +198,9 @@ describe("persistUploadEvent (§14)", () => {
     const logError = jest.spyOn(photoQueueLog, "error");
 
     // Resolving rather than throwing is the contract: the lane keeps its
-    // remaining work, and the staleness sweep is the layer below this one.
+    // remaining work. Resolving `false` is the other half — that is how the
+    // caller learns the row is unchanged in the database and must keep its
+    // claim rather than hand it straight back to the next lane.
     await expect(
       runWithTimers(
         persistUploadEvent(
@@ -201,11 +215,11 @@ describe("persistUploadEvent (§14)", () => {
           },
         ),
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     expect(adapter.persist).toHaveBeenCalledTimes(PERSIST_RETRY_ATTEMPTS + 1);
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError.mock.calls[0][0]).toContain("fallback ALSO failed");
-    expect(logError.mock.calls[0][0]).toContain("staleness sweep");
+    expect(logError.mock.calls[0][0]).toContain("holds its claim");
   });
 });

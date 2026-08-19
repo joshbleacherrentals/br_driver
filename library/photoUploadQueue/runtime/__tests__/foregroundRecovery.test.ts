@@ -88,6 +88,10 @@ function makeService(unresolved: number): PhotoUploadService {
     triggerBackoff: jest.fn(async () => {}),
     isRunning: false,
     countUnresolved: jest.fn(async () => unresolved),
+    // No lane is holding anything in these tests, so every unresolved row is a
+    // legitimate §6 verification candidate. `inFlightRows.test.ts`-style
+    // coverage of the opposite case lives in `photoUploadService.test.ts`.
+    isRowInFlight: jest.fn(() => false),
     dispose: jest.fn(),
   };
 }
@@ -106,6 +110,7 @@ function makeRacingService(afterContextResolves: number): PhotoUploadService {
     triggerBackoff: jest.fn(async () => {}),
     isRunning: false,
     countUnresolved,
+    isRowInFlight: jest.fn(() => false),
     dispose: jest.fn(),
   };
 }

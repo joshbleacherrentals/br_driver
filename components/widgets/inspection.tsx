@@ -315,6 +315,10 @@ export default function InspectionScreen({
           storage_path: filename,
           upload_status: "pending",
           attempts: 0,
+          // The upload queue orders its claims by `created_at`
+          // (`runtime/tableAdapters.ts`), so a row without one has no defined
+          // position in the queue at all.
+          created_at: new Date().toISOString(),
         })
         .compile(),
     );

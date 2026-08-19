@@ -25,11 +25,20 @@ export interface PhotoQueueTableAdapter {
   readonly upsert: boolean;
 
   /**
-   * The oldest `pending`/`failed` row eligible to attempt right now under
-   * `mode`, or `null` when the table has nothing to do. Never returns a row in
-   * a terminal state — `uploaded` rows are invisible to the queue.
+   * The highest-priority `pending`/`failed` row eligible to attempt right now
+   * under `mode`, or `null` when the table has nothing to do. Never returns a
+   * row in a terminal state — `uploaded` rows are invisible to the queue.
+   *
+   * `isReserved` is the caller's in-memory claim ledger (§10). Since the
+   * reservation is no longer a status write, a row an upload lane is already
+   * working on still looks `pending`/`failed` to SQL, and this predicate is
+   * what keeps it from being handed to a second lane.
    */
-  claimNext(mode: PhotoQueueMode, nowMs: number): Promise<PhotoUploadRow | null>;
+  claimNext(
+    mode: PhotoQueueMode,
+    nowMs: number,
+    isReserved?: (rowId: string) => boolean,
+  ): Promise<PhotoUploadRow | null>;
 
   /** Persists the queue columns (§3 bookkeeping) back for this row id. */
   persist(row: PhotoUploadRow): Promise<void>;
@@ -71,8 +80,8 @@ export interface PhotoQueueTableAdapter {
 }
 
 /**
- * A row the claim step has already reserved (persisted as `uploading`) plus the
- * adapter that owns it.
+ * A row the claim step has already reserved (in the service's in-memory claim
+ * ledger — §10) plus the adapter that owns it.
  *
  * Threaded by value from claim straight into the upload, rather than parked in
  * a module-level "current adapter" ref: with several lanes claiming

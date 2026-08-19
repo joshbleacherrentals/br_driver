@@ -156,6 +156,13 @@ export async function applyPhotoRepair(
 
   const inserts: PreparedInsert[] = [];
   const stamp = Date.now();
+  /**
+   * `created_at` for every row this repair inserts. The upload queue orders its
+   * claims by it (`runtime/tableAdapters.ts`), so a row without one has no
+   * defined position in the queue at all. Taken from the same `stamp` as the
+   * bucket paths, so a repair's rows sort together.
+   */
+  const createdAt = new Date(stamp).toISOString();
   for (const pickedIndex of plan.extras) {
     const photo = picked[pickedIndex];
     if (!photo) continue;
@@ -220,6 +227,7 @@ export async function applyPhotoRepair(
               thumbnail: insert.thumbnail,
               upload_status: "pending",
               attempts: 0,
+              created_at: createdAt,
             })
             .compile(),
         );
@@ -252,6 +260,7 @@ export async function applyPhotoRepair(
               storage_path: insert.bucketPath,
               upload_status: "pending",
               attempts: 0,
+              created_at: createdAt,
             })
             .compile(),
         );

@@ -33,6 +33,7 @@ function createFakeService(): PhotoUploadService & { dispose: jest.Mock } {
     triggerBackoff: jest.fn(async () => {}),
     isRunning: false,
     countUnresolved: jest.fn(async () => 0),
+    isRowInFlight: jest.fn(() => false),
     dispose: jest.fn(),
   };
 }

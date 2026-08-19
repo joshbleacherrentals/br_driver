@@ -62,6 +62,27 @@ function hasFailedAtLeastOnce(row: PhotoUploadRow): boolean {
   return row.attempts > 0;
 }
 
+/**
+ * A row an upload lane currently holds is not a §6 candidate, however it looks.
+ *
+ * Mid-attempt rows used to be invisible here for free: the claim persisted
+ * `upload_status = 'uploading'`, and `listUnresolved` only returns
+ * `pending`/`failed`. The reservation is now in memory (§10), so such a row
+ * still reads as `pending`/`failed` and would otherwise be bucket-verified
+ * *while its own upload is in flight* — which is wrong twice over. A lookup
+ * that answers `absent` because the upload has not finished yet would banner a
+ * photo that is landing as we speak; a lookup that answers `present` would
+ * write `uploaded` underneath the lane, whose own terminal write then lands on
+ * top of it and marks a delivered photo `failed`.
+ */
+function isMidAttempt(
+  service: PhotoUploadService,
+  table: string,
+  rowId: string,
+): boolean {
+  return service.isRowInFlight(table, rowId);
+}
+
 export function createForegroundRecovery(
   deps: ForegroundRecoveryDeps,
 ): ForegroundRecovery {
@@ -94,6 +115,9 @@ export function createForegroundRecovery(
 
       for (const row of rows.filter(hasFailedAtLeastOnce)) {
         if (!row.photo_path) {
+          continue;
+        }
+        if (isMidAttempt(deps.service, adapter.table, row.id)) {
           continue;
         }
         const presence = await lookupBucketObject(

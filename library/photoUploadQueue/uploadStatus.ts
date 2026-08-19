@@ -28,6 +28,11 @@ export function nextUploadStatus(
   }
 
   switch (event) {
+    // Retained as part of §3's vocabulary, but no longer applied by the queue:
+    // the mid-attempt reservation moved into the service's in-memory claim
+    // ledger (§10), so no `uploading` row is written any more. Rows already
+    // stuck in that status on real devices are reclaimed by the §14 sweep,
+    // which is the only reason the status still exists at all.
     case "attempt_started":
       return "uploading";
     case "upload_confirmed":

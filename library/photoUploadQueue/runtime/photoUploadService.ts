@@ -10,11 +10,38 @@
  * leaves it retryable for the next pass (§3, §5).
  *
  * Claiming is the queue's only exclusivity mechanism, so it is serialized
- * behind a lock (`withClaimLock`) and *reserves* the row it hands out by
- * persisting `attempt_started` inside that same critical section. Selecting a
- * row and marking it `uploading` are one indivisible app-level step; splitting
- * them would let two lanes pick up the same row, because `claimNext` is a plain
- * SELECT and nothing below the app layer serializes reads.
+ * behind a lock (`withClaimLock`) and *reserves* the row it hands out inside
+ * that same critical section. Selecting a row and reserving it are one
+ * indivisible app-level step; splitting them would let two lanes pick up the
+ * same row, because `claimNext` is a plain SELECT and nothing below the app
+ * layer serializes reads.
+ *
+ * THE RESERVATION IS IN MEMORY, NOT A DATABASE WRITE (§10, §14)
+ * It used to be `upload_status = 'uploading'`, persisted before the upload and
+ * overwritten by the terminal outcome afterwards. That cost a synced write per
+ * photo per attempt: `DamageReportPhotos` et al. are ordinary PowerSync tables,
+ * so every reservation became a CRUD operation queued for Postgres. At ~87
+ * photos/minute during a drain that doubled the queue's CRUD production to
+ * ~174 ops/min against ~55-76 ops/min of throughput, and the resulting backlog
+ * — peaking at 7.5 minutes — delayed *every other write the driver made*, since
+ * PowerSync uploads its CRUD queue strictly in order.
+ *
+ * Nothing was bought with it. §10 scopes claim exclusivity to one process, and
+ * a local SQLite status column never provided more than that: two processes
+ * reading `pending` would both write `uploading` and both upload. `inFlightRows`
+ * below enforces exactly the same guarantee at exactly the same scope, inside
+ * the same lock, for free — and `claimNext` consults it, so a reserved row is
+ * invisible to every subsequent claim just as a non-`pending` row was.
+ *
+ * What the database write additionally bought was *durability* of the
+ * reservation across process death — and that is the property §14 exists to
+ * undo, not to preserve: an app killed mid-upload left a row stranded in
+ * `uploading`, unclaimable and uncounted, for hours. An in-memory reservation
+ * simply evaporates with the process; the row is still sitting at `pending` /
+ * `failed` with its original `attempts`, so the next launch claims it again as
+ * ordinary work. §14's sweep is kept regardless — devices in the field still
+ * carry rows stranded by the old behaviour, and it is the only thing that
+ * reclaims them.
  *
  * Each pass has four stages, in this order:
  *
@@ -45,11 +72,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decode as decodeBase64 } from "base64-arraybuffer";
-import * as FileSystem from "expo-file-system/legacy";
 
 import type { PhotoUploadRow, UploadEvidence } from "../types";
-import { applyUploadEvent } from "../uploadStatus";
 import {
   isUploadSuccessful,
   needsBucketVerification,
@@ -61,11 +85,10 @@ import {
   uploadToBucket,
 } from "./bucketUpload";
 import { getDriverScope } from "@/library/powersync/scoping/driverScope";
-import { localPhotoExists, localUriForPath } from "./localFile";
+import { localPhotoExists, readLocalPhotoBytes } from "./localFile";
 import { isNetworkAvailable } from "./networkState";
 import { sweepParkedRows } from "./parkedRowSweep";
 import { persistUploadEvent } from "./persistUploadEvent";
-import { persistWithRetry } from "./persistWithRetry";
 import { photoQueueLog } from "./photoQueueLog";
 import { sweepStaleUploadingRows } from "./staleUploadingSweep";
 import { MISSING_LOCAL_FILE_ERROR, PHOTO_QUEUE_ADAPTERS } from "./tableAdapters";
@@ -100,13 +123,6 @@ function stringifyError(error: unknown): string {
   }
 }
 
-async function readLocalFile(uri: string): Promise<ArrayBuffer> {
-  const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  return decodeBase64(base64);
-}
-
 /**
  * Why a pass is running. Carried through to the logs only (§13) — nothing
  * branches on it — so the console shows whether a given pass came from a save,
@@ -128,6 +144,16 @@ export type PhotoUploadService = {
   readonly isRunning: boolean;
   /** Total rows still not `uploaded`, across every photo table (§6). */
   countUnresolved(): Promise<number>;
+  /**
+   * Whether this service currently holds a claim reservation on a row.
+   *
+   * Public because the reservation is no longer written to the database, so the
+   * database can no longer answer the question. Two consumers need it: the §14
+   * stale sweep (never reclaim a row a live lane is still uploading) and the §6
+   * recovery pass (never bucket-verify — and so never banner or overwrite — a
+   * row an upload is mid-attempt on).
+   */
+  isRowInFlight(table: string, rowId: string): boolean;
   /**
    * Retires this instance. Idempotent, and part of the type on purpose: a
    * service that cannot be retired is a service that lives forever.
@@ -168,8 +194,8 @@ export function createPhotoUploadService(
 
   /**
    * Serializes claim-and-reserve. Every lane's claim queues behind the previous
-   * one, so "pick a row, mark it `uploading`" is atomic from the app's point of
-   * view even though `claimNext` is a plain SELECT underneath.
+   * one, so "pick a row, reserve it" is atomic from the app's point of view
+   * even though `claimNext` is a plain SELECT underneath.
    */
   let claimChain: Promise<unknown> = Promise.resolve();
   function withClaimLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -182,9 +208,17 @@ export function createPhotoUploadService(
   }
 
   /**
-   * Rows this service has reserved and is still uploading, keyed `table:id`.
-   * The §14 staleness sweep consults it so it can never reclaim a row out from
-   * under a slow-but-live attempt.
+   * The claim ledger: rows this service has reserved and is still uploading,
+   * keyed `table:id`. This IS the exclusivity mechanism (§10) — see the module
+   * header for why it replaced the `uploading` status write rather than merely
+   * shadowing it.
+   *
+   * Three readers:
+   *   - `claimNextPendingRow`, so a reserved row is never handed to a second
+   *     lane;
+   *   - the §14 staleness sweep, so it can never reclaim a row out from under a
+   *     slow-but-live attempt;
+   *   - the §6 recovery pass, for the same reason.
    */
   const inFlightRows = new Set<string>();
   const inFlightKey = (table: string, rowId: string): string =>
@@ -212,38 +246,19 @@ export function createPhotoUploadService(
       const mode = effectiveMode();
 
       for (const adapter of PHOTO_QUEUE_ADAPTERS) {
-        // Nothing eligible in this table — cheap, bounded, move on. This is the
-        // ONLY reason to keep scanning.
-        const row = await adapter.claimNext(mode, now);
+        // Rows this service already holds are excluded by the adapter itself,
+        // so "nothing eligible here" genuinely means nothing eligible — cheap,
+        // bounded, move on. This is the ONLY reason to keep scanning.
+        const row = await adapter.claimNext(mode, now, (rowId) =>
+          isRowInFlight(adapter.table, rowId),
+        );
         if (!row) continue;
 
-        // Reserve it before releasing the lock. Marking the attempt started
-        // here also means a mid-upload app kill leaves a visible `uploading`
-        // row rather than a silent gap (§14 then reclaims it).
-        const marked = applyUploadEvent(row, "attempt_started", nowIso());
-        try {
-          await persistWithRetry(() => adapter.persist(marked), {
-            label: `claim ${adapter.table} ${row.id}`,
-          });
-        } catch (error) {
-          // Tight-loop guard. The reservation write failed even after retries,
-          // which means the database itself is unhappy — trying two more
-          // tables' reservation writes in this same call would very likely fail
-          // too, for no benefit. Give up on the whole claim instead: the lane's
-          // loop breaks on `null`, the row is left exactly as it was, and the
-          // existing pass cadence (4s fast / 60s backoff) brings it back. That
-          // spaced timer is the codebase's standing answer to hot-looping; this
-          // path deliberately adds no cooldown mechanism of its own.
-          photoQueueLog.warn(
-            `claim reservation failed after retries, deferring to next pass: ` +
-              `${adapter.table} ${row.id}`,
-            error,
-          );
-          return null;
-        }
-
-        inFlightRows.add(inFlightKey(adapter.table, marked.id));
-        return { row: marked, adapter };
+        // Reserve it before releasing the lock. Nothing is written: the ledger
+        // is the reservation (see the module header), so this cannot fail, and
+        // the claim path performs no database write at all.
+        inFlightRows.add(inFlightKey(adapter.table, row.id));
+        return { row, adapter };
       }
 
       return null;
@@ -276,24 +291,32 @@ export function createPhotoUploadService(
   };
 
   /**
-   * Uploads one already-reserved row. The `attempt_started` write happened in
-   * the claim step, so this starts from a row that is already `uploading` and
-   * only ever writes a terminal outcome.
+   * Uploads one already-reserved row. The row arrives exactly as the database
+   * holds it — the claim reserves in memory and writes nothing — so this only
+   * ever writes a terminal outcome.
    *
    * Every one of those terminal writes goes through `persistUploadEvent` with
    * the guaranteed-`failed` fallback (§14), so none of them needs its own
-   * try/catch and none of them can leave the row stranded in `uploading`.
+   * try/catch. `recorded` tracks whether one of them actually landed, because
+   * that is now what decides when the reservation may be released.
    */
   const uploadRow = async ({ row, adapter }: ClaimedRow): Promise<void> => {
     const label = `${adapter.table} ${row.id}`;
-    const persist = (
+    /** `null` until a terminal write is attempted; then whether it landed. */
+    let outcomeWritten: boolean | null = null;
+    const persist = async (
       event: Parameters<typeof persistUploadEvent>[2],
       errorMessage?: string,
-    ) =>
-      persistUploadEvent(adapter, row, event, nowIso(), errorMessage, {
-        label,
-        guaranteedFailedFallback: true,
-      });
+    ) => {
+      outcomeWritten = await persistUploadEvent(
+        adapter,
+        row,
+        event,
+        nowIso(),
+        errorMessage,
+        { label, guaranteedFailedFallback: true },
+      );
+    };
 
     try {
       photoQueueLog.info(`attempt: ${label}`, {
@@ -318,7 +341,7 @@ export function createPhotoUploadService(
 
       let data: ArrayBuffer;
       try {
-        data = await readLocalFile(localUriForPath(row.photo_path));
+        data = await readLocalPhotoBytes(row.photo_path);
       } catch (error) {
         await persist("attempt_failed", stringifyError(error));
         photoQueueLog.warn(`failed: ${label} — local read error`, error);
@@ -353,10 +376,29 @@ export function createPhotoUploadService(
           `attempt ${row.attempts + 1}, will retry`,
       );
     } finally {
-      // Released however this ended — success, failure, or an unforeseen throw
-      // — so a crashed attempt can never permanently shield its row from the
-      // §14 sweep.
-      inFlightRows.delete(inFlightKey(adapter.table, row.id));
+      // Released once the outcome is on record — which is every path except the
+      // one where §14's retries AND its guaranteed-`failed` fallback both fail
+      // to write. There the database still holds the row exactly as it was
+      // (`pending`/`failed`, original `attempts`), so releasing would hand it
+      // straight back to the next lane and re-upload the same photo in a tight
+      // loop, forever, with backoff never advancing because nothing can record
+      // an attempt. Keeping the reservation parks it for the rest of the
+      // session instead; a relaunch drops the ledger and retries it as ordinary
+      // work. Note this leaves NO stuck row behind — unlike the `uploading`
+      // write it replaces, whose equivalent failure stranded the row in the
+      // database itself for hours.
+      //
+      // An unforeseen throw still releases: `outcomeWritten` is only `false`
+      // when a terminal write was attempted and demonstrably failed.
+      if (outcomeWritten !== false) {
+        inFlightRows.delete(inFlightKey(adapter.table, row.id));
+      } else {
+        photoQueueLog.error(
+          `holding claim on ${label} for this session — its outcome could not ` +
+            `be written at all (§14). The row is untouched and retryable; the ` +
+            `next launch will claim it again.`,
+        );
+      }
     }
   };
 
@@ -506,6 +548,7 @@ export function createPhotoUploadService(
       return worker.isRunning;
     },
     countUnresolved,
+    isRowInFlight,
     dispose() {
       if (disposed) return;
       disposed = true;

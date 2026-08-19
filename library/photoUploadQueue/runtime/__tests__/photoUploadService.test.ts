@@ -89,9 +89,27 @@ jest.mock("expo-file-system/legacy", () => ({
   documentDirectory: "file:///container-A/Documents/",
   EncodingType: { Base64: "base64" },
   getInfoAsync: jest.fn(async () => ({ exists: false })),
-  readAsStringAsync: jest.fn(async () => "AAAA"),
   writeAsStringAsync: jest.fn(),
   makeDirectoryAsync: jest.fn(),
+}));
+
+/**
+ * The one filesystem read an upload performs, recorded by URI.
+ *
+ * `readLocalPhotoBytes` (`runtime/localFile.ts`) goes through the *new*
+ * `expo-file-system` `File` API — `bytes()` returns the file's bytes from the
+ * native side directly, where the old path materialised a ~1.35x-sized base64
+ * string on the JS heap and then decoded it back in a JS loop, three lanes at a
+ * time. Which URI it reads is still exactly what the container-drift tests
+ * below turn on, so that is what this records.
+ */
+const mockReadBytes = jest.fn(async (_uri: string) => new Uint8Array([1, 2, 3]));
+
+jest.mock("expo-file-system", () => ({
+  __esModule: true,
+  File: jest.fn().mockImplementation((uri: string) => ({
+    bytes: () => mockReadBytes(uri),
+  })),
 }));
 
 // §13 — the connectivity signal is the service's own wrapper (its mapping from
@@ -106,7 +124,6 @@ jest.mock("@/library/photoUploadQueue/runtime/networkState", () => ({
 const mockFs = FileSystem as unknown as {
   documentDirectory: string;
   getInfoAsync: jest.Mock;
-  readAsStringAsync: jest.Mock;
 };
 
 const mockIsNetworkAvailable = isNetworkAvailable as jest.MockedFunction<
@@ -182,10 +199,13 @@ function makeSpyingSupabaseClient(): {
 
 /**
  * `tableAdapters.ts`'s `UNRESOLVED_STATUSES` — the statuses the queue still
- * owns work for. Reproduced here because it drives every fake below, and
- * because getting it wrong would silently break the claim-exclusivity these
- * tests exist to prove: `uploading` is NOT in this list, which is exactly why
- * reserving a row inside the claim lock stops a second lane picking it up.
+ * owns work for. Reproduced here because it drives every fake below.
+ *
+ * `uploading` is NOT in this list, and the queue no longer writes it either:
+ * the claim reservation lives in the service's in-memory ledger (§10), which
+ * the fakes see as `claimNext`'s `isReserved` argument. Honouring that argument
+ * is what makes these fakes model exclusivity correctly — a fake that ignores
+ * it hands the same row to all three lanes.
  */
 const UNRESOLVED_STATUSES: PhotoUploadRow["upload_status"][] = [
   "pending",
@@ -215,8 +235,9 @@ function makeFakeAdapter(
   return {
     ...meta,
     current: () => row,
-    async claimNext() {
-      return isClaimable(row) ? { ...row } : null;
+    async claimNext(_mode, _nowMs, isReserved) {
+      if (!isClaimable(row) || isReserved?.(row.id)) return null;
+      return { ...row };
     },
     async persist(next) {
       row = { ...next };
@@ -262,8 +283,8 @@ function makeDriverScopedAdapter(
   const scoped = (): boolean => getDriverScope() !== null;
   return {
     ...inner,
-    async claimNext(mode, nowMs) {
-      return scoped() ? inner.claimNext(mode, nowMs) : null;
+    async claimNext(mode, nowMs, isReserved) {
+      return scoped() ? inner.claimNext(mode, nowMs, isReserved) : null;
     },
     async countUnresolved() {
       return scoped() ? inner.countUnresolved() : 0;
@@ -307,9 +328,9 @@ function makeMultiRowAdapter(
     // (a row that just failed cannot be re-claimed on the very next iteration).
     // The single-row fake above predates it; this one honours it, so the
     // concurrency/fallback tests below can't accidentally pass by spinning.
-    async claimNext(mode, nowMs) {
+    async claimNext(mode, nowMs, isReserved) {
       const row = rows
-        .filter(isClaimable)
+        .filter((candidate) => isClaimable(candidate) && !isReserved?.(candidate.id))
         .find((candidate) =>
           mode === "fast"
             ? isDueForFastRetry(candidate, nowMs)
@@ -385,8 +406,7 @@ beforeEach(() => {
   adapters.length = 0;
   mockFs.documentDirectory = CONTAINER_BEFORE;
   mockFs.getInfoAsync.mockReset();
-  mockFs.readAsStringAsync.mockReset();
-  mockFs.readAsStringAsync.mockResolvedValue("AAAA");
+  mockReadBytes.mockClear();
   setOnline(true);
   // Steady state for every test below: a driver is signed in and §15's ids are
   // published, so the counts the loop reasons about are real. The launch race —
@@ -420,10 +440,7 @@ describe.each(REAL_ADAPTER_METADATA)(
 
       expect(adapter.current().last_error).not.toBe(MISSING_LOCAL_FILE_ERROR);
       expect(adapter.current().upload_status).toBe("uploaded");
-      expect(mockFs.readAsStringAsync).toHaveBeenCalledWith(
-        canonicalUri,
-        expect.anything(),
-      );
+      expect(mockReadBytes).toHaveBeenCalledWith(canonicalUri);
     });
 
     it(
@@ -462,14 +479,8 @@ describe.each(REAL_ADAPTER_METADATA)(
           MISSING_LOCAL_FILE_ERROR,
         );
         expect(adapter.current().upload_status).toBe("uploaded");
-        expect(mockFs.readAsStringAsync).toHaveBeenCalledWith(
-          canonicalUriAfterDrift,
-          expect.anything(),
-        );
-        expect(mockFs.readAsStringAsync).not.toHaveBeenCalledWith(
-          canonicalUriBeforeDrift,
-          expect.anything(),
-        );
+        expect(mockReadBytes).toHaveBeenCalledWith(canonicalUriAfterDrift);
+        expect(mockReadBytes).not.toHaveBeenCalledWith(canonicalUriBeforeDrift);
       },
     );
 
@@ -486,7 +497,7 @@ describe.each(REAL_ADAPTER_METADATA)(
 
       expect(adapter.current().last_error).toBe(MISSING_LOCAL_FILE_ERROR);
       expect(adapter.current().upload_status).toBe("failed");
-      expect(mockFs.readAsStringAsync).not.toHaveBeenCalled();
+      expect(mockReadBytes).not.toHaveBeenCalled();
     });
   },
 );
@@ -525,10 +536,7 @@ describe("self-healing and network gating (§12/§13)", () => {
     // on the very next iteration of the same drain — not on some later pass.
     expect(adapter.current().upload_status).toBe("uploaded");
     expect(adapter.current().last_error).toBeNull();
-    expect(mockFs.readAsStringAsync).toHaveBeenCalledWith(
-      localUriForPath(row.photo_path),
-      expect.anything(),
-    );
+    expect(mockReadBytes).toHaveBeenCalledWith(localUriForPath(row.photo_path));
   });
 
   it("leaves a genuinely missing parked row parked, without a single network call", async () => {
@@ -566,10 +574,11 @@ describe("self-healing and network gating (§12/§13)", () => {
     await service.triggerFast();
 
     expect(upload).not.toHaveBeenCalled();
-    expect(mockFs.readAsStringAsync).not.toHaveBeenCalled();
-    // Untouched: no `attempt_started`, so the row is exactly as it was. A
-    // doomed offline attempt must not advance the §6 backoff schedule, and its
-    // network error must never be recorded as a missing-file verdict.
+    expect(mockReadBytes).not.toHaveBeenCalled();
+    // Untouched: the claim writes nothing (§10 — the reservation is in memory)
+    // and no attempt ran, so the row is exactly as it was. A doomed offline
+    // attempt must not advance the §6 backoff schedule, and its network error
+    // must never be recorded as a missing-file verdict.
     expect(adapter.current().upload_status).toBe("pending");
     expect(adapter.current().attempts).toBe(0);
     expect(adapter.current().last_attempt_at).toBeNull();
@@ -827,10 +836,11 @@ function failPersistWhile(
 }
 
 /**
- * An adapter whose reservation write can never land: `claimNext` keeps offering
- * the same row (it never changes, because the write that would change it always
- * fails), and `persist` always rejects. Exactly the shape that would spin
- * forever without the claim step's tight-loop guard.
+ * An adapter whose writes can never land: `persist` always rejects, so the row
+ * never changes and `claimNext` keeps offering it. Exactly the shape that would
+ * spin forever if the service released its claim on a row whose outcome it
+ * could not record. (It honours the reservation ledger like every other fake —
+ * that is precisely the mechanism under test.)
  */
 function makeUnwritableAdapter(
   meta: Pick<PhotoQueueTableAdapter, "table" | "bucket" | "upsert">,
@@ -838,7 +848,13 @@ function makeUnwritableAdapter(
 ): PhotoQueueTableAdapter & { claimNext: jest.Mock; persist: jest.Mock } {
   return {
     ...meta,
-    claimNext: jest.fn(async () => ({ ...row })),
+    claimNext: jest.fn(
+      async (
+        _mode: unknown,
+        _nowMs: unknown,
+        isReserved?: (rowId: string) => boolean,
+      ) => (isReserved?.(row.id) ? null : { ...row }),
+    ),
     persist: jest.fn(async () => {
       throw new Error("database is locked");
     }),
@@ -1033,9 +1049,13 @@ describe("bounded concurrency and claim exclusivity (§10)", () => {
     expect(inFlight).toHaveLength(3);
     expect([...inFlight].sort()).toEqual(rows.map((row) => row.photo_path).sort());
     // Every row was reserved before any upload started, so no lane could ever
-    // be handed a row another lane already holds.
+    // be handed a row another lane already holds — and the reservation is the
+    // service's in-memory ledger (§10), not a `uploading` status write, so the
+    // rows themselves are untouched in the database while they upload. That is
+    // the whole point: a mid-flight photo costs zero synced writes.
     for (const row of adapter.rows()) {
-      expect(row.upload_status).toBe("uploading");
+      expect(row.upload_status).toBe("pending");
+      expect(service.isRowInFlight(DAMAGE.table, row.id)).toBe(true);
     }
 
     gate.resolve();
@@ -1123,20 +1143,28 @@ describe("bounded concurrency and claim exclusivity (§10)", () => {
 });
 
 /**
- * The single most important correctness property of the concurrency work: a
- * reservation write that will not land must cost a bounded number of attempts
- * and then hand the row to the NEXT scheduled pass — never spin.
+ * The single most important correctness property of the concurrency work: a row
+ * whose outcome cannot be written must cost a bounded number of attempts and
+ * then be left alone — never re-uploaded in a loop.
+ *
+ * The shape of the guard changed with the reservation. It used to protect the
+ * *claim*: the claim persisted `uploading`, that write could fail, and retrying
+ * it across three tables in one call would have spun. There is no claim write
+ * any more, so that failure mode is gone at the source. What remains is the
+ * terminal write, and the danger there is the mirror image: with the row
+ * unchanged in the database and the reservation released, the very next lane
+ * would claim it again and re-upload the same photo forever, with backoff never
+ * advancing because nothing can record an attempt. The service therefore keeps
+ * its claim on a row whose outcome §14's retries AND its guaranteed-`failed`
+ * fallback both failed to write.
  */
-describe("claim tight-loop guard (§10/§14)", () => {
-  it("makes a bounded number of attempts when the reservation write always fails, then defers to the next pass", async () => {
+describe("unrecordable-outcome guard (§10/§14)", () => {
+  it("attempts the row once, then holds its claim instead of re-uploading it", async () => {
     const row = queueRow(DAMAGE, "unwritable");
     const broken = makeUnwritableAdapter(DAMAGE, row);
-    // Two more tables behind it, to prove the guard does NOT fall through to
-    // them on a persist failure (only an empty `claimNext` may do that).
+    // Two more tables behind it, to prove nothing spills into them either.
     const second = makeMultiRowAdapter(INSPECTION, []);
     const third = makeMultiRowAdapter(DOCUMENTS, []);
-    const secondClaim = jest.spyOn(second, "claimNext");
-    const thirdClaim = jest.spyOn(third, "claimNext");
     adapters.push(broken, second, third);
     filesOnDisk(row.photo_path);
 
@@ -1148,29 +1176,28 @@ describe("claim tight-loop guard (§10/§14)", () => {
     await jest.advanceTimersByTimeAsync(3_000);
     await pass;
 
-    // Exactly one bounded retry cycle per lane, and nothing more.
-    expect(broken.persist).toHaveBeenCalledTimes(
-      MAX_CONCURRENT_UPLOADS * PERSIST_RETRY_ATTEMPTS,
-    );
-    // The guard returned `null` instead of falling through to the next table:
-    // neither of the followers was even asked for a row, let alone written to.
-    expect(secondClaim).not.toHaveBeenCalled();
-    expect(thirdClaim).not.toHaveBeenCalled();
-    expect(second.persistCalls()).toEqual([]);
-    expect(third.persistCalls()).toEqual([]);
-    // Nothing was uploaded, and the row is exactly as it was.
-    expect(upload).not.toHaveBeenCalled();
+    // One upload, and one bounded write cycle: 3 retries of the real outcome
+    // plus the single guaranteed-`failed` fallback shot.
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(broken.persist).toHaveBeenCalledTimes(PERSIST_RETRY_ATTEMPTS + 1);
+    // The row is exactly as it was — nothing about it was lost or corrupted.
     expect(row.upload_status).toBe("pending");
     expect(row.attempts).toBe(0);
-    // Deferred, not abandoned: the existing pass cadence will try again.
-    expect(jest.getTimerCount()).toBe(1);
+    // Neither follower was written to.
+    expect(second.persistCalls()).toEqual([]);
+    expect(third.persistCalls()).toEqual([]);
 
-    // ...and that next pass is itself bounded the same way — no ratchet.
+    // The claim is still held, which is what makes the row unclaimable...
+    expect(service.isRowInFlight(DAMAGE.table, row.id)).toBe(true);
+    // ...so the next scheduled pass finds nothing to do rather than starting
+    // the same upload over again. Deferred, not abandoned: a relaunch drops the
+    // ledger and the row is ordinary work again.
+    expect(jest.getTimerCount()).toBe(1);
     broken.persist.mockClear();
     await jest.advanceTimersByTimeAsync(4_000 + 3_000);
-    expect(broken.persist).toHaveBeenCalledTimes(
-      MAX_CONCURRENT_UPLOADS * PERSIST_RETRY_ATTEMPTS,
-    );
+
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(broken.persist).not.toHaveBeenCalled();
   });
 });
 
@@ -1197,8 +1224,9 @@ describe("persist resilience for terminal writes (§14)", () => {
     expect(upload).toHaveBeenCalledTimes(1);
     expect(adapter.find("flaky")!.upload_status).toBe("uploaded");
     expect(adapter.find("flaky")!.last_error).toBeNull();
-    // attempt_started + 2 rejected confirms + the one that landed.
-    expect(persist).toHaveBeenCalledTimes(4);
+    // 2 rejected confirms + the one that landed. There is no reservation write
+    // any more, so this is the whole of the row's database traffic.
+    expect(persist).toHaveBeenCalledTimes(3);
   });
 
   it("falls back to failed — never leaves the row stuck uploading — when a terminal write cannot land", async () => {
@@ -1374,18 +1402,26 @@ describe("timeout verification, and the in-flight exclusion it needs (§5.1/§14
     const passA = service.triggerFast();
     await jest.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS + 1_000);
     expect(list).toHaveBeenCalledTimes(1);
-    expect(adapter.find("verifying")!.upload_status).toBe("uploading");
+    // Untouched in the database — the claim is a ledger entry (§10), so to SQL
+    // this row still looks like ordinary `pending` work.
+    expect(adapter.find("verifying")!.upload_status).toBe("pending");
+    expect(service.isRowInFlight(DAMAGE.table, "verifying")).toBe(true);
 
     // ...and hangs there, long past the staleness threshold.
     await jest.advanceTimersByTimeAsync(STALE_UPLOADING_THRESHOLD_MS * 2);
 
-    // Pass B sweeps while pass A's lane is still holding the row.
+    // Pass B runs while pass A's lane is still holding the row.
     const passB = service.triggerBackoff();
     await flushMicrotasks();
 
+    // Two ways pass B could damage it, and the ledger is what stops both: the
+    // §14 sweep (moot here — the row was never written to `uploading`), and a
+    // fresh claim, which would start a second upload of a photo that may be
+    // landing server-side as we speak (§5.1).
     const duringSweep = adapter.find("verifying")!;
-    expect(duringSweep.upload_status).toBe("uploading");
+    expect(duringSweep.upload_status).toBe("pending");
     expect(duringSweep.last_error).not.toBe(STALE_UPLOADING_ERROR);
+    expect(upload).toHaveBeenCalledTimes(1);
 
     // The lookup finally answers, and the row finishes on its own terms.
     lookupGate.resolve({
