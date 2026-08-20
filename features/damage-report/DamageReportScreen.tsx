@@ -1,7 +1,7 @@
 import BleacherDropdown, {
   BleacherOption,
 } from "@/components/widgets/bleacherDropdown";
-import { damageReportPhotoAttachmentQueue } from "@/components/providers/SystemProvider";
+import { retryDamageReportPhotos } from "./utils/retryDamageReportPhotos";
 import {
   elevation,
   radius,
@@ -15,21 +15,18 @@ import {
   DamageReportPhotoWithStatus,
   useDamageReportPhotos,
 } from "@/hooks/db/useDamageReportPhotos";
-import { useDriver } from "@/hooks/db/useDriver";
+import { useDriverScope } from "@/hooks/useDriverScope";
+import { usePhotoRepair, type RepairablePhoto } from "@/hooks/usePhotoRepair";
+import { PhotoRepairBanner } from "@/components/widgets/PhotoRepairBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -47,8 +44,15 @@ import { DebugUploadTracker } from "./components/DebugUploadTracker";
 import { ImageViewer, ImageViewerItem } from "./components/ImageViewer";
 import { PhotoUploadIndicator } from "./components/PhotoUploadIndicator";
 import { PhotoUploadStatusBanner } from "./components/PhotoUploadStatusBanner";
-import { SubmitProgressModal } from "./components/SubmitProgressModal";
+import { ReportUnavailable } from "./components/ReportUnavailable";
+import { useReportPhotoPreviews } from "./hooks/useReportPhotoPreviews";
+import { SubmitProgressBanner } from "./components/SubmitProgressBanner";
 import { createDamageReport } from "./utils/createDamageReport";
+import type { PhotoPrepProgress } from "./utils/prepareDamageReportPhotos";
+import {
+  describeAllPhotosFailed,
+  describePartialPhotoFailure,
+} from "./utils/describePhotoPrepFailures";
 import { resolvePhotoUri } from "./utils/resolvePhotoUri";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -121,28 +125,33 @@ function ViewOnlyPhotoGrid({
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [fullSizeItems, setFullSizeItems] = useState<ImageViewerItem[]>([]);
+  const previews = useReportPhotoPreviews(photos);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function resolve() {
+  /**
+   * Full-size URIs are resolved when the viewer is opened, not up front.
+   *
+   * This used to be an effect keyed on the `photos` array's identity, running
+   * `Promise.all` of a `getInfoAsync` per photo — and that identity changes on
+   * every write the upload queue makes to any row on this report, which is
+   * several per photo. So the screen re-statted every file over and over, to
+   * fill a viewer the driver had not opened, and held the result the whole
+   * time. Nobody needs a full-size URI until there is something to show it in.
+   */
+  const openViewerAt = useCallback(
+    async (index: number) => {
       const items: ImageViewerItem[] = await Promise.all(
-        photos.map(async (p) => {
-          const uri = p.photo_path ? await resolvePhotoUri(p.photo_path) : "";
-          return {
-            id: p.id,
-            uri,
-            thumbnail: p.thumbnail ?? undefined,
-            storagePath: p.photo_path ?? undefined,
-          };
-        }),
+        photos.map(async (photo) => ({
+          id: photo.id,
+          uri: photo.photo_path ? await resolvePhotoUri(photo.photo_path) : "",
+          thumbnail: previews[photo.id]?.thumbnail,
+          storagePath: photo.photo_path ?? undefined,
+        })),
       );
-      if (!cancelled) setFullSizeItems(items);
-    }
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [photos]);
+      setFullSizeItems(items);
+      setViewerIndex(index);
+    },
+    [photos, previews],
+  );
 
   if (photos.length === 0) {
     return (
@@ -154,18 +163,22 @@ function ViewOnlyPhotoGrid({
     <>
       <View style={styles.photoGrid}>
         {photos.map((photo, index) => {
-          const thumbUri = photo.thumbnail
-            ? `data:image/jpeg;base64,${photo.thumbnail}`
-            : undefined;
+          const previewUri = previews[photo.id]?.uri;
           return (
             <TouchableOpacity
               key={photo.id}
               style={styles.photoContainer}
               activeOpacity={0.7}
-              onPress={() => setViewerIndex(index)}
+              onPress={() => void openViewerAt(index)}
             >
-              {thumbUri ? (
-                <Image source={{ uri: thumbUri }} style={styles.photo} />
+              {previewUri ? (
+                <Image
+                  source={previewUri}
+                  style={styles.photo}
+                  contentFit="cover"
+                  recyclingKey={photo.id}
+                  cachePolicy="memory-disk"
+                />
               ) : (
                 <View style={[styles.photo, styles.photoPlaceholder]}>
                   <Ionicons
@@ -308,20 +321,52 @@ export default function DamageReportScreen() {
   const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
   const params = useLocalSearchParams<{ damageReportId?: string }>();
   const { bleachers } = useAllBleachers();
-  const { driver } = useDriver();
+  // §15 — the signed-in driver's scope. Needed twice here: to attribute a new
+  // report, and (inside the hooks below) to scope what this screen may read.
+  const scope = useDriverScope();
 
   const [viewOnlyId, setViewOnlyId] = useState<string | null>(
     params.damageReportId ?? null,
   );
   const isViewOnly = !!viewOnlyId;
 
-  const { damageReport } = useDamageReportById(viewOnlyId);
+  const { damageReport, isLoading: isReportLoading } =
+    useDamageReportById(viewOnlyId);
   const {
     photos: reportPhotos,
     hasPending: photosPending,
     hasFailed: photosFailed,
   } = useDamageReportPhotos(viewOnlyId);
   const [isRetryingPhotos, setIsRetryingPhotos] = useState(false);
+
+  // Editing a resolved report's photos is not allowed: it is closed evidence,
+  // and the queue's job there is only to finish delivering what is already on
+  // it. Retry stays available; replacement does not.
+  const isReportEditable = !damageReport?.resolved_at;
+
+  const repairablePhotos: RepairablePhoto[] = useMemo(
+    () =>
+      reportPhotos.map((photo) => ({
+        id: photo.id,
+        uploadStatus: photo.upload_status,
+        lastError: photo.last_error,
+        createdAt: photo.created_at,
+        bucketPath: photo.photo_path,
+      })),
+    [reportPhotos],
+  );
+
+  const photoRepair = usePhotoRepair({
+    // §15 — derived from the row the *scoped* read actually returned, never
+    // from the route param. A foreign or unknown id leaves `damageReport` null,
+    // and with it there is no parent for Retry/Replace to write through.
+    parent: damageReport
+      ? { table: "DamageReportPhotos", damageReportUuid: damageReport.id }
+      : null,
+    photos: repairablePhotos,
+    editable: isReportEditable,
+    subject: "report",
+  });
 
   const bleacherOptions: BleacherOption[] = useMemo(
     () =>
@@ -346,7 +391,11 @@ export default function DamageReportScreen() {
   const [details, setDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [prepProgress, setPrepProgress] = useState({ current: 0, total: 0 });
+  const [prepProgress, setPrepProgress] = useState<PhotoPrepProgress>({
+    attempted: 0,
+    saved: 0,
+    total: 0,
+  });
   const abortRef = useRef(false);
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>(
@@ -364,7 +413,18 @@ export default function DamageReportScreen() {
     }
   }, []);
 
+  // The upload phase is no longer this screen's to report. Once photos are
+  // queued their progress belongs to every screen, and
+  // `components/widgets/PhotoUploadStatusOverlay.tsx` floats over all of them
+  // (including this one) counting exactly the rows the queue is working on. The
+  // banner below now covers only the local save that happens *before* anything
+  // is queued, which is the one part no reactive query can see.
+
+  // §15 — no scope, no attribution, no submit. `createDamageReport` requires a
+  // `DriverScope`, so this is enforced by the type too; the flag is what stops
+  // the button being tappable in the seconds before the scope resolves.
   const canSubmit =
+    !!scope &&
     selectedBleacher &&
     (details.seatDamage !== null || details.haulDamage !== null) &&
     details.note.trim().length > 0 &&
@@ -376,14 +436,6 @@ export default function DamageReportScreen() {
   }, []);
 
   const handleRetryFailedPhotos = useCallback(async () => {
-    if (!damageReportPhotoAttachmentQueue) {
-      Alert.alert(
-        "Unavailable",
-        "Photo upload is not ready yet. Try again shortly.",
-      );
-      return;
-    }
-
     const toRetry = reportPhotos.filter(
       (p) =>
         (p.uploadStatus === "failed" || p.uploadStatus === "pending") &&
@@ -393,28 +445,22 @@ export default function DamageReportScreen() {
 
     setIsRetryingPhotos(true);
     try {
-      let retried = 0;
-      let needReAdd = 0;
+      const { retried, needReAdd } = await retryDamageReportPhotos(
+        toRetry.map((p) => ({ id: p.id, bucketPath: p.photo_path })),
+      );
 
-      for (const photo of toRetry) {
-        const path = photo.photo_path!;
-        const ok = await damageReportPhotoAttachmentQueue.retryUpload(path);
-        if (ok) {
-          retried++;
-        } else {
-          needReAdd++;
-        }
-      }
-
+      // "Re-add" is only actionable once the bucket has confirmed the photo is
+      // genuinely absent — until then the repair banner deliberately stays shut,
+      // so the copy points at waiting rather than at an unavailable button.
       if (needReAdd > 0 && retried === 0) {
         Alert.alert(
           "Photos missing on this device",
-          "The original files are no longer on this phone, so upload cannot be retried automatically. Please create a new damage report with the photos.",
+          "The original files are no longer on this phone, so upload cannot be retried automatically. Once we confirm they never reached the server, you'll be able to replace them here.",
         );
       } else if (needReAdd > 0) {
         Alert.alert(
           "Partial retry",
-          `${retried} photo(s) re-queued. ${needReAdd} photo(s) are no longer on this device and need a new report.`,
+          `${retried} photo(s) re-queued. ${needReAdd} photo(s) are no longer on this device and will need replacing.`,
         );
       }
     } catch (e) {
@@ -428,6 +474,13 @@ export default function DamageReportScreen() {
   }, [reportPhotos]);
 
   const handleSubmit = async () => {
+    if (!scope) {
+      Alert.alert(
+        "Just a moment",
+        "Your driver profile is still loading. Please try again in a moment.",
+      );
+      return;
+    }
     if (!selectedBleacher) {
       Alert.alert("Required", "Please select a bleacher");
       return;
@@ -457,27 +510,53 @@ export default function DamageReportScreen() {
         haulDamage: details.haulDamage,
         note: details.note,
         photos: details.photos,
-        createdByUserUuid: driver?.user_uuid ?? null,
+        scope,
         shouldAbort: () => abortRef.current,
-        onPhotoProgress: (current, total) =>
-          setPrepProgress({ current, total }),
+        onPhotoProgress: setPrepProgress,
       });
 
-      if (result.aborted) {
-        dlog("SUBMIT: user cancelled — report row exists but photos are partial");
+      if (!result.ok) {
         setIsSubmitting(false);
+
+        if (result.reason === "aborted") {
+          // Nothing was written — the photo files are prepared before any row
+          // exists — so there is nothing to clean up and nothing to explain.
+          dlog("SUBMIT: user cancelled before any row was written");
+          return;
+        }
+
+        // A damage report may never exist without photos, so this blocks the
+        // submission outright rather than creating an empty report and
+        // apologising afterwards. The form keeps everything the driver typed.
+        dlog(
+          `SUBMIT: blocked — no photo could be saved (${result.failures.length} failed)`,
+        );
+        const { title, message } = describeAllPhotosFailed(result.failures);
+        Alert.alert(title, message);
         return;
       }
 
       dlog(
         `SUBMIT: done saved=${result.savedPhotoCount} id=${result.damageId.slice(0, 8)}`,
       );
+
+      // Partial save — the report exists and its saved photos are already
+      // queued, so this is told, not undone (§2).
+      if (result.failures.length > 0) {
+        const { title, message } = describePartialPhotoFailure(
+          result.savedPhotoCount,
+          result.failures,
+        );
+        Alert.alert(title, message);
+      }
       if (DEBUG_PHOTO_UPLOAD) {
         setTrackedAttachmentIds([result.damageId]);
       }
 
       dlog("SUBMIT: success! Navigating to view-only...");
       setIsSubmitting(false);
+      // The photos are queued now, so the floating overlay picks the story up
+      // from here — on this screen and on every other one.
       setViewOnlyId(result.damageId);
     } catch (error) {
       dlog(`SUBMIT: FATAL ERROR - ${String(error).slice(0, 200)}`);
@@ -485,6 +564,36 @@ export default function DamageReportScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // Rendered by both branches below: the screen flips to view-only the moment
+  // the report is saved, and a save still in progress must survive that flip.
+  //
+  // It sits at the top of the scroll content rather than over the screen: it is
+  // progress information, and nothing about it needs the driver to wait. That
+  // is the whole point of it no longer being a modal.
+  const progressBanner = (
+    <SubmitProgressBanner
+      visible={isSubmitting}
+      current={prepProgress.saved}
+      total={prepProgress.total}
+      failedCount={prepProgress.attempted - prepProgress.saved}
+      onAbort={handleAbort}
+    />
+  );
+
+  // §15 — a route param that resolves to no readable report (unknown id, or
+  // another driver's, which the scoped read refuses) gets its own state rather
+  // than the normal view-only screen with every field showing "—". Restricted to
+  // the route-param path on purpose: a report this screen just created is also
+  // momentarily absent from the reactive query, and that is not the same thing.
+  const openedFromRoute =
+    !!params.damageReportId && viewOnlyId === params.damageReportId;
+  const reportUnavailable =
+    isViewOnly && openedFromRoute && !isReportLoading && !damageReport;
+
+  if (reportUnavailable) {
+    return <ReportUnavailable onBack={() => router.back()} />;
+  }
 
   if (isViewOnly) {
     return (
@@ -498,6 +607,8 @@ export default function DamageReportScreen() {
             },
           ]}
         >
+          {progressBanner}
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bleacher</Text>
             <Text style={styles.viewOnlyValue}>
@@ -538,12 +649,23 @@ export default function DamageReportScreen() {
               Damage Photos ({reportPhotos.length})
             </Text>
             <View style={{ marginTop: 8 }}>
-              <PhotoUploadStatusBanner
-                hasPending={photosPending}
-                hasFailed={photosFailed}
-                isRetrying={isRetryingPhotos}
-                onRetry={handleRetryFailedPhotos}
-              />
+              {/* Once the bucket has confirmed photos are genuinely gone, that
+                  supersedes the "still uploading / tap retry" message — the
+                  repair banner is the only one that can actually fix it. */}
+              {photoRepair.replaceableCount > 0 ? (
+                <PhotoRepairBanner
+                  repair={photoRepair}
+                  subject="report"
+                  editable={isReportEditable}
+                />
+              ) : (
+                <PhotoUploadStatusBanner
+                  hasPending={photosPending}
+                  hasFailed={photosFailed}
+                  isRetrying={isRetryingPhotos}
+                  onRetry={handleRetryFailedPhotos}
+                />
+              )}
               <ViewOnlyPhotoGrid
                 photos={reportPhotos}
                 styles={styles}
@@ -595,6 +717,8 @@ export default function DamageReportScreen() {
           theme={theme}
           insets={insets}
         />
+
+        <PhotoUploadStatusOverlay />
       </View>
     );
   }
@@ -610,6 +734,8 @@ export default function DamageReportScreen() {
           },
         ]}
       >
+        {progressBanner}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Bleacher</Text>
           <View style={styles.requiredBadge}>
@@ -674,12 +800,7 @@ export default function DamageReportScreen() {
         insets={insets}
       />
 
-      <SubmitProgressModal
-        visible={isSubmitting}
-        current={prepProgress.current}
-        total={prepProgress.total}
-        onAbort={handleAbort}
-      />
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

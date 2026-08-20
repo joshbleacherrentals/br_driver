@@ -1,4 +1,5 @@
 import Badge from "@/components/ui/Badge";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import {
@@ -21,6 +22,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+
+/** Shared by the FAB itself and by the overlay that has to clear it. */
+const FAB_SIZE = 56;
+
 function severityLabel(v: string | null): string {
   if (v === "major" || v === "1") return "Major";
   if (v === "minor" || v === "0") return "Minor";
@@ -230,6 +235,9 @@ export default function DamageReportHistoryScreen() {
       >
         <Ionicons name="add" size={28} color={theme.onAccent} />
       </TouchableOpacity>
+
+      {/* Cleared over the FAB, which owns the same corner. */}
+      <PhotoUploadStatusOverlay bottomInset={FAB_SIZE + 12} />
     </SafeAreaView>
   );
 }
@@ -296,9 +304,9 @@ function makeStyles(theme: ThemeColors) {
       position: "absolute",
       bottom: 24,
       right: 20,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: FAB_SIZE / 2,
       backgroundColor: theme.accent,
       alignItems: "center",
       justifyContent: "center",

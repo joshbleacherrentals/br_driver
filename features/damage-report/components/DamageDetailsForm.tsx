@@ -1,12 +1,19 @@
 import { ThemeColors, radius, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
-import React, { useCallback } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import type { DocumentPhoto } from "../types";
 import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
 } from "../utils/pickDamagePhotos";
+import {
+  DAMAGE_REPORT_PHOTO_SUBJECT,
+  MAX_PHOTOS,
+  admitPickedPhotos,
+  describePhotoLimit,
+  photoLimitReachedAlert,
+} from "@/utils/photoLimit";
 import DamageSeveritySelector, {
   DamageSeverityValue,
 } from "./DamageSeveritySelector";
@@ -29,17 +36,55 @@ export function DamageDetailsForm({ values, onChange }: Props) {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  // §Cap — the grid already disables both add controls at the limit; these
+  // guards are what makes the cap real rather than cosmetic, since a queued tap
+  // or a stale render could still reach a handler.
+  // Memoized on the count alone: the add callbacks below take the whole state
+  // as a dependency, and a fresh object every render would make their identity
+  // churn for no reason.
+  const limit = useMemo(
+    () =>
+      describePhotoLimit(
+        values.photos.length,
+        MAX_PHOTOS,
+        DAMAGE_REPORT_PHOTO_SUBJECT,
+      ),
+    [values.photos.length],
+  );
+
   const addFromCamera = useCallback(async () => {
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
     const picked = await pickDamagePhotosFromCamera();
     if (picked.length === 0) return;
     onChange({ photos: [...values.photos, ...picked] });
-  }, [onChange, values.photos]);
+  }, [limit, onChange, values.photos]);
 
   const addFromLibrary = useCallback(async () => {
-    const picked = await pickDamagePhotosFromLibrary();
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
+
+    // The picker is capped at the headroom, so on iOS the driver simply cannot
+    // over-select. `selectionLimit` is not honoured everywhere though (some
+    // Android pickers ignore it), so the result is trimmed as well — and never
+    // silently: dropping picks without saying so would leave the driver
+    // believing photos were attached that were not.
+    const picked = await pickDamagePhotosFromLibrary({
+      selectionLimit: limit.remaining,
+    });
     if (picked.length === 0) return;
-    onChange({ photos: [...values.photos, ...picked] });
-  }, [onChange, values.photos]);
+
+    const { kept, alert } = admitPickedPhotos(picked, limit);
+    if (alert) Alert.alert(alert.title, alert.message);
+
+    onChange({ photos: [...values.photos, ...kept] });
+  }, [limit, onChange, values.photos]);
 
   const removePhoto = useCallback(
     (index: number) => {
@@ -90,6 +135,8 @@ export function DamageDetailsForm({ values, onChange }: Props) {
           photos={values.photos}
           title="Damage Photos"
           required
+          maxPhotos={MAX_PHOTOS}
+          limitSubject={DAMAGE_REPORT_PHOTO_SUBJECT}
           onAddFromCamera={addFromCamera}
           onAddFromLibrary={addFromLibrary}
           onRemove={removePhoto}
