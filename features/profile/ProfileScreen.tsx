@@ -1,7 +1,7 @@
 import Card from "@/components/ui/Card";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { ThemeColors, typeScale } from "@/constants/theme";
 import {
   expiryStatusLabel,
@@ -157,7 +157,6 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
-      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -477,6 +476,8 @@ export default function ProfileScreen() {
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

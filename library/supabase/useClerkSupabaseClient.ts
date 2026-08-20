@@ -1,4 +1,5 @@
 // utils/supabase/useClerkSupabaseClient.ts
+import { useStableCallback } from "@/hooks/useStableCallback";
 import { isClerkRuntimeError, useAuth } from "@clerk/clerk-expo";
 import { useEffect } from "react";
 import { AppState } from "react-native";
@@ -11,6 +12,15 @@ import { setSupabaseTokenGetter, supabase } from "./supabaseClient";
  */
 export function useClerkSupabaseClient() {
   const { getToken, isSignedIn } = useAuth();
+
+  /**
+   * `useAuth` mints a new `getToken` closure on every render (see
+   * `useStableCallback`'s doc comment), so effects depending on it tore down and
+   * rebuilt the Supabase token getter and the `AppState` subscription on every
+   * render of the root layout. This wrapper never changes identity, so the
+   * effects below re-run only when the session itself changes.
+   */
+  const stableGetToken = useStableCallback(getToken);
 
   // 1) Keep Supabase's accessToken getter in sync with Clerk
   useEffect(() => {
@@ -28,7 +38,7 @@ export function useClerkSupabaseClient() {
 
       try {
         // CRITICAL: Must specify the template to get the Supabase-formatted JWT
-        const token = await getToken({ template: "supabase" });
+        const token = await stableGetToken({ template: "supabase" });
         return token ?? null;
       } catch (err: unknown) {
         if (isClerkRuntimeError(err) && err.code === "network_error") {
@@ -44,7 +54,7 @@ export function useClerkSupabaseClient() {
     // Also set Realtime auth once up front
     (async () => {
       try {
-        const token = await getToken({ template: "supabase" });
+        const token = await stableGetToken({ template: "supabase" });
         if (!cancelled) {
           supabase.realtime.setAuth(token ?? "");
         }
@@ -64,7 +74,7 @@ export function useClerkSupabaseClient() {
       setSupabaseTokenGetter(null);
       supabase.realtime.setAuth("");
     };
-  }, [getToken, isSignedIn]);
+  }, [stableGetToken, isSignedIn]);
 
   // 2) Refresh Realtime token when app returns to foreground
   useEffect(() => {
@@ -72,7 +82,7 @@ export function useClerkSupabaseClient() {
       if (state !== "active" || !isSignedIn) return;
 
       try {
-        const token = await getToken({ template: "supabase" });
+        const token = await stableGetToken({ template: "supabase" });
         supabase.realtime.setAuth(token ?? "");
       } catch (err: unknown) {
         if (isClerkRuntimeError(err) && err.code === "network_error") {
@@ -88,7 +98,7 @@ export function useClerkSupabaseClient() {
     return () => {
       sub.remove();
     };
-  }, [getToken, isSignedIn]);
+  }, [stableGetToken, isSignedIn]);
 
   return supabase;
 }

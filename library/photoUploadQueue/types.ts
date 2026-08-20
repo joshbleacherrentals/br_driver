@@ -40,12 +40,22 @@ export const MISSING_LOCAL_FILE_ERROR = "LOCAL_FILE_MISSING";
  * (§12): the parked-row sweep found the local file present after all, so the
  * row is un-parked with no driver involvement. Same shape as a manual retry —
  * back to `pending`, `last_error` cleared, backoff history preserved.
+ *
+ * `attempt_inconclusive` is the honest record of an attempt that taught us
+ * nothing (§5.1/§9): the bucket rejected the write as a duplicate — so an
+ * earlier attempt may well have landed — and the verifying lookup came back
+ * `unknown`, so it could neither confirm nor deny it. Charging that to
+ * `attempts` would ratchet the backoff schedule on the strength of evidence
+ * that was never gathered, and writing a `last_error` would show the driver a
+ * failure that may not have happened. Only `last_attempt_at` moves, which is
+ * exactly enough to stop the row being re-attempted on the very next pass.
  */
 export type UploadEvent =
   | "attempt_started"
   | "upload_confirmed"
   | "attempt_failed"
   | "attempt_timed_out"
+  | "attempt_inconclusive"
   | "retry_requested"
   | "local_file_recovered";
 
@@ -63,6 +73,18 @@ export type PhotoUploadRow = {
   last_attempt_at: string | null;
   last_error: string | null;
 };
+
+/**
+ * Outcome of a direct bucket lookup. `unknown` is a first-class answer, not a
+ * failure mode: on a phone with no signal — or when the `list` call itself
+ * errors or times out — the lookup cannot run, and collapsing that to `absent`
+ * would let the queue declare a photo lost (§6.2) or charge a failed attempt
+ * against a row nothing is actually wrong with (§5.1).
+ *
+ * Lives here rather than beside the Supabase client so the pure decision logic
+ * in `uploadSuccess.ts` can weigh it without pulling in the runtime.
+ */
+export type BucketPresence = "present" | "absent" | "unknown";
 
 /**
  * §9, §10 — everything the queue is allowed to weigh when deciding whether an
@@ -87,7 +109,15 @@ export type UploadEvidence = {
    */
   timedOutSignal: boolean;
   /**
-   * Result of a direct bucket lookup. `null` means "not checked yet".
+   * Whether a direct bucket lookup *confirmed* the object. `null` means "not
+   * checked yet".
+   *
+   * Deliberately narrower than {@link BucketPresence}: for the success question
+   * `absent` and `unknown` are the same answer — neither confirms — so this
+   * field collapses them to `false`. The distinction between them decides
+   * something else entirely (whether the attempt may be recorded as a failure),
+   * and is carried as a real {@link BucketPresence} alongside this evidence
+   * rather than smuggled through this boolean.
    */
   bucketObjectExists: boolean | null;
 };

@@ -100,9 +100,20 @@ jest.mock("expo-image-manipulator", () => ({
 let driverA: SeededDriver;
 let driverB: SeededDriver;
 
+/**
+ * The row's §3 `upload_status`.
+ *
+ * `DamageReportPhotos`' bookkeeping columns now live in the local-only
+ * `PhotoUploadStatus` table, keyed by the photo row's own id, so that is where
+ * the value is read from. `table` stays in the signature because it is what the
+ * call sites are asserting *about*, even though it no longer picks the table.
+ */
 async function statusOf(table: "DamageReportPhotos", id: string) {
+  void table;
   const { rows } = await mockDb.executeQuery(
-    CompiledQuery.raw(`SELECT upload_status FROM "${table}" WHERE id = ?`, [id]),
+    CompiledQuery.raw(`SELECT upload_status FROM "PhotoUploadStatus" WHERE id = ?`, [
+      id,
+    ]),
   );
   return (rows[0] as { upload_status: string } | undefined)?.upload_status;
 }

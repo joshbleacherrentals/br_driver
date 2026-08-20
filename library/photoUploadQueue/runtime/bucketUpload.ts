@@ -5,7 +5,7 @@
  * Supabase client, and — critically for §9/§10 — never infers success from an
  * error string. A single attempt returns a structured outcome; the caller turns
  * that into `UploadEvidence` and, only when the outcome is ambiguous, asks
- * `objectExistsInBucket` for the ground truth before committing `uploaded`.
+ * `lookupBucketObject` for the ground truth before committing `uploaded`.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -13,7 +13,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isAlreadyInStorageError } from "@/utils/isAlreadyInStorageError";
 
 import { resolveContentType } from "../contentType";
+import type { BucketPresence } from "../types";
 import { UPLOAD_TIMEOUT_MS, uploadWithTimeout } from "../uploadTimeout";
+
+export type { BucketPresence };
 
 const TIMEOUT_MESSAGE = "Upload timed out";
 
@@ -80,14 +83,6 @@ export async function uploadToBucket(
 }
 
 /**
- * Outcome of a direct bucket lookup. `unknown` is a first-class answer, not a
- * failure mode: on a phone with no signal the lookup cannot run, and treating
- * that as `absent` would let an offline app declare a photo lost (§6.2) — the
- * exact false alarm the verification step exists to prevent.
- */
-export type BucketPresence = "present" | "absent" | "unknown";
-
-/**
  * Direct bucket lookup — the ground truth §6.2/§10 requires before a row may be
  * declared `uploaded`, or reported to the driver as lost, on anything less than
  * an explicit API answer.
@@ -117,17 +112,4 @@ export async function lookupBucketObject(
   } catch {
     return "unknown";
   }
-}
-
-/**
- * Boolean view of {@link lookupBucketObject} for the upload path, where only an
- * affirmative "present" may confirm a row (§9/§10) and both `absent` and
- * `unknown` correctly leave the row retryable.
- */
-export async function objectExistsInBucket(
-  client: SupabaseClient,
-  bucket: string,
-  path: string,
-): Promise<boolean> {
-  return (await lookupBucketObject(client, bucket, path)) === "present";
 }

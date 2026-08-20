@@ -24,6 +24,7 @@
 
 import { UPLOAD_TIMEOUT_MS } from "@/library/photoUploadQueue/uploadTimeout";
 import {
+  LIST_TIMEOUT_MS,
   createSupabaseFetch,
   isStorageUploadRequest,
 } from "@/library/powersync/supabaseFetch";
@@ -161,7 +162,17 @@ describe("createSupabaseFetch deadline (§5.1)", () => {
     expect(signalOf(0)).toBeUndefined();
   });
 
-  it("gives the §5.1 bucket lookup neither a deadline nor a forced token refresh", async () => {
+  /**
+   * This test used to assert the opposite — that the lookup got neither a
+   * deadline nor a forced refresh — because the forced refresh churned Clerk's
+   * `getToken`, which re-rendered `SystemProvider` and spawned duplicate upload
+   * services. That root cause is fixed (`getToken` is now referentially stable
+   * in `useClerkSupabaseClient` and `SystemProvider`), so the lookup gets the
+   * treatment it always needed: a fresh token, and its own short deadline —
+   * `LIST_TIMEOUT_MS`, not the upload's. See `storageListDeadline.test.ts` for
+   * the band contract.
+   */
+  it("gives the §5.1 bucket lookup its own short deadline and a forced token refresh", async () => {
     const { spy, signalOf } = hangingFetch();
     global.fetch = spy as unknown as typeof fetch;
 
@@ -170,12 +181,21 @@ describe("createSupabaseFetch deadline (§5.1)", () => {
       () => undefined,
     );
 
-    await jest.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS * 2);
+    await jest.advanceTimersByTimeAsync(0);
 
-    expect(signalOf(0)).toBeUndefined();
+    const signal = signalOf(0);
+    expect(signal).toBeDefined();
+    expect(getToken).toHaveBeenCalledWith({ forceRefresh: true });
+
+    // Materially shorter than an upload's budget, not equal to it.
+    expect(LIST_TIMEOUT_MS).toBeLessThan(UPLOAD_TIMEOUT_MS / 2);
+
+    await jest.advanceTimersByTimeAsync(LIST_TIMEOUT_MS - 1);
+    expect(signal!.aborted).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(2);
+    expect(signal!.aborted).toBe(true);
     expect(jest.getTimerCount()).toBe(0);
-    expect(getToken).toHaveBeenCalledWith(undefined);
-    expect(getToken).not.toHaveBeenCalledWith({ forceRefresh: true });
   });
 
   it("clears its timer when the upload answers in time", async () => {

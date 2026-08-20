@@ -9,11 +9,14 @@ import { Alert } from "react-native";
 import type { DocumentPhoto } from "../types";
 
 /**
- * A selection this size is well outside what a damage report normally needs
- * (a handful of photos; ~30 at the very top end), so it is worth a word of
- * warning about time and storage. Deliberately a nudge and not a cap: nothing
- * here refuses the selection, because a driver who genuinely photographed forty
- * points of damage must still be able to submit all forty.
+ * A selection this size is well outside what these surfaces normally need (a
+ * handful of photos), so it is worth a word of warning about time and storage.
+ * Deliberately a nudge and not a cap — nothing *here* refuses a selection.
+ *
+ * Both callers do have a hard cap (`MAX_PHOTOS`, `@/utils/photoLimit`), but it
+ * is applied by the caller, which passes its remaining headroom as
+ * `selectionLimit`. A caller that passes none is uncapped, and this warning is
+ * then the only thing standing in its way.
  */
 const LARGE_SELECTION_THRESHOLD = 40;
 
@@ -55,8 +58,18 @@ export async function pickDamagePhotosFromCamera(): Promise<DocumentPhoto[]> {
   return persistAll(await pickPhotosFromCamera());
 }
 
-export async function pickDamagePhotosFromLibrary(): Promise<DocumentPhoto[]> {
-  const picked = await pickPhotosFromLibrary();
+/**
+ * @param options.selectionLimit Cap handed to the OS picker, so the driver is
+ *   stopped at the report's remaining headroom inside the picker itself rather
+ *   than being told afterwards that some picks were dropped. Omitted means no
+ *   cap (inspection photo questions).
+ */
+export async function pickDamagePhotosFromLibrary(options?: {
+  selectionLimit?: number;
+}): Promise<DocumentPhoto[]> {
+  const picked = await pickPhotosFromLibrary({
+    selectionLimit: options?.selectionLimit,
+  });
   if (picked.length > LARGE_SELECTION_THRESHOLD) {
     warnAboutLargeSelection(picked.length);
   }

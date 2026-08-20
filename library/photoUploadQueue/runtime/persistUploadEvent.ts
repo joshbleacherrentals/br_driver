@@ -41,6 +41,18 @@ export type PersistUploadEventOptions = {
    * themselves.
    */
   guaranteedFailedFallback: boolean;
+  /**
+   * Called with the row that actually reached the database — `nextRow` on the
+   * normal path, and the `failed` fallback row when the requested event could
+   * not be written at all.
+   *
+   * Exists because the caller's claim ledger is in memory (§10,
+   * `photoUploadService.ts`) and is only useful if it records the truth rather
+   * than the intent: a ledger that believed a row was `uploaded` when the
+   * fallback had actually written `failed` would refuse to re-claim it for the
+   * rest of the session.
+   */
+  onPersisted?: (row: PhotoUploadRow) => void;
 };
 
 /**
@@ -69,6 +81,7 @@ export async function persistUploadEvent(
     await persistWithRetry(() => adapter.persist(nextRow), {
       label: `${opts.label} persist(${event})`,
     });
+    opts.onPersisted?.(nextRow);
     return true;
   } catch (error) {
     photoQueueLog.warn(
@@ -86,6 +99,7 @@ export async function persistUploadEvent(
       PERSIST_FALLBACK_ERROR,
     );
     await adapter.persist(fallbackRow);
+    opts.onPersisted?.(fallbackRow);
     photoQueueLog.warn(`guaranteed-failed fallback applied: ${opts.label}`);
     return true;
   } catch (fallbackError) {

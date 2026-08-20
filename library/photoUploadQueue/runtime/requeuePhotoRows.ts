@@ -21,6 +21,7 @@ import { db } from "@/library/powersync/db";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 
 import { localPhotoExists } from "./localFile";
+import { patchPhotoUploadStatusWrite } from "./photoUploadStatusStore";
 import { getPhotoUploadService } from "./serviceRegistry";
 import type { PhotoQueueTableName } from "./types";
 
@@ -53,12 +54,12 @@ async function requeueOne(
   // columns against the generated schema.
   switch (table) {
     case "DamageReportPhotos":
+      // §3 bookkeeping for this table lives in the local-only
+      // `PhotoUploadStatus`, so the reset never enters `ps_crud`. No insert
+      // fallback: a row with no bookkeeping already reads as pending / zero
+      // attempts / no error, which is exactly what `REQUEUED` sets.
       await executeTypedMutationVoid(
-        db
-          .updateTable("DamageReportPhotos")
-          .set(REQUEUED)
-          .where("id", "=", id)
-          .compile(),
+        patchPhotoUploadStatusWrite(id, REQUEUED),
       );
       return;
     case "InspectionPhotos":

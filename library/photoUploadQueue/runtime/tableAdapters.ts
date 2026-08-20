@@ -4,12 +4,17 @@
  * Each adapter reads/writes the §3 queue columns through the Kysely-typed
  * wrappers — no raw SQL, no PowerSync `@powersync/attachments` recompute.
  *
- * The three tables differ in exactly two ways: the bucket-path column
- * (`photo_path` vs `InspectionPhotos`' `storage_path`) and whether their reads
- * are driver-scoped. Everything else — which statuses count as unresolved, how
- * parked rows are excluded, claim ordering and batching, the §14 stale sweep's
- * query — is identical, so it is written once in `makeAdapter` below and the
- * per-table differences are declared as data.
+ * The three tables differ in exactly three ways: the bucket-path column
+ * (`photo_path` vs `InspectionPhotos`' `storage_path`), whether their reads are
+ * driver-scoped, and where their §3 bookkeeping is stored — on the synced row
+ * itself, or (for `DamageReportPhotos`) in the local-only `PhotoUploadStatus`
+ * table, so status churn never enters PowerSync's `ps_crud` outbox — apart from
+ * a single mirrored `uploaded` per photo, which is the one thing the server
+ * cannot infer for itself (`syncedUploadStatusMirror.ts`). Everything
+ * else — which statuses count as unresolved, how parked rows are excluded, claim
+ * ordering and batching, the §14 stale sweep's query — is identical, so it is
+ * written once in `makeAdapter` below and the per-table differences are declared
+ * as data.
  *
  * §15 — the scoping half of that data comes from
  * `@/library/powersync/scoping`: `from` is an *already-scoped* query source, so
@@ -41,6 +46,9 @@ import {
   type PhotoUploadRow,
   type UploadStatus,
 } from "../types";
+import { isTerminalUploadStatus } from "../uploadStatus";
+import { replacePhotoUploadStatus } from "./photoUploadStatusStore";
+import { mirrorTerminalUploadStatus } from "./syncedUploadStatusMirror";
 import type {
   PhotoQueueMode,
   PhotoQueueTableAdapter,
@@ -67,7 +75,21 @@ const CLAIM_BATCH = 25;
 /** Re-exported for the adapters' existing consumers; defined in `../types`. */
 export { MISSING_LOCAL_FILE_ERROR } from "../types";
 
-/** The §3 queue columns, identical on all three tables. */
+/**
+ * What a fresh, never-touched photo looks like to the queue.
+ *
+ * `DamageReportPhotos`' bookkeeping lives in the local-only `PhotoUploadStatus`
+ * table, and a row is only created there the first time the queue persists an
+ * outcome (`photoUploadStatusStore.ts`). Every read therefore left-joins and
+ * coalesces the absent row to these values, so "no bookkeeping yet" and "saved a
+ * moment ago, pending" are the same state — which is also what makes the upgrade
+ * from the old synced-column schema re-attempt in-flight photos instead of
+ * silently dropping them.
+ */
+const FRESH_STATUS: UploadStatus = "pending";
+const FRESH_ATTEMPTS = 0;
+
+/** The §3 queue columns, as every read projects them. */
 const QUEUE_COLUMNS = [
   "id",
   "upload_status",
@@ -126,6 +148,107 @@ function asQueueSource<T extends PhotoQueueTableName>(
   return builder as unknown as QueueSource;
 }
 
+/**
+ * `DamageReportPhotos` joined to its device-local bookkeeping (§3), projected
+ * into exactly the shared queue view above.
+ *
+ * A derived table rather than a bare join, for two reasons. `id` exists on both
+ * sides, so every `select("id")` downstream would be ambiguous SQL; and the
+ * coalescing of an absent status row happens once, here, instead of every
+ * predicate in this file having to spell out "…or the row has no bookkeeping
+ * yet". Downstream code goes on referring to plain `upload_status`/`attempts`,
+ * unaware there was ever a join — which is why `claimNext`, the counts and the
+ * §14 sweep needed no per-table branching.
+ *
+ * The subquery is opened on the *scoped* source (§15), so the ownership
+ * predicate is applied inside it and cannot be dropped by anything layered on
+ * top. SQLite flattens the whole shape back into one query.
+ */
+function damageReportPhotoQueueRows(scope: DriverScope): QueueSource {
+  return db.selectFrom(
+    damageReportPhotosOf(scope)
+      .leftJoin(
+        "PhotoUploadStatus",
+        "PhotoUploadStatus.id",
+        "DamageReportPhotos.id",
+      )
+      .select((eb) => [
+        "DamageReportPhotos.id as id",
+        "DamageReportPhotos.photo_path as photo_path",
+        "DamageReportPhotos.created_at as created_at",
+        "PhotoUploadStatus.gallery_asset_id as gallery_asset_id",
+        "PhotoUploadStatus.last_attempt_at as last_attempt_at",
+        "PhotoUploadStatus.last_error as last_error",
+        eb.fn
+          .coalesce("PhotoUploadStatus.upload_status", eb.val(FRESH_STATUS))
+          .as("upload_status"),
+        eb.fn
+          .coalesce("PhotoUploadStatus.attempts", eb.val(FRESH_ATTEMPTS))
+          .as("attempts"),
+      ])
+      .as("photoQueueRow"),
+  ) as unknown as QueueSource;
+}
+
+/**
+ * Where a table's §3 bookkeeping is stored, and therefore what `persist` writes.
+ *
+ * `DamageReportPhotos` is `local-only`: its status columns were moved off the
+ * synced table precisely so a drain of hundreds of photos stops filling
+ * PowerSync's `ps_crud` outbox and starving the driver's real writes and
+ * incoming checkpoints behind it.
+ *
+ * `mirrorTerminalUploadStatus` is the deliberate exception to that, and only
+ * ever an *additional* write: when — and only when — a row reaches the terminal
+ * `uploaded` state, its completion is also stamped once onto the synced photo
+ * row, because the server has no other way to tell an uploaded photo from one
+ * whose row synced ahead of its file. See
+ * `runtime/syncedUploadStatusMirror.ts`. Every intermediate state stays local,
+ * so the outbox sees at most one entry per photo for its whole lifetime rather
+ * than one per attempt. A local-only table with `mirrorTerminalTo: null` would
+ * be purely local; today there is no such table.
+ *
+ * The other two are still `synced`, and that is a scope decision rather than an
+ * oversight: `DriverDocuments` holds three rows per driver, and `InspectionPhotos`
+ * has not been migrated yet. Both would benefit from the same move; neither is
+ * the volume that caused the stall.
+ */
+type PhotoQueueBookkeeping =
+  | { kind: "local-only"; mirrorTerminalTo: "DamageReportPhotos" | null }
+  | { kind: "synced"; table: "InspectionPhotos" | "DriverDocuments" };
+
+/**
+ * Writes the queue columns back to the synced table that still carries them.
+ *
+ * Switched rather than parameterised so Kysely keeps checking each table's
+ * columns against the generated schema (same reasoning as `requeuePhotoRows`).
+ */
+async function persistSyncedStatus(
+  table: "InspectionPhotos" | "DriverDocuments",
+  row: PhotoUploadRow,
+): Promise<void> {
+  switch (table) {
+    case "InspectionPhotos":
+      await executeTypedMutationVoid(
+        db
+          .updateTable("InspectionPhotos")
+          .set(queueUpdateSet(row))
+          .where("id", "=", row.id)
+          .compile(),
+      );
+      return;
+    case "DriverDocuments":
+      await executeTypedMutationVoid(
+        db
+          .updateTable("DriverDocuments")
+          .set(queueUpdateSet(row))
+          .where("id", "=", row.id)
+          .compile(),
+      );
+      return;
+  }
+}
+
 /** The bucket-path column, per table. */
 type PathColumn = "photo_path" | "storage_path";
 
@@ -144,6 +267,7 @@ type AdapterConfig = {
   upsert: boolean;
   pathColumn: PathColumn;
   scoping: AdapterScoping;
+  bookkeeping: PhotoQueueBookkeeping;
 };
 
 /**
@@ -347,7 +471,7 @@ function firstEligible<
  * unable to degrade into an unscoped read, for every method at once.
  */
 function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
-  const { table, bucket, upsert, pathColumn, scoping } = config;
+  const { table, bucket, upsert, pathColumn, scoping, bookkeeping } = config;
 
   const source = (): QueueSource | null => {
     if (scoping.kind === "none") return scoping.from();
@@ -416,14 +540,30 @@ function makeAdapter(config: AdapterConfig): PhotoQueueTableAdapter {
     // Not scoped, on purpose (§15): `persist` is only ever handed a row that a
     // scoped read above already returned, so re-checking ownership here would
     // buy nothing and cost a subquery on the hot write path.
+    //
+    // For a `local-only` table this write does not reach `ps_crud` at all, which
+    // is the entire point: a status transition is device bookkeeping, and used
+    // to queue one CRUD operation per photo per attempt ahead of the driver's
+    // real writes.
+    //
+    // The single exception is the terminal one. `uploaded` is also mirrored onto
+    // the synced photo row, once, because it is the only fact about an upload
+    // the server has any use for — and the only one it cannot infer, since the
+    // photo row itself syncs long before its file does. Ordering is local first:
+    // the local-only table is what every read in this file consults, so it is
+    // the one that must be true even if the process dies between the two writes.
     async persist(row) {
-      await executeTypedMutationVoid(
-        db
-          .updateTable(table)
-          .set(queueUpdateSet(row))
-          .where("id", "=", row.id)
-          .compile(),
-      );
+      if (bookkeeping.kind === "local-only") {
+        await replacePhotoUploadStatus(row);
+        if (
+          bookkeeping.mirrorTerminalTo &&
+          isTerminalUploadStatus(row.upload_status)
+        ) {
+          await mirrorTerminalUploadStatus(row.id);
+        }
+        return;
+      }
+      await persistSyncedStatus(bookkeeping.table, row);
     },
 
     async countUnresolved() {
@@ -487,8 +627,9 @@ export const PHOTO_QUEUE_ADAPTERS: readonly PhotoQueueTableAdapter[] = [
     pathColumn: "photo_path",
     scoping: {
       kind: "owner",
-      from: (scope) => asQueueSource(damageReportPhotosOf(scope)),
+      from: (scope) => damageReportPhotoQueueRows(scope),
     },
+    bookkeeping: { kind: "local-only", mirrorTerminalTo: "DamageReportPhotos" },
   }),
   makeAdapter({
     table: "InspectionPhotos",
@@ -499,6 +640,7 @@ export const PHOTO_QUEUE_ADAPTERS: readonly PhotoQueueTableAdapter[] = [
       kind: "owner",
       from: (scope) => asQueueSource(inspectionPhotosOf(scope)),
     },
+    bookkeeping: { kind: "synced", table: "InspectionPhotos" },
   }),
   makeAdapter({
     table: "DriverDocuments",
@@ -513,5 +655,6 @@ export const PHOTO_QUEUE_ADAPTERS: readonly PhotoQueueTableAdapter[] = [
         "A client-side filter would duplicate a guarantee that already holds.",
       from: () => asQueueSource(driverDocumentsAll()),
     },
+    bookkeeping: { kind: "synced", table: "DriverDocuments" },
   }),
 ];

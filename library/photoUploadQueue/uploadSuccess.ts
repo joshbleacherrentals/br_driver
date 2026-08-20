@@ -9,7 +9,7 @@
  * ambiguous signal can only ever trigger verification, never decide it.
  */
 
-import type { UploadEvidence } from "./types";
+import type { BucketPresence, UploadEvidence } from "./types";
 
 /**
  * A row may only move to `uploaded` when success is explicitly confirmed:
@@ -45,4 +45,43 @@ export function needsBucketVerification(evidence: UploadEvidence): boolean {
     (evidence.duplicatePathSignal || evidence.timedOutSignal) &&
     evidence.bucketObjectExists === null
   );
+}
+
+/**
+ * What an attempt is allowed to record about itself.
+ *
+ * `inconclusive` is the third answer the queue used to lack, and the reason a
+ * healthy row could be reported to the driver as failing: the insert-only
+ * bucket rejects the write because an object is *already* at the path, and the
+ * verifying lookup then cannot answer at all. Both halves are missing evidence
+ * — the duplicate says some attempt landed, the `unknown` says we could not
+ * check which — and the queue had no way to say so, so it wrote the one thing
+ * it definitely did not know: that the attempt failed.
+ */
+export type AttemptVerdict = "confirmed" | "inconclusive" | "failed";
+
+/**
+ * §5.1/§9/§10 — the verdict for one attempt, from its evidence plus the real
+ * tri-state result of the bucket lookup (`null` when no lookup was warranted).
+ *
+ * `presence` is deliberately a separate argument rather than a boolean folded
+ * into the evidence: `absent` and `unknown` are interchangeable for deciding
+ * *success*, and are opposites for deciding *failure*.
+ */
+export function attemptVerdict(
+  evidence: UploadEvidence,
+  presence: BucketPresence | null,
+): AttemptVerdict {
+  // Confirmation still needs explicit evidence, and `present` is the only
+  // lookup answer that provides it (§9, §10).
+  if (isUploadSuccessful(evidence)) {
+    return "confirmed";
+  }
+  // The object is already in the bucket and we could not find out whose write
+  // put it there. Absence of evidence, not evidence of failure — so nothing is
+  // charged to the row and it stays retryable (§5.1).
+  if (evidence.duplicatePathSignal && presence === "unknown") {
+    return "inconclusive";
+  }
+  return "failed";
 }

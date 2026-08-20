@@ -41,6 +41,12 @@ export function nextUploadStatus(
     case "attempt_timed_out":
       // §5 — a timeout is just another failed attempt, never a give-up.
       return "failed";
+    // §5.1/§9 — nothing was learned, so nothing is claimed: a row that was
+    // `pending` stays `pending`, one that was `failed` stays `failed`. Moving
+    // it to `failed` would tell the driver about a failure the queue has no
+    // evidence for.
+    case "attempt_inconclusive":
+      return current;
     case "retry_requested":
     // §12 — the sweep proved the local file is there after all, so the row is
     // retryable exactly as if the driver had asked for it themselves.
@@ -89,6 +95,15 @@ export function applyUploadEvent(
       // §10 — clear stale diagnostics once the object is safely in the bucket.
       next.last_attempt_at = nowIso;
       next.last_error = null;
+      break;
+
+    case "attempt_inconclusive":
+      // §5.1/§9 — the timestamp, and only the timestamp. `attempts` is the sole
+      // input to backoff and must count *completed-but-unsuccessful* attempts;
+      // this attempt is neither. `last_error` is left exactly as it was, since
+      // no error was established. Stamping the time is what keeps the row from
+      // being re-claimed on the very next pass.
+      next.last_attempt_at = nowIso;
       break;
 
     case "retry_requested":

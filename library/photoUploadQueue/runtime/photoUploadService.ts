@@ -28,10 +28,27 @@
  *
  * Nothing was bought with it. §10 scopes claim exclusivity to one process, and
  * a local SQLite status column never provided more than that: two processes
- * reading `pending` would both write `uploading` and both upload. `inFlightRows`
+ * reading `pending` would both write `uploading` and both upload. `claimLedger`
  * below enforces exactly the same guarantee at exactly the same scope, inside
  * the same lock, for free — and `claimNext` consults it, so a reserved row is
  * invisible to every subsequent claim just as a non-`pending` row was.
+ *
+ * THE LEDGER OUTLIVES THE ATTEMPT, BECAUSE THE READ CONNECTION LAGS THE WRITE
+ * A reservation that is dropped the instant `persist()` resolves is dropped too
+ * early. The SELECT behind `claimNext` runs on a *different* SQLite connection
+ * than the write did — PowerSync/op-sqlite keeps one write-locked connection and
+ * separate read-only ones — so for a short window after a commit the reader
+ * still serves the pre-commit snapshot, in which the row is `pending` and
+ * (having just been released) unreserved. The very next claim then handed the
+ * same row straight back out and uploaded the same bytes a second time.
+ *
+ * So the ledger does not track "mid-flight"; it tracks *what this process last
+ * wrote for the row*, and keeps that record after the attempt ends. For rows it
+ * has itself written, that record — not the possibly-stale read — is what the
+ * claim path believes: a row this process confirmed is never re-claimed, and a
+ * row it just failed waits out its backoff against this process's own
+ * `attempts`/`last_attempt_at`. It stays a purely in-memory, single-process
+ * mechanism (§10) and still evaporates with the process, exactly as below.
  *
  * What the database write additionally bought was *durability* of the
  * reservation across process death — and that is the property §14 exists to
@@ -41,7 +58,9 @@
  * `failed` with its original `attempts`, so the next launch claims it again as
  * ordinary work. §14's sweep is kept regardless — devices in the field still
  * carry rows stranded by the old behaviour, and it is the only thing that
- * reclaims them.
+ * reclaims them. The same is true of the retained post-attempt records: they
+ * only ever *narrow* what this process claims, so losing them costs nothing
+ * beyond the redundant work the next launch would have done anyway.
  *
  * Each pass has four stages, in this order:
  *
@@ -73,15 +92,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { PhotoUploadRow, UploadEvidence } from "../types";
-import {
-  isUploadSuccessful,
-  needsBucketVerification,
-} from "../uploadSuccess";
+import { isDueForFastRetry, isDueForRetry } from "../backoff";
+import type { BucketPresence, PhotoUploadRow, UploadEvidence } from "../types";
+import { attemptVerdict, needsBucketVerification } from "../uploadSuccess";
 import { createUploadQueueWorker } from "../worker";
 import {
   BucketUploadOutcome,
-  objectExistsInBucket,
+  lookupBucketObject,
   uploadToBucket,
 } from "./bucketUpload";
 import { getDriverScope } from "@/library/powersync/scoping/driverScope";
@@ -104,6 +121,32 @@ const FAST_WINDOW_MS = 60_000;
 const FAST_RESCHEDULE_MS = 4_000;
 /** Background cadence for retry passes once the fast window has closed. */
 const BACKOFF_RESCHEDULE_MS = 60_000;
+
+/**
+ * §10 — how long a *confirmed* claim-ledger entry is kept after this process
+ * wrote it, before the entry may be dropped.
+ *
+ * The ledger only exists to out-vote a stale read: for a short window after a
+ * commit, `claimNext`'s read connection still serves the pre-commit snapshot
+ * (see the module header). Once that window has passed, an entry whose record
+ * says `uploaded` has no job left — the real row now reads back `uploaded`,
+ * which is invisible to `claimNext` by construction — so keeping it is pure
+ * growth. Without this the map grew linearly with every photo the process had
+ * ever handled.
+ *
+ * The lag was measured on device in the tens of milliseconds, worst case
+ * ~130ms; 5s is ~38x that, and well under {@link BACKOFF_RESCHEDULE_MS}, so an
+ * entry can never outlive a whole idle pass cycle. If the lag is ever measured
+ * materially higher than ~130ms, this number is the thing to revisit.
+ *
+ * Only entries meeting ALL of "not in flight", "record is the confirmed
+ * terminal state `uploaded`" and "record older than this" are evicted; a
+ * `pending`/`failed` record is doing live work (it holds this process's real
+ * `attempts`/`last_attempt_at` against a stale read) and is never evicted on a
+ * timer, nor is the §14 "claim held for the session" case, which stays
+ * `inFlight` on purpose.
+ */
+export const LEDGER_CONFIRMED_ENTRY_TTL_MS = 5_000;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -155,6 +198,15 @@ export type PhotoUploadService = {
    */
   isRowInFlight(table: string, rowId: string): boolean;
   /**
+   * How many rows this service currently holds a claim-ledger record for.
+   *
+   * Purely an observability seam. Eviction of a confirmed entry is by design
+   * behaviourally invisible — the row reads back `uploaded` whether or not the
+   * entry is still there — so boundedness cannot be asserted from the outside
+   * any other way (§10).
+   */
+  readonly claimLedgerSize: number;
+  /**
    * Retires this instance. Idempotent, and part of the type on purpose: a
    * service that cannot be retired is a service that lives forever.
    *
@@ -162,7 +214,7 @@ export type PhotoUploadService = {
    * unresolved, and nothing about that timer depends on the instance still
    * being reachable from React. A superseded instance therefore kept claiming
    * rows, kept uploading through a stale Supabase client and kept its whole
-   * retained graph (client, `inFlightRows`, closures) alive for the rest of the
+   * retained graph (client, `claimLedger`, closures) alive for the rest of the
    * session — the memory-retention bug behind RAM staying elevated long after
    * every visible upload had finished.
    *
@@ -208,23 +260,120 @@ export function createPhotoUploadService(
   }
 
   /**
-   * The claim ledger: rows this service has reserved and is still uploading,
-   * keyed `table:id`. This IS the exclusivity mechanism (§10) — see the module
-   * header for why it replaced the `uploading` status write rather than merely
-   * shadowing it.
+   * What this service knows about one row, from having handled it itself.
+   *
+   * `written` is the whole point of the ledger surviving the attempt: it is the
+   * row exactly as this process last persisted it, and it is authoritative over
+   * anything `claimNext` reads back, because the read connection can still be
+   * serving a pre-commit snapshot (see the module header).
+   */
+  type ClaimLedgerEntry = {
+    /** A lane is mid-attempt on this row right now. */
+    inFlight: boolean;
+    /** The row as this process last wrote it; `null` before the first write. */
+    written: PhotoUploadRow | null;
+    /**
+     * When `written` was recorded (ms since epoch); `null` while there is no
+     * record. Only used to age out confirmed entries — see
+     * {@link LEDGER_CONFIRMED_ENTRY_TTL_MS}.
+     */
+    writtenAtMs: number | null;
+  };
+
+  /**
+   * The claim ledger, keyed `table:id`. This IS the exclusivity mechanism
+   * (§10) — see the module header for why it replaced the `uploading` status
+   * write rather than merely shadowing it, and why entries outlive the attempt
+   * that created them.
    *
    * Three readers:
-   *   - `claimNextPendingRow`, so a reserved row is never handed to a second
-   *     lane;
+   *   - `claimNextPendingRow`, so neither a reserved row nor one this process
+   *     has already resolved is ever handed to another lane;
    *   - the §14 staleness sweep, so it can never reclaim a row out from under a
    *     slow-but-live attempt;
    *   - the §6 recovery pass, for the same reason.
+   *
+   * The latter two ask only about `inFlight` — "is a lane working on this right
+   * now" — which is what `isRowInFlight` still answers, and only that.
    */
-  const inFlightRows = new Set<string>();
-  const inFlightKey = (table: string, rowId: string): string =>
+  const claimLedger = new Map<string, ClaimLedgerEntry>();
+  const ledgerKey = (table: string, rowId: string): string =>
     `${table}:${rowId}`;
+  const ledgerEntry = (table: string, rowId: string): ClaimLedgerEntry => {
+    const key = ledgerKey(table, rowId);
+    const existing = claimLedger.get(key);
+    if (existing) return existing;
+    const created: ClaimLedgerEntry = {
+      inFlight: false,
+      written: null,
+      writtenAtMs: null,
+    };
+    claimLedger.set(key, created);
+    return created;
+  };
   const isRowInFlight = (table: string, rowId: string): boolean =>
-    inFlightRows.has(inFlightKey(table, rowId));
+    claimLedger.get(ledgerKey(table, rowId))?.inFlight === true;
+
+  /**
+   * Drops the ledger entries that have finished being useful, so the map is
+   * bounded by the work in flight rather than by everything the process has
+   * ever handled (§10).
+   *
+   * Deliberately surgical rather than a `clear()`: the three conditions below
+   * are exactly the case where the entry provably has no remaining job. Any
+   * entry still `pending`/`failed`, still in flight, or written too recently
+   * for the read connection to have demonstrably caught up is left alone —
+   * dropping one of those would reintroduce the read-after-write re-claim this
+   * ledger exists to prevent.
+   */
+  const evictSettledLedgerEntries = (nowMs: number): void => {
+    for (const [key, entry] of claimLedger) {
+      // A lane is mid-attempt — including §14's deliberately-held claim.
+      if (entry.inFlight) continue;
+      // Not the confirmed terminal state: `pending`/`failed` records still hold
+      // this process's real attempts/backoff against a stale read, and a
+      // claimed-but-never-written entry has nothing to age.
+      if (entry.written === null || entry.writtenAtMs === null) continue;
+      if (entry.written.upload_status !== "uploaded") continue;
+      if (nowMs - entry.writtenAtMs < LEDGER_CONFIRMED_ENTRY_TTL_MS) continue;
+      claimLedger.delete(key);
+    }
+  };
+
+  /**
+   * Whether this process must not hand `rowId` out right now, judged against
+   * its own record rather than the row the claim query returned.
+   *
+   * Three ways to be blocked, and the last two are what the read-after-write
+   * lag makes necessary:
+   *   - a lane is mid-attempt on it;
+   *   - this process already confirmed it, so re-uploading it is pure waste no
+   *     matter how `pending` the reader still thinks it looks;
+   *   - this process recorded an attempt whose backoff has not elapsed yet,
+   *     measured against the `attempts`/`last_attempt_at` it actually wrote.
+   *     A stale read would show the *previous* attempt's timing and let the row
+   *     straight back through.
+   */
+  const isClaimBlocked = (
+    table: string,
+    rowId: string,
+    mode: PhotoQueueMode,
+    nowMs: number,
+  ): boolean => {
+    const entry = claimLedger.get(ledgerKey(table, rowId));
+    if (!entry) return false;
+    if (entry.inFlight) return true;
+
+    const written = entry.written;
+    // Claimed but never written: an attempt that ended without recording
+    // anything holds nothing against the row.
+    if (!written) return false;
+    if (written.upload_status === "uploaded") return true;
+
+    return !(mode === "fast"
+      ? isDueForFastRetry(written, nowMs)
+      : isDueForRetry(written, nowMs));
+  };
 
   const effectiveMode = (): PhotoQueueMode =>
     Date.now() < fastUntil ? "fast" : "backoff";
@@ -250,25 +399,39 @@ export function createPhotoUploadService(
         // so "nothing eligible here" genuinely means nothing eligible — cheap,
         // bounded, move on. This is the ONLY reason to keep scanning.
         const row = await adapter.claimNext(mode, now, (rowId) =>
-          isRowInFlight(adapter.table, rowId),
+          isClaimBlocked(adapter.table, rowId, mode, now),
         );
         if (!row) continue;
 
         // Reserve it before releasing the lock. Nothing is written: the ledger
         // is the reservation (see the module header), so this cannot fail, and
         // the claim path performs no database write at all.
-        inFlightRows.add(inFlightKey(adapter.table, row.id));
+        ledgerEntry(adapter.table, row.id).inFlight = true;
         return { row, adapter };
       }
 
       return null;
     });
 
+  /**
+   * The evidence for one attempt, plus the raw tri-state answer the bucket
+   * lookup gave (`null` when no lookup was warranted).
+   *
+   * The two are separate because they answer different questions: the evidence
+   * decides success, for which `absent` and `unknown` are the same non-answer;
+   * the presence decides whether a non-success may be *recorded as a failure*,
+   * for which they are opposites (§5.1).
+   */
+  type AttemptEvidence = {
+    evidence: UploadEvidence;
+    presence: BucketPresence | null;
+  };
+
   const evidenceFor = async (
     adapter: PhotoQueueTableAdapter,
     row: PhotoUploadRow,
     outcome: BucketUploadOutcome,
-  ): Promise<UploadEvidence> => {
+  ): Promise<AttemptEvidence> => {
     const evidence: UploadEvidence = {
       apiConfirmed: outcome.kind === "confirmed",
       duplicatePathSignal: outcome.kind === "duplicate",
@@ -280,14 +443,17 @@ export function createPhotoUploadService(
     };
     // Only the ambiguous "did it land anyway?" cases earn a real bucket lookup;
     // neither ambiguous signal ever decides success on its own (§10, §5.1).
-    if (needsBucketVerification(evidence)) {
-      evidence.bucketObjectExists = await objectExistsInBucket(
-        client,
-        adapter.bucket,
-        row.photo_path,
-      );
+    if (!needsBucketVerification(evidence)) {
+      return { evidence, presence: null };
     }
-    return evidence;
+
+    const presence = await lookupBucketObject(
+      client,
+      adapter.bucket,
+      row.photo_path,
+    );
+    evidence.bucketObjectExists = presence === "present";
+    return { evidence, presence };
   };
 
   /**
@@ -314,7 +480,18 @@ export function createPhotoUploadService(
         event,
         nowIso(),
         errorMessage,
-        { label, guaranteedFailedFallback: true },
+        {
+          label,
+          guaranteedFailedFallback: true,
+          // The ledger records what actually landed, which is not always the
+          // event we asked for (§14's fallback writes `failed` instead). That
+          // record is what the next claim trusts over the read connection.
+          onPersisted: (persisted) => {
+            const entry = ledgerEntry(adapter.table, row.id);
+            entry.written = persisted;
+            entry.writtenAtMs = Date.now();
+          },
+        },
       );
     };
 
@@ -356,12 +533,28 @@ export function createPhotoUploadService(
         upsert: adapter.upsert,
       });
 
-      const evidence = await evidenceFor(adapter, row, outcome);
+      const { evidence, presence } = await evidenceFor(adapter, row, outcome);
+      const verdict = attemptVerdict(evidence, presence);
 
-      if (isUploadSuccessful(evidence)) {
+      if (verdict === "confirmed") {
         await persist("upload_confirmed");
         photoQueueLog.info(
           `uploaded: ${label} → ${adapter.bucket}/${row.photo_path}`,
+        );
+        return;
+      }
+
+      // §5.1/§9 — the bucket rejected the write because something is already at
+      // this path, and the verifying lookup could not answer. Recording a
+      // failed attempt here would ratchet backoff and show the driver an error
+      // on the strength of evidence that was never gathered; only the timestamp
+      // moves, so the row is retried on a later pass rather than the next one.
+      if (verdict === "inconclusive") {
+        await persist("attempt_inconclusive");
+        photoQueueLog.warn(
+          `inconclusive: ${label} — object already at ${adapter.bucket}/` +
+            `${row.photo_path}, but the bucket lookup could not answer. ` +
+            `Row left retryable at attempt ${row.attempts}; nothing recorded.`,
         );
         return;
       }
@@ -391,7 +584,10 @@ export function createPhotoUploadService(
       // An unforeseen throw still releases: `outcomeWritten` is only `false`
       // when a terminal write was attempted and demonstrably failed.
       if (outcomeWritten !== false) {
-        inFlightRows.delete(inFlightKey(adapter.table, row.id));
+        // Only the reservation is released. The `written` record stays — it is
+        // what keeps the next claim from re-uploading this row on a stale read
+        // (see the module header).
+        ledgerEntry(adapter.table, row.id).inFlight = false;
       } else {
         photoQueueLog.error(
           `holding claim on ${label} for this session — its outcome could not ` +
@@ -460,6 +656,12 @@ export function createPhotoUploadService(
     const startedAtMs = Date.now();
     const mode = effectiveMode();
     photoQueueLog.info(`pass start — trigger=${trigger}, mode=${mode}`);
+
+    // §10 — age out the confirmed ledger records from earlier passes before
+    // this one claims anything, so the map tracks concurrently-active work
+    // rather than the whole session's history. Done here, at a pass boundary,
+    // because it is the one point where no lane is mid-claim.
+    evictSettledLedgerEntries(startedAtMs);
 
     // §12 — local only, so it runs whether or not there is a network.
     const sweep = await sweepParkedRows(PHOTO_QUEUE_ADAPTERS);
@@ -549,6 +751,9 @@ export function createPhotoUploadService(
     },
     countUnresolved,
     isRowInFlight,
+    get claimLedgerSize() {
+      return claimLedger.size;
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

@@ -20,6 +20,13 @@ import {
   pickDamagePhotosFromLibrary,
 } from "@/features/damage-report/utils/pickDamagePhotos";
 import { prepareDamageReportPhotos } from "@/features/damage-report/utils/prepareDamageReportPhotos";
+import {
+  INSPECTION_QUESTION_PHOTO_SUBJECT,
+  MAX_PHOTOS,
+  admitPickedPhotos,
+  describePhotoLimit,
+  photoLimitReachedAlert,
+} from "@/utils/photoLimit";
 import { type ThemeColors, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
@@ -168,6 +175,12 @@ function PhotoQuestion({
         photos={photos}
         title={question.question_text ?? "Photos"}
         required={!!question.required}
+        // Same 30-photo cap as a damage report, and for the same reason: every
+        // photo answered here is written to disk and queued for the bucket at
+        // submit time, so an unbounded selection is a storage and battery
+        // problem on the driver's phone.
+        maxPhotos={MAX_PHOTOS}
+        limitSubject={INSPECTION_QUESTION_PHOTO_SUBJECT}
         onAddFromCamera={onAddFromCamera}
         onAddFromLibrary={onAddFromLibrary}
         onRemove={onRemove}
@@ -246,14 +259,56 @@ export default function InspectionScreen({
       },
     }));
 
+  /**
+   * The cap for one photo question, read fresh at tap time.
+   *
+   * The grid already disables both add controls at the limit; this is what
+   * makes the cap real rather than cosmetic, since a queued tap or a stale
+   * render could still reach a handler. Each question carries its own set, so
+   * the count is per question, not per inspection.
+   */
+  const photoLimitFor = (questionId: string) =>
+    describePhotoLimit(
+      (answers[questionId]?.photos ?? []).length,
+      MAX_PHOTOS,
+      INSPECTION_QUESTION_PHOTO_SUBJECT,
+    );
+
   const pickImageForQuestion = async (questionId: string) => {
-    const picked = await pickDamagePhotosFromLibrary();
-    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
+    const limit = photoLimitFor(questionId);
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
+
+    // The picker is asked for at most the headroom, so the driver is stopped
+    // inside the picker itself on platforms that honour `selectionLimit`; the
+    // result is trimmed as well for the ones that do not, and never silently.
+    const picked = await pickDamagePhotosFromLibrary({
+      selectionLimit: limit.remaining,
+    });
+    if (picked.length === 0) return;
+
+    const { kept, alert } = admitPickedPhotos(picked, limit);
+    if (alert) Alert.alert(alert.title, alert.message);
+    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
   };
 
   const takePhotoForQuestion = async (questionId: string) => {
+    const limit = photoLimitFor(questionId);
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
+
     const picked = await pickDamagePhotosFromCamera();
-    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
+    if (picked.length === 0) return;
+
+    const { kept, alert } = admitPickedPhotos(picked, limit);
+    if (alert) Alert.alert(alert.title, alert.message);
+    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
   };
 
   const validate = (): string | null => {

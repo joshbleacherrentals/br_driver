@@ -105,8 +105,12 @@ export async function commitDamageReport(
             damage_report_uuid: draft.damageId,
             photo_path: photo.photoPath,
             thumbnail: photo.thumbnail,
-            upload_status: "pending",
-            attempts: 0,
+            // No `upload_status`/`attempts` here any more: §3 bookkeeping lives
+            // in the local-only `PhotoUploadStatus` table, where the *absence*
+            // of a row means exactly "pending, never attempted". The queue
+            // creates the row the first time it persists an outcome, so a saved
+            // photo is claimable without a second write — and without a second
+            // CRUD entry.
             // Same `now` as the report row above, and not optional: the upload
             // queue orders its claims by `created_at`
             // (`runtime/tableAdapters.ts`), so a row without one has no defined

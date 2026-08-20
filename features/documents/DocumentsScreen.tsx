@@ -1,7 +1,7 @@
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBlueBook } from "@/hooks/db/useBlueBook";
@@ -48,7 +48,6 @@ export default function BlueBookScreen() {
   return (
     <View style={styles.container}>
       <ProfileCompletionBanner />
-      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ScrollView
@@ -111,6 +110,8 @@ export default function BlueBookScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

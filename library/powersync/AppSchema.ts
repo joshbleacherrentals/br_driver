@@ -181,20 +181,89 @@ const DamageReports = new Table(DamageReportsCols, {
 });
 
 // damage report photos
+//
+// The *churning* §3 queue columns (`attempts`, `last_attempt_at`, `last_error`,
+// `gallery_asset_id`) are deliberately NOT declared here — they live on the
+// local-only `PhotoUploadStatus` table below, which is what keeps a drain of
+// hundreds of photos out of PowerSync's `ps_crud` outbox. See its comment.
+//
+// `upload_status` is the one exception, and it is a deliberate hybrid rather
+// than a half-finished move. A photo row syncs to the server the moment it is
+// created — long before its file finishes uploading — so "the row is in
+// Postgres" never meant "the photo is in the bucket". `upload_status` was, and
+// remains, the only server-visible signal that an upload actually completed:
+// it is what a human checks in Postgres to confirm a report's photos landed,
+// and what the upcoming `DamageReports.isReady` gate will read.
+//
+// What makes keeping it affordable is that the client writes it exactly ONCE
+// per photo, and only ever the value `uploaded`
+// (`runtime/syncedUploadStatusMirror.ts`). Intermediate states — pending,
+// uploading, failed, every retry — stay entirely in `PhotoUploadStatus` and
+// never reach the outbox. So the outbox sees one entry per photo *ever*,
+// instead of one per photo per attempt, and every read the client's own queue
+// logic performs still comes from the local-only table.
+//
+// `satisfies Partial<...>` rather than the full mapping used by every synced
+// table above: the Postgres table still has the local-only columns too, so the
+// exhaustive form would demand them back. `Partial` still checks every column
+// that IS declared — a typo'd name or a text/integer mix-up is caught exactly
+// as before; only "you listed all of them" is relaxed.
 const DamageReportPhotosCols = {
   damage_report_uuid: column.text,
   photo_path: column.text,
   thumbnail: column.text,
+  created_at: column.text,
+  // Server-visible upload completion only — see above. Never written with any
+  // value other than `uploaded`, and never read by the client's queue logic.
   upload_status: column.text,
-  // Custom photo upload queue (design doc §3).
+} satisfies Partial<PowerSyncColsFor<"DamageReportPhotos">>;
+const DamageReportPhotos = new Table(DamageReportPhotosCols, {
+  indexes: { damage_report_uuid: ["damage_report_uuid"] },
+});
+
+/**
+ * §3 upload bookkeeping, keyed by the photo row's own `id` — LOCAL ONLY.
+ *
+ * WHY THIS TABLE EXISTS
+ * `upload_status`/`attempts`/`last_attempt_at`/`last_error`/`gallery_asset_id`
+ * are device bookkeeping: the server has no use for the *churn*, only for the
+ * final outcome (mirrored once per photo onto the synced row — see
+ * `DamageReportPhotosCols` above). While they all sat on the synced
+ * `DamageReportPhotos` table, every status transition of every
+ * photo became one more entry in PowerSync's `ps_crud` outbox — and PowerSync
+ * will not apply an incoming checkpoint while `ps_crud` is non-empty. Draining a
+ * few hundred photos therefore held off *every* server update the driver was
+ * waiting on (trip status, new assignments) for as long as the drain lasted.
+ * A `localOnly` table is written straight to `ps_data_local__PhotoUploadStatus`
+ * with no CRUD entry at all, so the queue's own chatter can no longer starve the
+ * driver's real data.
+ *
+ * `id` IS the photo row's id (uuids, so unique across photo tables), which keeps
+ * the join to the photo row a plain equality and needs no second key column.
+ *
+ * A MISSING ROW IS NOT AN ERROR. Every read left-joins and coalesces a missing
+ * row to "fresh and pending" (`library/photoUploadQueue/runtime/tableAdapters.ts`),
+ * which is what makes an upgrade from the old schema safe in the only direction
+ * that matters: an in-flight photo is re-attempted rather than silently dropped.
+ *
+ * No `satisfies PowerSyncColsFor<...>`: that helper pins a table against its
+ * Supabase counterpart, and this table deliberately has none.
+ */
+export const PHOTO_UPLOAD_STATUS_TABLE = "PhotoUploadStatus";
+const PhotoUploadStatusCols = {
+  upload_status: column.text,
   gallery_asset_id: column.text,
   attempts: column.integer,
   last_attempt_at: column.text,
   last_error: column.text,
-  created_at: column.text,
-} satisfies PowerSyncColsFor<"DamageReportPhotos">;
-const DamageReportPhotos = new Table(DamageReportPhotosCols, {
-  indexes: { damage_report_uuid: ["damage_report_uuid"] },
+};
+const PhotoUploadStatus = new Table(PhotoUploadStatusCols, {
+  localOnly: true,
+  // The queue's hot predicates: "still unresolved" and "due for a retry".
+  indexes: {
+    upload_status: ["upload_status"],
+    last_attempt_at: ["last_attempt_at"],
+  },
 });
 
 // inspectionPhotos
@@ -331,6 +400,7 @@ export const AppSchema = new Schema({
   InspectionQuestions,
   DamageReports,
   DamageReportPhotos,
+  PhotoUploadStatus,
   InspectionPhotos,
   DriverDocuments,
   WorkTrackers,

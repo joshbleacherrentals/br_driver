@@ -46,8 +46,8 @@ function toUploadStatus(raw: string | null): PhotoUploadStatus {
 
 /**
  * The query this hook runs, exported separately so it can be exercised directly
- * against a database in tests (same rationale as `usePhotoUploadBanner.ts`'s
- * `buildProblemPhotoRowsQuery`).
+ * against a database in tests (same rationale as `usePhotoUploadOverlay.ts`'s
+ * `buildUploadActivityRowsQuery`).
  *
  * §15 — built from `damageReportPhotosOf(scope)`, so a report id alone can no
  * longer produce rows. `DamageReportPhotos` syncs every driver's rows to every
@@ -62,13 +62,24 @@ export function buildDamageReportPhotosQuery(
   damageReportUuid: string,
 ) {
   return damageReportPhotosOf(scope)
+    // §3 bookkeeping lives in the local-only `PhotoUploadStatus` table now (see
+    // `AppSchema.ts`), so status comes from a LEFT JOIN rather than the photo
+    // row. Left, not inner: a photo the queue has never persisted an outcome for
+    // has no bookkeeping row at all, and must still appear — `toUploadStatus`
+    // already reads a null status as `pending`, which is exactly what its
+    // absence means.
+    .leftJoin(
+      "PhotoUploadStatus",
+      "PhotoUploadStatus.id",
+      "DamageReportPhotos.id",
+    )
     .select([
-      "id",
-      "damage_report_uuid",
-      "photo_path",
-      "upload_status",
-      "last_error",
-      "created_at",
+      "DamageReportPhotos.id as id",
+      "DamageReportPhotos.damage_report_uuid as damage_report_uuid",
+      "DamageReportPhotos.photo_path as photo_path",
+      "PhotoUploadStatus.upload_status as upload_status",
+      "PhotoUploadStatus.last_error as last_error",
+      "DamageReportPhotos.created_at as created_at",
     ])
     .where("damage_report_uuid", "=", damageReportUuid)
     .orderBy("created_at", "asc");

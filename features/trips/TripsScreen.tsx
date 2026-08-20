@@ -3,7 +3,7 @@ import { typeScale } from "@/constants/theme";
 import InspectionScreen from "@/components/widgets/inspection";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import TripItem from "@/components/widgets/trip_item";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
@@ -244,7 +244,6 @@ export default function TripsScreen() {
   return (
     <View style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
-      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ReleasedTripsBanner
@@ -414,6 +413,10 @@ export default function TripsScreen() {
           )}
         />
       )}
+
+      {/* Last child, and absolutely positioned: it floats over the lists
+          rather than displacing them. */}
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

@@ -2,7 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import Badge from "@/components/ui/Badge";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
-import PhotoUploadIssueBanner from "@/components/widgets/PhotoUploadIssueBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { type ThemeColors, elevation, typeScale } from "@/constants/theme";
 import AvailabilityIntroStrip from "@/features/availability/components/AvailabilityIntroStrip";
 import UpcomingTripCard from "@/features/availability/components/UpcomingTripCard";
@@ -42,6 +42,8 @@ type UndoEntry = {
 };
 
 const ACTION_BAR_HEIGHT = 108;
+/** Undo toast height plus a gap, for anything that has to sit above it. */
+const UNDO_TOAST_CLEARANCE = 68;
 const TODAY = new Date().toISOString().split("T")[0];
 
 const UPCOMING_STATUSES = new Set([
@@ -401,12 +403,16 @@ export default function AvailabilityCalendarScreen() {
   }, [navigation, openDrawer, theme, styles]);
 
   const monthLabel = formatMonthName(currentMonth);
+  // Resting position of this screen's bottom-anchored transients: above the
+  // save/discard bar while it is up, otherwise on the screen edge.
+  const undoToastBottom = hasPendingChanges
+    ? ACTION_BAR_HEIGHT + insets.bottom + 8
+    : 24;
   const isUnavailable = futureCountThisMonth > 0;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ProfileCompletionBanner />
-      <PhotoUploadIssueBanner />
       <DocExpiryWarningBanner />
 
       <ScrollView
@@ -620,9 +626,7 @@ export default function AvailabilityCalendarScreen() {
             {
               backgroundColor: theme.surfaceElevated,
               borderColor: theme.border,
-              bottom: hasPendingChanges
-                ? ACTION_BAR_HEIGHT + insets.bottom + 8
-                : 24,
+              bottom: undoToastBottom,
             },
           ]}
           pointerEvents="box-none"
@@ -648,6 +652,16 @@ export default function AvailabilityCalendarScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Stacked above whichever of this screen's own bottom-anchored controls
+          happens to be up, so the three never overlap. */}
+      <PhotoUploadStatusOverlay
+        bottomInset={
+          undoToastBottom -
+          24 +
+          (undoToast !== null ? UNDO_TOAST_CLEARANCE : 0)
+        }
+      />
     </View>
   );
 }

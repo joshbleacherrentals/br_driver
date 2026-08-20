@@ -5,7 +5,7 @@
  * queue looks at it: `UNRESOLVED_STATUSES` in `tableAdapters.ts` is
  * `['pending','failed']`, so `claimNext`, `countUnresolved`, `countActionable`,
  * `countParked` and `listUnresolved` all skip an `uploading` row — and so does
- * the driver-facing banner query in `usePhotoUploadBanner.ts`. That is correct
+ * the driver-facing banner query in `usePhotoUploadOverlay.ts`. That is correct
  * while the attempt really is in flight, and catastrophic once it isn't: a row
  * whose process died mid-attempt (app killed, or the terminal write itself
  * failing) stays `uploading` forever, unclaimable and unmentioned. Rows two

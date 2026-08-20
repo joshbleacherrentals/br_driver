@@ -17,8 +17,8 @@ import {
 } from "@/hooks/db/useDamageReportPhotos";
 import { useDriverScope } from "@/hooks/useDriverScope";
 import { usePhotoRepair, type RepairablePhoto } from "@/hooks/usePhotoRepair";
-import { deriveUploadProgress } from "@/library/photoUploadQueue";
 import { PhotoRepairBanner } from "@/components/widgets/PhotoRepairBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -46,7 +46,7 @@ import { PhotoUploadIndicator } from "./components/PhotoUploadIndicator";
 import { PhotoUploadStatusBanner } from "./components/PhotoUploadStatusBanner";
 import { ReportUnavailable } from "./components/ReportUnavailable";
 import { useReportPhotoPreviews } from "./hooks/useReportPhotoPreviews";
-import { SubmitProgressModal } from "./components/SubmitProgressModal";
+import { SubmitProgressBanner } from "./components/SubmitProgressBanner";
 import { createDamageReport } from "./utils/createDamageReport";
 import type { PhotoPrepProgress } from "./utils/prepareDamageReportPhotos";
 import {
@@ -396,16 +396,6 @@ export default function DamageReportScreen() {
     saved: 0,
     total: 0,
   });
-  // §7 — the report whose photos this screen is watching land in the bucket.
-  // Set on a successful submit; the modal below tracks it until every photo is
-  // `uploaded` or the driver chooses to let it finish in the background.
-  const [uploadTrackedId, setUploadTrackedId] = useState<string | null>(null);
-  const [uploadDismissed, setUploadDismissed] = useState(false);
-  // §7 — how many photo rows this submit actually wrote, taken from
-  // `createDamageReport`'s own return value. It is the modal's expected total
-  // until the reactive query catches up with the just-created report; see
-  // `trackedTotal` below for why a loading flag cannot do that job.
-  const [submittedPhotoCount, setSubmittedPhotoCount] = useState(0);
   const abortRef = useRef(false);
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [trackedAttachmentIds, setTrackedAttachmentIds] = useState<string[]>(
@@ -423,43 +413,12 @@ export default function DamageReportScreen() {
     }
   }, []);
 
-  // §7 — real progress, read off the live `upload_status` of this report's rows
-  // rather than counted by the submit loop, so the bar only advances when a
-  // photo has actually reached Supabase Storage.
-  const uploadProgress = useMemo(
-    () => deriveUploadProgress(reportPhotos.map((p) => p.uploadStatus)),
-    [reportPhotos],
-  );
-
-  // Stays up across the hand-off from the prep phase. On the commit where the
-  // screen flips to view-only, `useDamageReportPhotos` has been pointed at the
-  // new report but still holds the previous (empty) result, so
-  // `uploadProgress.total` reads 0 and `complete` reads vacuously true — the
-  // modal would blink out until the query returns.
-  //
-  // A loading flag cannot close that gap. PowerSync's `isLoading` is "hard
-  // loading" only: `AbstractQueryProcessor` sets it true once, in its initial
-  // state, and never again — `updateSettingsInternal` (what a changed query
-  // triggers) raises `isFetching`, not `isLoading` — and `useWatchedQuery`
-  // reuses one processor instance across query changes. It is therefore
-  // permanently false here after the first render of this screen.
-  //
-  // So the expected total comes from the submit itself instead: the count of
-  // rows `createDamageReport` actually inserted, which is known before the
-  // query is even asked. `Math.max` lets the live query take over as soon as it
-  // reports at least that many, and `uploaded` always comes from the live rows,
-  // so the bar still only advances on photos confirmed in the bucket. The
-  // driver can always leave via "Continue in Background", so a slow query can
-  // never trap them here either way.
-  const trackedTotal = Math.max(uploadProgress.total, submittedPhotoCount);
-  const trackedComplete = uploadProgress.uploaded >= trackedTotal;
-
-  const showUploadModal =
-    !!uploadTrackedId &&
-    uploadTrackedId === viewOnlyId &&
-    !uploadDismissed &&
-    trackedTotal > 0 &&
-    !trackedComplete;
+  // The upload phase is no longer this screen's to report. Once photos are
+  // queued their progress belongs to every screen, and
+  // `components/widgets/PhotoUploadStatusOverlay.tsx` floats over all of them
+  // (including this one) counting exactly the rows the queue is working on. The
+  // banner below now covers only the local save that happens *before* anything
+  // is queued, which is the one part no reactive query can see.
 
   // §15 — no scope, no attribution, no submit. `createDamageReport` requires a
   // `DriverScope`, so this is enforced by the type too; the flag is what stops
@@ -596,13 +555,8 @@ export default function DamageReportScreen() {
 
       dlog("SUBMIT: success! Navigating to view-only...");
       setIsSubmitting(false);
-      // §7 — hand straight over to the upload phase: same modal, now counting
-      // photos confirmed in the bucket instead of photos written to disk. The
-      // saved count is carried over in the same commit so the upload phase
-      // knows its total before the reactive query has answered.
-      setUploadDismissed(false);
-      setSubmittedPhotoCount(result.savedPhotoCount);
-      setUploadTrackedId(result.damageId);
+      // The photos are queued now, so the floating overlay picks the story up
+      // from here — on this screen and on every other one.
       setViewOnlyId(result.damageId);
     } catch (error) {
       dlog(`SUBMIT: FATAL ERROR - ${String(error).slice(0, 200)}`);
@@ -611,20 +565,19 @@ export default function DamageReportScreen() {
     }
   };
 
-  // One modal instance for both phases, rendered by both branches below — the
-  // screen flips to view-only the moment the report is saved, and §7's upload
-  // phase has to survive that flip without the modal blinking out.
-  const progressModal = (
-    <SubmitProgressModal
-      visible={isSubmitting || showUploadModal}
-      phase={isSubmitting ? "preparing" : "uploading"}
-      current={isSubmitting ? prepProgress.saved : uploadProgress.uploaded}
-      total={isSubmitting ? prepProgress.total : trackedTotal}
-      failedCount={
-        isSubmitting ? prepProgress.attempted - prepProgress.saved : 0
-      }
+  // Rendered by both branches below: the screen flips to view-only the moment
+  // the report is saved, and a save still in progress must survive that flip.
+  //
+  // It sits at the top of the scroll content rather than over the screen: it is
+  // progress information, and nothing about it needs the driver to wait. That
+  // is the whole point of it no longer being a modal.
+  const progressBanner = (
+    <SubmitProgressBanner
+      visible={isSubmitting}
+      current={prepProgress.saved}
+      total={prepProgress.total}
+      failedCount={prepProgress.attempted - prepProgress.saved}
       onAbort={handleAbort}
-      onDismiss={() => setUploadDismissed(true)}
     />
   );
 
@@ -654,6 +607,8 @@ export default function DamageReportScreen() {
             },
           ]}
         >
+          {progressBanner}
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bleacher</Text>
             <Text style={styles.viewOnlyValue}>
@@ -763,7 +718,7 @@ export default function DamageReportScreen() {
           insets={insets}
         />
 
-        {progressModal}
+        <PhotoUploadStatusOverlay />
       </View>
     );
   }
@@ -779,6 +734,8 @@ export default function DamageReportScreen() {
           },
         ]}
       >
+        {progressBanner}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Bleacher</Text>
           <View style={styles.requiredBadge}>
@@ -843,7 +800,7 @@ export default function DamageReportScreen() {
         insets={insets}
       />
 
-      {progressModal}
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

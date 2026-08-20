@@ -31,6 +31,10 @@ import {
 } from "../inspectionAnswers";
 import type { PhotoReplacementPlan } from "../photoRepair";
 import { writeLocalPhoto } from "./localFile";
+import {
+  forgetPhotoUploadStatusWrite,
+  patchPhotoUploadStatusWrite,
+} from "./photoUploadStatusStore";
 import { forgetConfirmedMissingPhotoIds } from "./recoveryStore";
 import { saveToGalleryIfCamera } from "./saveToGallery";
 import { getPhotoUploadService } from "./serviceRegistry";
@@ -208,13 +212,15 @@ export async function applyPhotoRepair(
         await tx.run(
           db
             .updateTable("DamageReportPhotos")
-            .set({
-              ...REPAIRED,
-              thumbnail: reuse.thumbnail,
-            })
+            .set({ thumbnail: reuse.thumbnail })
             .where("id", "=", reuse.rowId)
             .compile(),
         );
+        // The §3 half of the same reset, now in the local-only table — and a
+        // plain UPDATE with no insert fallback on purpose: a row with no
+        // bookkeeping is already read as pending/0/no-error, which is precisely
+        // what `REPAIRED` asks for (`photoUploadStatusStore.ts`).
+        await tx.run(patchPhotoUploadStatusWrite(reuse.rowId, REPAIRED));
       }
       for (const insert of inserts) {
         await tx.run(
@@ -225,8 +231,6 @@ export async function applyPhotoRepair(
               damage_report_uuid: parent.damageReportUuid,
               photo_path: insert.bucketPath,
               thumbnail: insert.thumbnail,
-              upload_status: "pending",
-              attempts: 0,
               created_at: createdAt,
             })
             .compile(),
@@ -239,6 +243,9 @@ export async function applyPhotoRepair(
             .where("id", "in", [...plan.deletions])
             .compile(),
         );
+        // Ids are never reused, so bookkeeping left behind here would be
+        // unreachable for good.
+        await tx.run(forgetPhotoUploadStatusWrite(plan.deletions));
       }
     } else {
       for (const reuse of reuses) {

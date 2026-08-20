@@ -44,6 +44,7 @@ const TABLES = [
   "WorkTrackerInspections",
   "DamageReports",
   "DamageReportPhotos",
+  "PhotoUploadStatus",
   "InspectionPhotos",
 ] as const;
 
@@ -106,12 +107,35 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("damage_report_uuid", "text")
     .addColumn("photo_path", "text")
     .addColumn("thumbnail", "text")
+    .addColumn("created_at", "text")
+    // The server-visible half of the §3 hybrid (`AppSchema.ts`): written once
+    // per photo, only ever `uploaded`, and only by
+    // `runtime/syncedUploadStatusMirror.ts`. Left out of every seed helper on
+    // purpose — production creates the photo row without it, and NULL is
+    // exactly what "the file has not been confirmed in the bucket" looks like
+    // on the server.
+    .addColumn("upload_status", "text")
+    .execute();
+
+  /**
+   * The local-only §3 bookkeeping table (`AppSchema.ts`), keyed by the photo
+   * row's own id.
+   *
+   * On device this is a view over `ps_data_local__PhotoUploadStatus` and writes
+   * to it produce no `ps_crud` entry — the whole reason it exists. Here it is an
+   * ordinary table, which is the right model for these suites: what they assert
+   * is which rows the queue's SQL selects and what it writes, and a suite that
+   * cares about the CRUD boundary itself installs its own capture triggers
+   * (`statusWritesAreLocalOnly.test.ts`).
+   */
+  await db.schema
+    .createTable("PhotoUploadStatus")
+    .addColumn("id", "text", (col) => col.primaryKey())
     .addColumn("upload_status", "text")
     .addColumn("gallery_asset_id", "text")
     .addColumn("attempts", "integer")
     .addColumn("last_attempt_at", "text")
     .addColumn("last_error", "text")
-    .addColumn("created_at", "text")
     .execute();
 
   await db.schema
@@ -191,6 +215,8 @@ export type QueueColumns = {
   created_at?: string;
 };
 
+const DEFAULT_CREATED_AT = "2026-08-01T00:00:00.000Z";
+
 const queueDefaults = (created_at: string) => ({
   upload_status: "pending",
   gallery_asset_id: null,
@@ -199,6 +225,32 @@ const queueDefaults = (created_at: string) => ({
   last_error: null,
   created_at,
 });
+
+/**
+ * Seeds `DamageReportPhotos`' §3 bookkeeping where it now lives: the local-only
+ * `PhotoUploadStatus` table, keyed by the photo's own id.
+ *
+ * A row is always written, even for the all-defaults case. Production leaves it
+ * absent until the queue first persists an outcome, and reads coalesce the two
+ * to the same state — so seeding it keeps these suites saying exactly what they
+ * said when the columns were on the photo row.
+ */
+async function seedPhotoUploadStatus(
+  photoId: string,
+  queue: QueueColumns,
+): Promise<void> {
+  await mockDb
+    .insertInto("PhotoUploadStatus")
+    .values({
+      id: photoId,
+      upload_status: queue.upload_status ?? "pending",
+      gallery_asset_id: null,
+      attempts: queue.attempts ?? 0,
+      last_attempt_at: queue.last_attempt_at ?? null,
+      last_error: queue.last_error ?? null,
+    })
+    .execute();
+}
 
 /**
  * A damage report plus one photo on it. `createdByUserUuid: null` seeds the
@@ -243,10 +295,11 @@ export async function seedDamageReportPhoto(args: {
       id: photoId,
       damage_report_uuid: reportId,
       photo_path: `${reportId}/${photoId}.jpg`,
-      ...queueDefaults("2026-08-01T00:00:00.000Z"),
-      ...queue,
+      created_at: queue.created_at ?? DEFAULT_CREATED_AT,
     })
     .execute();
+
+  await seedPhotoUploadStatus(photoId, queue);
 
   return photoId;
 }

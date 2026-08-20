@@ -92,6 +92,7 @@ function makeService(unresolved: number): PhotoUploadService {
     // legitimate §6 verification candidate. `inFlightRows.test.ts`-style
     // coverage of the opposite case lives in `photoUploadService.test.ts`.
     isRowInFlight: jest.fn(() => false),
+    claimLedgerSize: 0,
     dispose: jest.fn(),
   };
 }
@@ -111,6 +112,7 @@ function makeRacingService(afterContextResolves: number): PhotoUploadService {
     isRunning: false,
     countUnresolved,
     isRowInFlight: jest.fn(() => false),
+    claimLedgerSize: 0,
     dispose: jest.fn(),
   };
 }
