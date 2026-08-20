@@ -13,6 +13,7 @@ import { DocReplacePrompt } from "@/features/profile/components/DocReplacePrompt
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
+import { resolveDriverDocumentUri } from "@/features/profile/utils/resolveDriverDocumentUri";
 import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
@@ -22,7 +23,7 @@ import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -95,6 +96,39 @@ export default function EditProfileDocs({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [replacingDocType, setReplacingDocType] = useState<string | null>(null);
+
+  /**
+   * The mount-time `uri` above is a local-file guess: correct for the common
+   * case (this device captured the photo), wrong for one set outside the
+   * queue (admin dashboard, a backfilled legacy path) with no local copy.
+   * Verify each existing attachment once and swap in the bucket's public URL
+   * when the guess was wrong — never for a freshly picked photo, which
+   * `attachmentId !== path` excludes (its `attachmentId` is still the old
+   * saved path, if any, not the new in-memory one).
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveInto = async (
+      path: string | null,
+      setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+    ) => {
+      if (!path) return;
+      const uri = await resolveDriverDocumentUri(path);
+      if (cancelled) return;
+      setter((prev) =>
+        prev.isNew || prev.attachmentId !== path ? prev : { ...prev, uri },
+      );
+    };
+
+    void resolveInto(licensePath, setLicensePhoto);
+    void resolveInto(insurancePath, setInsurancePhoto);
+    void resolveInto(medicalCardPath, setMedicalCardPhoto);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [licensePath, insurancePath, medicalCardPath]);
 
   const activePaths = [
     licensePhoto.attachmentId ?? licensePath,
