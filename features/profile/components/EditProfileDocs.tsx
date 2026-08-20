@@ -1,19 +1,29 @@
+import { db } from "@/components/providers/SystemProvider";
 import {
-  db,
-  photoAttachmentQueue,
-} from "@/components/providers/SystemProvider";
+  getPhotoUploadService,
+  isDriverDocType,
+  localUriForPath,
+  replaceDriverDocumentPhoto,
+  saveToGalleryIfCamera,
+  writeLocalPhoto,
+  type PhotoSource,
+} from "@/library/photoUploadQueue";
 import { typeScale } from "@/constants/theme";
+import { DocReplacePrompt } from "@/features/profile/components/DocReplacePrompt";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
+import { resolveDriverDocumentUri } from "@/features/profile/utils/resolveDriverDocumentUri";
 import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
+import { promptForPhotos } from "@/utils/pickPhotos";
 import { Ionicons } from "@expo/vector-icons";
+import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,6 +57,8 @@ interface DocumentPhoto {
   isNew?: boolean;
   /** File extension extracted from the source URI (e.g. "jpg", "png", "pdf") */
   ext?: string;
+  /** Capture source — only "camera" is duplicated to the gallery (§4). */
+  source?: PhotoSource;
 }
 
 export default function EditProfileDocs({
@@ -83,13 +95,47 @@ export default function EditProfileDocs({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [replacingDocType, setReplacingDocType] = useState<string | null>(null);
+
+  /**
+   * The mount-time `uri` above is a local-file guess: correct for the common
+   * case (this device captured the photo), wrong for one set outside the
+   * queue (admin dashboard, a backfilled legacy path) with no local copy.
+   * Verify each existing attachment once and swap in the bucket's public URL
+   * when the guess was wrong — never for a freshly picked photo, which
+   * `attachmentId !== path` excludes (its `attachmentId` is still the old
+   * saved path, if any, not the new in-memory one).
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveInto = async (
+      path: string | null,
+      setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+    ) => {
+      if (!path) return;
+      const uri = await resolveDriverDocumentUri(path);
+      if (cancelled) return;
+      setter((prev) =>
+        prev.isNew || prev.attachmentId !== path ? prev : { ...prev, uri },
+      );
+    };
+
+    void resolveInto(licensePath, setLicensePhoto);
+    void resolveInto(insurancePath, setInsurancePhoto);
+    void resolveInto(medicalCardPath, setMedicalCardPhoto);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [licensePath, insurancePath, medicalCardPath]);
 
   const activePaths = [
     licensePhoto.attachmentId ?? licensePath,
     insurancePhoto.attachmentId ?? insurancePath,
     medicalCardPhoto.attachmentId ?? medicalCardPath,
   ];
-  const { hasPending, hasFailed, retryFailed, statuses } =
+  const { hasPending, hasFailed, canRetry, retryFailed, statuses, rows } =
     useDriverDocUploadStatuses(activePaths);
 
   const { form: theme } = useFormTheme();
@@ -125,6 +171,7 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "library",
       });
     }
   };
@@ -158,6 +205,7 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "camera",
       });
     }
   };
@@ -182,13 +230,16 @@ export default function EditProfileDocs({
         base64: converted.base64,
         isNew: true,
         ext: converted.ext,
+        source: "file",
       });
     }
   };
 
   /**
-   * Save a photo through the attachment queue.
-   * Returns the filename used as the storage path (stored in the Drivers table).
+   * Record a document photo for the custom upload queue: write the stable local
+   * copy, then upsert the one DriverDocuments row for this (driver, doc_type)
+   * with upload_status = pending (design doc §3). Returns the bucket path, which
+   * is also mirrored onto Drivers.<doc>_photo_path for existing readers.
    */
   const savePhotoToQueue = async (
     photo: DocumentPhoto,
@@ -196,16 +247,58 @@ export default function EditProfileDocs({
   ): Promise<string | null> => {
     if (!photo.isNew || !photo.base64 || !driverId)
       return photo.attachmentId ?? null;
-    if (!photoAttachmentQueue) {
-      console.warn("PhotoAttachmentQueue not initialized");
-      return null;
-    }
 
     const ext = photo.ext ?? "jpg";
     const ts = Date.now();
     const filename = `${driverId}/${docType}_${ts}.${ext}`;
-    const record = await photoAttachmentQueue.savePhoto(photo.base64, filename);
-    return record.id;
+    const localUri = await writeLocalPhoto(photo.base64, filename);
+
+    // Camera captures are the only copy until now — duplicate to the gallery
+    // as a safety backup (§4). Library/file sources are already persistent.
+    void saveToGalleryIfCamera(localUri, photo.source);
+
+    // PowerSync local tables carry no unique index, so upsert manually by
+    // finding the existing (driver_uuid, doc_type) row.
+    const existing = await db
+      .selectFrom("DriverDocuments")
+      .select("id")
+      .where("driver_uuid", "=", driverId)
+      .where("doc_type", "=", docType)
+      .limit(1)
+      .execute();
+
+    if (existing.length > 0) {
+      await executeTypedMutation(
+        db
+          .updateTable("DriverDocuments")
+          .set({
+            photo_path: filename,
+            upload_status: "pending",
+            attempts: 0,
+            last_attempt_at: null,
+            last_error: null,
+          })
+          .where("id", "=", existing[0].id)
+          .compile(),
+      );
+    } else {
+      await executeTypedMutation(
+        db
+          .insertInto("DriverDocuments")
+          .values({
+            id: randomUUID(),
+            driver_uuid: driverId,
+            doc_type: docType,
+            photo_path: filename,
+            upload_status: "pending",
+            attempts: 0,
+            created_at: new Date().toISOString(),
+          })
+          .compile(),
+      );
+    }
+
+    return filename;
   };
 
   const handleSubmit = async () => {
@@ -251,6 +344,9 @@ export default function EditProfileDocs({
 
       await executeTypedMutation(updateQuery);
 
+      // Kick the queue: the user is here and waiting, so retry fast (§6/§7).
+      void getPhotoUploadService()?.triggerFast();
+
       Alert.alert(
         "Saved",
         "Documents saved on this device. Upload to the cloud continues in the background — keep the app open until it finishes.",
@@ -267,15 +363,62 @@ export default function EditProfileDocs({
   const handleRetry = async () => {
     setIsRetrying(true);
     try {
-      const { needRepick } = await retryFailed();
-      if (needRepick.length > 0) {
+      const { retried, needRepick } = await retryFailed();
+      if (needRepick > 0 && retried === 0) {
         Alert.alert(
-          "Re-add required",
-          "The local file for some documents is gone. Please choose the photo again and save.",
+          "Nothing left to retry",
+          "The local files for those documents are gone. Once we confirm they never reached the server, you'll be able to replace them here.",
         );
       }
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  /**
+   * The row for this document is bucket-confirmed missing (§6.2) — replace it in
+   * place. One row per (driver, doc_type), so there is nothing to reconcile: the
+   * new photo takes over the existing row immediately, rather than waiting for
+   * "Save Changes" like a routine re-pick does.
+   */
+  const handleReplaceDoc = async (
+    docType: string,
+    rowId: string,
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
+  ) => {
+    if (!driverId || !isDriverDocType(docType)) return;
+
+    const picked = await promptForPhotos({
+      title: "Replace Document",
+      message:
+        "This document was never stored on the server. Add it again to fix it.",
+      selectionLimit: 1,
+    });
+    if (picked.length === 0) return;
+
+    setReplacingDocType(docType);
+    try {
+      const { bucketPath, localUri } = await replaceDriverDocumentPhoto({
+        rowId,
+        driverUuid: driverId,
+        docType,
+        picked: picked[0],
+      });
+      setter({
+        uri: localUri,
+        attachmentId: bucketPath,
+        ext: picked[0].ext,
+        source: picked[0].source,
+      });
+      Alert.alert(
+        "Document replaced",
+        "Upload has been queued. Keep the app open until it finishes.",
+      );
+    } catch (error) {
+      console.error("Error replacing document:", error);
+      Alert.alert("Error", "Could not replace the document. Please try again.");
+    } finally {
+      setReplacingDocType(null);
     }
   };
 
@@ -295,6 +438,7 @@ export default function EditProfileDocs({
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
     expiry: string | null,
     setExpiry: (date: string | null) => void,
+    docType: string,
   ) => (
     <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
       <View style={styles.documentHeader}>
@@ -305,6 +449,16 @@ export default function EditProfileDocs({
           {title}
         </Text>
       </View>
+
+      {/* Renders only once a direct bucket check confirmed this document's file
+          never arrived — see DocReplacePrompt for the gate. */}
+      <DocReplacePrompt
+        docRow={photo.attachmentId ? rows[photo.attachmentId] : undefined}
+        isBusy={replacingDocType === docType}
+        onReplace={(rowId) => {
+          void handleReplaceDoc(docType, rowId, setter);
+        }}
+      />
 
       {photo.uri ? (
         <View style={styles.photoContainer}>
@@ -400,6 +554,7 @@ export default function EditProfileDocs({
             hasPending={hasPending}
             hasFailed={hasFailed}
             isRetrying={isRetrying}
+            canRetry={canRetry}
             onRetry={handleRetry}
           />
 
@@ -410,6 +565,7 @@ export default function EditProfileDocs({
             setLicensePhoto,
             licenseExpiry,
             setLicenseExpiry,
+            "license",
           )}
 
           {renderDocumentSection(
@@ -419,6 +575,7 @@ export default function EditProfileDocs({
             setInsurancePhoto,
             insuranceExpiry,
             setInsuranceExpiry,
+            "insurance",
           )}
 
           {showMedCard &&
@@ -429,6 +586,7 @@ export default function EditProfileDocs({
               setMedicalCardPhoto,
               medicalCardExpiry,
               setMedicalCardExpiry,
+              "medical_card",
             )}
 
           <TouchableOpacity
@@ -463,10 +621,7 @@ export default function EditProfileDocs({
 
 function getLocalUriForAttachment(attachmentId: string): string | null {
   if (!attachmentId) return null;
-  if (!photoAttachmentQueue) return null;
-
-  const localPath = photoAttachmentQueue.getLocalFilePathSuffix(attachmentId);
-  return photoAttachmentQueue.getLocalUri(localPath);
+  return localUriForPath(attachmentId);
 }
 
 const styles = StyleSheet.create({

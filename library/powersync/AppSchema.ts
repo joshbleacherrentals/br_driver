@@ -25,9 +25,15 @@ const UsersCols = {
   is_viewer: column.integer,
   created_at: column.text,
   expo_push_token: column.text,
+  changelog_last_read_at: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
-  indexes: { status_uuid: ["status_uuid"] },
+  // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
+  // every driver-scoped query starts from (photo queue §15, useDriver, …).
+  indexes: {
+    status_uuid: ["status_uuid"],
+    clerk_user_id: ["clerk_user_id"],
+  },
 });
 
 const DriverAvailabilityCols = {
@@ -56,6 +62,7 @@ const DriversCols = {
   app_version: column.text,
   app_version_reported_at: column.text,
   created_at: column.text,
+  deadhead_cents: column.integer,
   insurance_expires_on: column.text,
   insurance_photo_path: column.text,
   is_active: column.integer,
@@ -152,6 +159,14 @@ const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, {
 });
 
 // damage reports
+//
+// `satisfies Partial<...>` rather than the full mapping: `photos_uploaded` is
+// server-derived (Postgres triggers only, see
+// bleacher_rentals/supabase/migrations/20260820120000_damage_reports_photos_uploaded.sql)
+// and no client — this one included — ever writes it, so it is deliberately
+// not declared here. `Partial` still checks every column that IS declared, so
+// a typo'd name or a text/integer mix-up is still caught exactly as before;
+// only "you listed all of them" is relaxed.
 const DamageReportsCols = {
   inspection_uuid: column.text,
   bleacher_uuid: column.text,
@@ -165,21 +180,101 @@ const DamageReportsCols = {
   maintenance_event_uuid: column.text,
   created_by_user_uuid: column.text,
   deleted: column.integer,
-} satisfies PowerSyncColsFor<"DamageReports">;
+} satisfies Partial<PowerSyncColsFor<"DamageReports">>;
 const DamageReports = new Table(DamageReportsCols, {
-  indexes: { bleacher_uuid: ["bleacher_uuid"] },
+  // `created_by_user_uuid` backs the photo queue's ownership subquery (§15) and
+  // the "my damage reports" history screen.
+  indexes: {
+    bleacher_uuid: ["bleacher_uuid"],
+    created_by_user_uuid: ["created_by_user_uuid"],
+  },
 });
 
 // damage report photos
+//
+// The *churning* §3 queue columns (`attempts`, `last_attempt_at`, `last_error`,
+// `gallery_asset_id`) are deliberately NOT declared here — they live on the
+// local-only `PhotoUploadStatus` table below, which is what keeps a drain of
+// hundreds of photos out of PowerSync's `ps_crud` outbox. See its comment.
+//
+// `upload_status` is the one exception, and it is a deliberate hybrid rather
+// than a half-finished move. A photo row syncs to the server the moment it is
+// created — long before its file finishes uploading — so "the row is in
+// Postgres" never meant "the photo is in the bucket". `upload_status` was, and
+// remains, the only server-visible signal that an upload actually completed:
+// it is what a human checks in Postgres to confirm a report's photos landed,
+// and what the `DamageReports.photos_uploaded` gate reads (server-computed —
+// see the Partial<> comment on `DamageReportsCols` above).
+//
+// What makes keeping it affordable is that the client writes it exactly ONCE
+// per photo, and only ever the value `uploaded`
+// (`runtime/syncedUploadStatusMirror.ts`). Intermediate states — pending,
+// uploading, failed, every retry — stay entirely in `PhotoUploadStatus` and
+// never reach the outbox. So the outbox sees one entry per photo *ever*,
+// instead of one per photo per attempt, and every read the client's own queue
+// logic performs still comes from the local-only table.
+//
+// `satisfies Partial<...>` rather than the full mapping used by every synced
+// table above: the Postgres table still has the local-only columns too, so the
+// exhaustive form would demand them back. `Partial` still checks every column
+// that IS declared — a typo'd name or a text/integer mix-up is caught exactly
+// as before; only "you listed all of them" is relaxed.
 const DamageReportPhotosCols = {
   damage_report_uuid: column.text,
   photo_path: column.text,
   thumbnail: column.text,
-  upload_status: column.text,
   created_at: column.text,
-} satisfies PowerSyncColsFor<"DamageReportPhotos">;
+  // Server-visible upload completion only — see above. Never written with any
+  // value other than `uploaded`, and never read by the client's queue logic.
+  upload_status: column.text,
+} satisfies Partial<PowerSyncColsFor<"DamageReportPhotos">>;
 const DamageReportPhotos = new Table(DamageReportPhotosCols, {
   indexes: { damage_report_uuid: ["damage_report_uuid"] },
+});
+
+/**
+ * §3 upload bookkeeping, keyed by the photo row's own `id` — LOCAL ONLY.
+ *
+ * WHY THIS TABLE EXISTS
+ * `upload_status`/`attempts`/`last_attempt_at`/`last_error`/`gallery_asset_id`
+ * are device bookkeeping: the server has no use for the *churn*, only for the
+ * final outcome (mirrored once per photo onto the synced row — see
+ * `DamageReportPhotosCols` above). While they all sat on the synced
+ * `DamageReportPhotos` table, every status transition of every
+ * photo became one more entry in PowerSync's `ps_crud` outbox — and PowerSync
+ * will not apply an incoming checkpoint while `ps_crud` is non-empty. Draining a
+ * few hundred photos therefore held off *every* server update the driver was
+ * waiting on (trip status, new assignments) for as long as the drain lasted.
+ * A `localOnly` table is written straight to `ps_data_local__PhotoUploadStatus`
+ * with no CRUD entry at all, so the queue's own chatter can no longer starve the
+ * driver's real data.
+ *
+ * `id` IS the photo row's id (uuids, so unique across photo tables), which keeps
+ * the join to the photo row a plain equality and needs no second key column.
+ *
+ * A MISSING ROW IS NOT AN ERROR. Every read left-joins and coalesces a missing
+ * row to "fresh and pending" (`library/photoUploadQueue/runtime/tableAdapters.ts`),
+ * which is what makes an upgrade from the old schema safe in the only direction
+ * that matters: an in-flight photo is re-attempted rather than silently dropped.
+ *
+ * No `satisfies PowerSyncColsFor<...>`: that helper pins a table against its
+ * Supabase counterpart, and this table deliberately has none.
+ */
+export const PHOTO_UPLOAD_STATUS_TABLE = "PhotoUploadStatus";
+const PhotoUploadStatusCols = {
+  upload_status: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
+};
+const PhotoUploadStatus = new Table(PhotoUploadStatusCols, {
+  localOnly: true,
+  // The queue's hot predicates: "still unresolved" and "due for a retry".
+  indexes: {
+    upload_status: ["upload_status"],
+    last_attempt_at: ["last_attempt_at"],
+  },
 });
 
 // inspectionPhotos
@@ -188,9 +283,35 @@ const InspectionsPhotosCols = {
   inspection_uuid: column.text,
   storage_path: column.text,
   caption: column.text,
+  // Custom photo upload queue (design doc §3) — InspectionPhotos previously had
+  // no upload_status at all.
+  upload_status: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, {
-  indexes: { id: ["id"] },
+  // `inspection_uuid` is both the per-inspection photo lookup and the correlated
+  // column of the photo queue's ownership subquery (§15).
+  indexes: { id: ["id"], inspection_uuid: ["inspection_uuid"] },
+});
+
+// driver documents (license / insurance / medical card) — one row per document,
+// same custom-upload-queue shape as the photo tables (design doc §3).
+const DriverDocumentsCols = {
+  driver_uuid: column.text,
+  doc_type: column.text,
+  photo_path: column.text,
+  upload_status: column.text,
+  gallery_asset_id: column.text,
+  attempts: column.integer,
+  last_attempt_at: column.text,
+  last_error: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverDocuments">;
+const DriverDocuments = new Table(DriverDocumentsCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
 });
 
 // worktracker
@@ -230,7 +351,14 @@ const WorkTrackersCols = {
   created_by_user_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
-  indexes: { user_uuid: ["user_uuid"], driver_uuid: ["driver_uuid"] },
+  // The two inspection columns are the OR-chain the photo queue walks to decide
+  // whether an InspectionPhotos row belongs to this driver (§15).
+  indexes: {
+    user_uuid: ["user_uuid"],
+    driver_uuid: ["driver_uuid"],
+    pre_inspection_uuid: ["pre_inspection_uuid"],
+    post_inspection_uuid: ["post_inspection_uuid"],
+  },
 });
 
 // Vehicles
@@ -283,7 +411,9 @@ export const AppSchema = new Schema({
   InspectionQuestions,
   DamageReports,
   DamageReportPhotos,
+  PhotoUploadStatus,
   InspectionPhotos,
+  DriverDocuments,
   WorkTrackers,
   Vehicles,
   BlueBook,
@@ -302,6 +432,8 @@ export type UserRecord = PowerSyncDB["Users"];
 export type BleacherRecord = PowerSyncDB["Bleachers"];
 export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
 export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
+export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
+export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];
