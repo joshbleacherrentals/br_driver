@@ -6,10 +6,15 @@
  * repair) produces the same `PickedPhoto` shape and the same file format. The
  * `source` it carries is what decides gallery duplication downstream (§4) —
  * only camera captures are the app's own, single copy.
+ *
+ * It is also where the 1080×1920 size cap is applied, for the same reason:
+ * every capture surface funnels through here, so the cap cannot be forgotten by
+ * a new one (see `downscalePhotoIfNeeded`).
  */
 
 import type { PhotoSource } from "@/library/photoUploadQueue";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
+import { downscalePhotoIfNeeded } from "@/utils/downscalePhoto";
 import * as ImagePicker from "expo-image-picker";
 import { Alert } from "react-native";
 
@@ -21,10 +26,24 @@ export type PickedPhoto = {
   source: PhotoSource;
 };
 
+/**
+ * @param dimensions The picker's own `width`/`height` for the asset. Passed in
+ *   rather than measured here so that deciding "is this photo too big?" costs
+ *   nothing — measuring would mean decoding the very bitmap we are trying not
+ *   to hold. Absent dimensions simply skip the cap.
+ */
 async function toPickedPhoto(
   uri: string,
   source: PhotoSource,
+  dimensions?: { width?: number; height?: number },
 ): Promise<PickedPhoto> {
+  // A downscale re-encodes to JPEG on the way through, so it subsumes the
+  // HEIC conversion; only a photo left at its original size still needs one.
+  const downscaled = await downscalePhotoIfNeeded(uri, dimensions);
+  if (downscaled) {
+    return { uri: downscaled.uri, ext: downscaled.ext, source };
+  }
+
   const converted = await convertToJpegIfNeeded(uri);
   return { uri: converted.uri, ext: converted.ext, source };
 }
@@ -43,7 +62,8 @@ export async function pickPhotosFromCamera(): Promise<PickedPhoto[]> {
   const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
   if (result.canceled || !result.assets?.length) return [];
 
-  return [await toPickedPhoto(result.assets[0].uri, "camera")];
+  const asset = result.assets[0];
+  return [await toPickedPhoto(asset.uri, "camera", asset)];
 }
 
 /**
@@ -74,7 +94,7 @@ export async function pickPhotosFromLibrary(options?: {
   const photos: PickedPhoto[] = [];
   for (const asset of result.assets) {
     try {
-      photos.push(await toPickedPhoto(asset.uri, "library"));
+      photos.push(await toPickedPhoto(asset.uri, "library", asset));
     } catch (err) {
       console.warn("[pickPhotos] could not read picked asset:", err);
     }
