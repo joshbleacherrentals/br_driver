@@ -25,6 +25,7 @@ const UsersCols = {
   is_viewer: column.integer,
   created_at: column.text,
   expo_push_token: column.text,
+  changelog_last_read_at: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
   // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
@@ -61,6 +62,7 @@ const DriversCols = {
   app_version: column.text,
   app_version_reported_at: column.text,
   created_at: column.text,
+  deadhead_cents: column.integer,
   insurance_expires_on: column.text,
   insurance_photo_path: column.text,
   is_active: column.integer,

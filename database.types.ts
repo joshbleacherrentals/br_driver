@@ -4001,6 +4001,10 @@ export type Database = {
         Args: { p_ids: string[] };
         Returns: undefined;
       };
+      drivers_backfill_document: {
+        Args: { p_doc_type: string; p_driver_id: string; p_photo_path: string };
+        Returns: undefined;
+      };
       generate_invoice_number: { Args: never; Returns: number };
       get_current_account_manager_id: { Args: never; Returns: string };
       get_current_driver_id: { Args: never; Returns: string };
