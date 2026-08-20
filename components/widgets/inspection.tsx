@@ -1,4 +1,5 @@
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+import { useDriverScope } from "@/hooks/useDriverScope";
 import {
   InspectionQuestion,
   useInspectionQuestions,
@@ -9,15 +10,26 @@ import {
 } from "@/features/damage-report/components/DamageDetailsForm";
 import { EditablePhotoGrid } from "@/features/damage-report/components/EditablePhotoGrid";
 import type { DocumentPhoto } from "@/features/damage-report/types";
-import { createDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import { commitDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import {
+  describeAllPhotosFailed,
+  describePartialPhotoFailure,
+} from "@/features/damage-report/utils/describePhotoPrepFailures";
 import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
 } from "@/features/damage-report/utils/pickDamagePhotos";
+import { prepareDamageReportPhotos } from "@/features/damage-report/utils/prepareDamageReportPhotos";
+import {
+  INSPECTION_QUESTION_PHOTO_SUBJECT,
+  MAX_PHOTOS,
+  admitPickedPhotos,
+  describePhotoLimit,
+  photoLimitReachedAlert,
+} from "@/utils/photoLimit";
 import { type ThemeColors, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
-import { readAsBase64 } from "@/utils/readAsBase64";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
@@ -30,10 +42,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { db } from "../providers/SystemProvider";
 import {
-  db,
-  inspectionPhotoAttachmentQueue,
-} from "../providers/SystemProvider";
+  copyLocalPhoto,
+  getPhotoUploadService,
+  saveToGalleryIfCamera,
+} from "@/library/photoUploadQueue";
 
 type AnswerMap = Record<
   string,
@@ -161,6 +175,12 @@ function PhotoQuestion({
         photos={photos}
         title={question.question_text ?? "Photos"}
         required={!!question.required}
+        // Same 30-photo cap as a damage report, and for the same reason: every
+        // photo answered here is written to disk and queued for the bucket at
+        // submit time, so an unbounded selection is a storage and battery
+        // problem on the driver's phone.
+        maxPhotos={MAX_PHOTOS}
+        limitSubject={INSPECTION_QUESTION_PHOTO_SUBJECT}
         onAddFromCamera={onAddFromCamera}
         onAddFromLibrary={onAddFromLibrary}
         onRemove={onRemove}
@@ -179,6 +199,9 @@ export default function InspectionScreen({
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { questions } = useInspectionQuestions();
+  // §15 — needed to attribute the damage report this screen can create, and
+  // gated on before *any* write happens; see `handleSubmit`.
+  const scope = useDriverScope();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const checkboxQuestions = questions.filter(
     (q) => q.question_type === "checkbox",
@@ -236,14 +259,56 @@ export default function InspectionScreen({
       },
     }));
 
+  /**
+   * The cap for one photo question, read fresh at tap time.
+   *
+   * The grid already disables both add controls at the limit; this is what
+   * makes the cap real rather than cosmetic, since a queued tap or a stale
+   * render could still reach a handler. Each question carries its own set, so
+   * the count is per question, not per inspection.
+   */
+  const photoLimitFor = (questionId: string) =>
+    describePhotoLimit(
+      (answers[questionId]?.photos ?? []).length,
+      MAX_PHOTOS,
+      INSPECTION_QUESTION_PHOTO_SUBJECT,
+    );
+
   const pickImageForQuestion = async (questionId: string) => {
-    const picked = await pickDamagePhotosFromLibrary();
-    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
+    const limit = photoLimitFor(questionId);
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
+
+    // The picker is asked for at most the headroom, so the driver is stopped
+    // inside the picker itself on platforms that honour `selectionLimit`; the
+    // result is trimmed as well for the ones that do not, and never silently.
+    const picked = await pickDamagePhotosFromLibrary({
+      selectionLimit: limit.remaining,
+    });
+    if (picked.length === 0) return;
+
+    const { kept, alert } = admitPickedPhotos(picked, limit);
+    if (alert) Alert.alert(alert.title, alert.message);
+    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
   };
 
   const takePhotoForQuestion = async (questionId: string) => {
+    const limit = photoLimitFor(questionId);
+    if (limit.remaining <= 0) {
+      const { title, message } = photoLimitReachedAlert(limit);
+      Alert.alert(title, message);
+      return;
+    }
+
     const picked = await pickDamagePhotosFromCamera();
-    if (picked.length > 0) addPhotosToQuestion(questionId, picked);
+    if (picked.length === 0) return;
+
+    const { kept, alert } = admitPickedPhotos(picked, limit);
+    if (alert) Alert.alert(alert.title, alert.message);
+    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
   };
 
   const validate = (): string | null => {
@@ -280,18 +345,40 @@ export default function InspectionScreen({
     photoIndex: number,
   ): Promise<string | null> => {
     if (!photo.isNew || !photo.uri) return photo.attachmentId ?? null;
-    if (!inspectionPhotoAttachmentQueue) {
-      console.warn("inspectionPhotoAttachmentQueue not initialized");
-      return null;
-    }
+
     const ext = photo.ext ?? "jpg";
     const filename = `${inspectionId}/${questionId}/photo_${photoIndex}_${Date.now()}.${ext}`;
-    const base64 = await readAsBase64(photo.uri);
-    const record = await inspectionPhotoAttachmentQueue.savePhoto(
-      base64,
-      filename,
+
+    // Copy the stable local copy, then record an InspectionPhotos row pointing
+    // at it with upload_status = pending. The custom queue uploads it in the
+    // background with retry — no more inline, no-retry upload (design doc §3).
+    // A direct file copy, not a base64 round-trip: the picked photo is already
+    // a file, and turning it into a multi-megabyte JS string just to write it
+    // back out is heap pressure for nothing (see `copyLocalPhoto`).
+    const localUri = await copyLocalPhoto(photo.uri, filename);
+
+    // Camera captures are the only copy until now — duplicate to the gallery
+    // as a safety backup (§4). Best-effort; never blocks the save.
+    void saveToGalleryIfCamera(localUri, photo.source);
+
+    await executeTypedMutation(
+      db
+        .insertInto("InspectionPhotos")
+        .values({
+          id: randomUUID(),
+          inspection_uuid: inspectionId,
+          storage_path: filename,
+          upload_status: "pending",
+          attempts: 0,
+          // The upload queue orders its claims by `created_at`
+          // (`runtime/tableAdapters.ts`), so a row without one has no defined
+          // position in the queue at all.
+          created_at: new Date().toISOString(),
+        })
+        .compile(),
     );
-    return record.id;
+
+    return filename;
   };
 
   const handleSubmit = async () => {
@@ -301,9 +388,50 @@ export default function InspectionScreen({
       return;
     }
 
+    // §15 — gate the WHOLE submit on the driver scope, not just the
+    // damage-report branch below. This method writes three things in sequence
+    // (the `WorkTrackerInspections` row, optionally the damage report, then the
+    // `WorkTrackers` link), and discovering a missing scope partway through
+    // would leave an inspection already committed with no way to finish it.
+    // Bailing here costs the driver one retry; bailing halfway costs data
+    // consistency.
+    if (!scope) {
+      Alert.alert(
+        "Just a moment",
+        "Your driver profile is still loading. Please try again in a moment.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      // The damage report's photos are copied to disk BEFORE anything is
+      // written, and the whole submit is abandoned if none of them can be.
+      //
+      // Ordering, not fussiness: this method writes `InspectionPhotos` rows,
+      // then the `WorkTrackerInspections` row, then the damage report, then the
+      // `WorkTrackers` link. A damage report may never exist without photos, so
+      // discovering that at the third step would leave a choice between an
+      // evidence-free report and an inspection that was saved but never linked.
+      // Asking the filesystem first removes the choice: either everything is
+      // written or nothing is.
+      const damagePrep = damageFound
+        ? await prepareDamageReportPhotos({ photos: damageDetails.photos })
+        : null;
+
+      if (damagePrep && !damagePrep.ok) {
+        const { title, message } = describeAllPhotosFailed(
+          damagePrep.reason === "all_photos_failed" ? damagePrep.failures : [],
+        );
+        Alert.alert(
+          title,
+          `${message}\n\nYour inspection has not been submitted yet, so nothing is lost.`,
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const inspectionId = randomUUID();
       const now = new Date().toISOString();
 
@@ -373,15 +501,31 @@ export default function InspectionScreen({
           .compile(),
       );
 
-      if (damageFound) {
-        await createDamageReport({
+      let damageFailureAlert: { title: string; message: string } | null = null;
+
+      if (damagePrep?.ok) {
+        const damageResult = await commitDamageReport(damagePrep.draft, {
           bleacherUuid,
           inspectionUuid: inspectionId,
           seatDamage: damageDetails.seatDamage,
           haulDamage: damageDetails.haulDamage,
           note: damageDetails.note,
-          photos: damageDetails.photos,
+          // Required, not cosmetic: the upload queue decides whose photos it may
+          // work on from `DamageReports.created_by_user_uuid` (§15). A report
+          // left unattributed here would own photos no driver's queue can ever
+          // claim — they would sit on the phone and never reach the bucket.
+          scope,
         });
+
+        // Partial save (§2): the report and its saved photos stand, and the
+        // driver is told what is missing — after the success alert, so the two
+        // don't compete.
+        if (damageResult.ok && damageResult.failures.length > 0) {
+          damageFailureAlert = describePartialPhotoFailure(
+            damageResult.savedPhotoCount,
+            damageResult.failures,
+          );
+        }
       }
 
       const inspectionField =
@@ -397,10 +541,28 @@ export default function InspectionScreen({
           .compile(),
       );
 
+      // Kick the queue for the inspection (and damage) photos just recorded.
+      void getPhotoUploadService()?.triggerFast();
+
       Alert.alert(
         "Success",
         `${inspectionType === "pickup" ? "Pickup" : "Dropoff"} inspection completed successfully!`,
-        [{ text: "OK", onPress: onComplete }],
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              if (damageFailureAlert) {
+                Alert.alert(
+                  damageFailureAlert.title,
+                  damageFailureAlert.message,
+                  [{ text: "OK", onPress: onComplete }],
+                );
+                return;
+              }
+              onComplete();
+            },
+          },
+        ],
       );
     } catch (error) {
       console.error("Error submitting inspection:", error);

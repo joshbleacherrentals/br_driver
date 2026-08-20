@@ -2,6 +2,7 @@ import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
+import { InspectionPhotoRepair } from "@/components/widgets/InspectionPhotoRepair";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
@@ -363,6 +364,10 @@ function TripItem({
 
       {hasPreInspection && (
         <>
+          <InspectionPhotoRepair
+            inspectionUuid={workTracker.pre_inspection_uuid}
+            tripStatus={status}
+          />
           <TouchableOpacity
             style={[
               styles.viewInspectionButton,
@@ -545,6 +550,10 @@ function TripItem({
 
       {hasPostInspection && (
         <>
+          <InspectionPhotoRepair
+            inspectionUuid={workTracker.post_inspection_uuid}
+            tripStatus={status}
+          />
           <TouchableOpacity
             style={[
               styles.viewInspectionButton,

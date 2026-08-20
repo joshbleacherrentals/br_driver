@@ -1,4 +1,5 @@
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
+import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner";
 import PendingTripsList from "./components/PendingTripsList";
 import { useTheme } from "@/hooks/useTheme";
@@ -13,6 +14,7 @@ export default function PendingTripsScreen() {
       <ProfileCompletionBanner />
       <DocExpiryWarningBanner />
       <PendingTripsList />
+      <PhotoUploadStatusOverlay />
     </View>
   );
 }

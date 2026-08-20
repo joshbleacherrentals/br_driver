@@ -1,6 +1,6 @@
-import { db } from "@/components/providers/SystemProvider";
+import { useDriverScope } from "@/hooks/useDriverScope";
+import { db } from "@/library/powersync/db";
 import { expect, useTypedQuery } from "@/library/powersync/typedQuery";
-import { useUser } from "@clerk/clerk-expo";
 import { useMemo } from "react";
 
 export type WorkTracker = {
@@ -102,59 +102,34 @@ export function useWorkTracker(workTrackerId: string | null | undefined): {
   };
 }
 
+/**
+ * This driver's trips.
+ *
+ * The driver id comes from `useDriverScope()` — the app's single Clerk →
+ * `Users` → `Drivers` resolver (§15) — rather than from two more lookups run
+ * here. Until it resolves there is no query and no answer, which is the same
+ * "still loading" the two chained lookups used to produce, minus the two
+ * subscriptions.
+ */
 export function useWorkTrackers(): {
   workTrackers: WorkTracker[] | null;
   isLoading: boolean;
 } {
-  const { user } = useUser();
-  const clerkUserId = user?.id ?? null;
-
-  const compiled = useMemo(() => {
-    if (!clerkUserId) return null;
-    return db
-      .selectFrom("Users as u")
-      .select(["u.id as id"])
-      .where("clerk_user_id", "=", clerkUserId)
-      .limit(1)
-      .compile();
-  }, [clerkUserId]);
-
-  const userData = useTypedQuery(compiled, expect<UserData>());
-
-  const compiledDriver = useMemo(() => {
-    const userId = userData.data?.[0]?.id;
-    if (!userId) return null;
-    return db
-      .selectFrom("Drivers as d")
-      .select(["d.id as id"])
-      .where("user_uuid", "=", userId)
-      .limit(1)
-      .compile();
-  }, [userData.data]);
-
-  const driverData = useTypedQuery(compiledDriver, expect<DriverData>());
+  const scope = useDriverScope();
 
   const compiledWT = useMemo(() => {
-    const driverId = driverData.data?.[0]?.id;
-    if (!driverId) return null;
+    if (!scope) return null;
     return db
       .selectFrom("WorkTrackers")
       .select([...WORK_TRACKER_COLUMNS])
-      .where("driver_uuid", "=", driverId)
+      .where("driver_uuid", "=", scope.driverUuid)
       .orderBy("date", "asc")
       .compile();
-  }, [driverData.data]);
+  }, [scope]);
 
   const WTData = useTypedQuery(compiledWT, expect<WorkTracker>());
 
-  if (!clerkUserId) {
-    console.log("[WorkTrackers] No clerk user ID provided");
-    return { workTrackers: null, isLoading: true };
-  }
-
-  if (!compiled || !userData.data?.[0]?.id)
-    return { workTrackers: [], isLoading: true };
-  if (!compiledWT) return { workTrackers: [], isLoading: true };
+  if (!scope) return { workTrackers: null, isLoading: true };
 
   return { workTrackers: WTData.data, isLoading: false };
 }
@@ -167,50 +142,21 @@ export function useReleasedTripsCount(): {
   count: number;
   isLoading: boolean;
 } {
-  const { user } = useUser();
-  const clerkUserId = user?.id ?? null;
-
-  const compiled = useMemo(() => {
-    if (!clerkUserId) return null;
-    return db
-      .selectFrom("Users as u")
-      .select(["u.id as id"])
-      .where("clerk_user_id", "=", clerkUserId)
-      .limit(1)
-      .compile();
-  }, [clerkUserId]);
-
-  const userData = useTypedQuery(compiled, expect<UserData>());
-
-  const compiledDriver = useMemo(() => {
-    const userId = userData.data?.[0]?.id;
-    if (!userId) return null;
-    return db
-      .selectFrom("Drivers as d")
-      .select(["d.id as id"])
-      .where("user_uuid", "=", userId)
-      .limit(1)
-      .compile();
-  }, [userData.data]);
-
-  const driverData = useTypedQuery(compiledDriver, expect<DriverData>());
+  const scope = useDriverScope();
 
   const compiledCount = useMemo(() => {
-    const driverId = driverData.data?.[0]?.id;
-    if (!driverId) return null;
+    if (!scope) return null;
     return db
       .selectFrom("WorkTrackers")
       .select(["id"])
-      .where("driver_uuid", "=", driverId)
+      .where("driver_uuid", "=", scope.driverUuid)
       .where("status", "=", "released")
       .compile();
-  }, [driverData.data]);
+  }, [scope]);
 
   const released = useTypedQuery(compiledCount, expect<{ id: string }>());
 
-  if (!clerkUserId) return { count: 0, isLoading: true };
-  if (!compiled || !userData.data?.[0]?.id) return { count: 0, isLoading: true };
-  if (!compiledCount) return { count: 0, isLoading: true };
+  if (!scope) return { count: 0, isLoading: true };
 
   return { count: released.data?.length ?? 0, isLoading: false };
 }

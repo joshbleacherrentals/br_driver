@@ -1,17 +1,16 @@
 import Badge from '@/components/ui/Badge';
 import BottomSheetModal from '@/components/ui/BottomSheetModal';
-import {
-  damageReportPhotoAttachmentQueue,
-  inspectionPhotoAttachmentQueue,
-} from '@/components/providers/SystemProvider';
+import { localUriForPath } from '@/library/photoUploadQueue';
 import ZoomableImage from '@/components/widgets/ZoomableImage';
 import { ThemeColors, radius, themes, typeScale } from "@/constants/theme";
-import { DamageReportData } from '@/hooks/db/useDamageReport';
+import {
+  useDamageReportPhotoPaths,
+  type DamageReportData,
+} from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
 import { useTheme } from '@/hooks/useTheme';
 import { shareImage, supabasePublicObjectUrl } from '@/utils/shareImage';
 import { Ionicons } from '@expo/vector-icons';
-import { usePowerSyncQuery } from '@powersync/react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -61,24 +60,16 @@ interface InspectionSummaryWidgetProps {
   embedded?: boolean;
 }
 
+// The deterministic local copy for a bucket path (callers fall back to the
+// public URL when the local file is absent — e.g. a photo from another device).
 function getInspectionPhotoUri(storagePath: string): string | null {
   if (!storagePath) return null;
-  if (inspectionPhotoAttachmentQueue) {
-    const localPath =
-      inspectionPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-    return inspectionPhotoAttachmentQueue.getLocalUri(localPath);
-  }
-  return supabasePublicObjectUrl('inspection-photos', storagePath) || null;
+  return localUriForPath(storagePath);
 }
 
 function getDamagePhotoUri(storagePath: string): string | null {
   if (!storagePath) return null;
-  if (damageReportPhotoAttachmentQueue) {
-    const localPath =
-      damageReportPhotoAttachmentQueue.getLocalFilePathSuffix(storagePath);
-    return damageReportPhotoAttachmentQueue.getLocalUri(localPath);
-  }
-  return supabasePublicObjectUrl('damage-report-photos', storagePath) || null;
+  return localUriForPath(storagePath);
 }
 
 async function resolveShareablePhotoUri(
@@ -158,14 +149,6 @@ function LazyStoragePhoto({
   );
 }
 
-function useDamageReportPhotos(damageReportId: string | null): { storage_path: string }[] {
-  const rows = usePowerSyncQuery<{ photo_path: string }>(
-    `SELECT photo_path FROM "DamageReportPhotos" WHERE damage_report_uuid = ? AND photo_path IS NOT NULL`,
-    damageReportId ? [damageReportId] : ['__none__']
-  );
-  return (rows ?? []).map((r) => ({ storage_path: r.photo_path }));
-}
-
 function severityConfig(theme: ThemeColors, value: string | null): {
   label: string;
   color: string;
@@ -216,7 +199,15 @@ function DamageCard({
 }) {
   const { theme } = useTheme();
   const damageCard = makeDamageCardStyles(theme);
-  const photos = useDamageReportPhotos(damage.id);
+  // Cross-driver on purpose (§15): this card renders damage another driver may
+  // have reported on the bleacher this driver is now hauling. Read-only paths —
+  // see `useDamageReportPhotoPaths`, which is the deliberately unscoped
+  // counterpart to the scoped `hooks/db/useDamageReportPhotos`.
+  const { photoPaths } = useDamageReportPhotoPaths(damage.id);
+  const photos = useMemo(
+    () => photoPaths.map((storage_path) => ({ storage_path })),
+    [photoPaths],
+  );
 
   return (
     <View style={damageCard.container}>

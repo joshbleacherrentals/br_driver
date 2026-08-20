@@ -104,6 +104,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      Alerts: {
+        Row: {
+          created_at: string;
+          entity_description: string | null;
+          entity_type: Database["public"]["Enums"]["alert_entity_type"];
+          entity_uuid: string;
+          id: string;
+          message: string | null;
+          title: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          entity_description?: string | null;
+          entity_type: Database["public"]["Enums"]["alert_entity_type"];
+          entity_uuid: string;
+          id?: string;
+          message?: string | null;
+          title?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          entity_description?: string | null;
+          entity_type?: Database["public"]["Enums"]["alert_entity_type"];
+          entity_uuid?: string;
+          id?: string;
+          message?: string | null;
+          title?: string | null;
+        };
+        Relationships: [];
+      };
       AppVersionPolicy: {
         Row: {
           android_store_url: string;
@@ -137,36 +167,6 @@ export type Database = {
           required_version?: string;
           soft_deadline?: string | null;
           updated_at?: string;
-        };
-        Relationships: [];
-      };
-      Alerts: {
-        Row: {
-          created_at: string;
-          entity_description: string | null;
-          entity_type: Database["public"]["Enums"]["alert_entity_type"];
-          entity_uuid: string;
-          id: string;
-          message: string | null;
-          title: string | null;
-        };
-        Insert: {
-          created_at?: string;
-          entity_description?: string | null;
-          entity_type: Database["public"]["Enums"]["alert_entity_type"];
-          entity_uuid: string;
-          id?: string;
-          message?: string | null;
-          title?: string | null;
-        };
-        Update: {
-          created_at?: string;
-          entity_description?: string | null;
-          entity_type?: Database["public"]["Enums"]["alert_entity_type"];
-          entity_uuid?: string;
-          id?: string;
-          message?: string | null;
-          title?: string | null;
         };
         Relationships: [];
       };
@@ -551,6 +551,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      ChangeLog: {
+        Row: {
+          body_md: string;
+          id: string;
+          released_at: string;
+          version: string;
+        };
+        Insert: {
+          body_md: string;
+          id?: string;
+          released_at?: string;
+          version: string;
+        };
+        Update: {
+          body_md?: string;
+          id?: string;
+          released_at?: string;
+          version?: string;
+        };
+        Relationships: [];
+      };
       Companies: {
         Row: {
           billing_address_uuid: string | null;
@@ -673,6 +694,7 @@ export type Database = {
           id: string;
           invalidated_at: string | null;
           signed_at: string;
+          signed_contract_hash: string | null;
           signed_pdf_path: string | null;
           signer_name: string;
           status: Database["public"]["Enums"]["contract_signature_status"];
@@ -684,6 +706,7 @@ export type Database = {
           id?: string;
           invalidated_at?: string | null;
           signed_at?: string;
+          signed_contract_hash?: string | null;
           signed_pdf_path?: string | null;
           signer_name: string;
           status?: Database["public"]["Enums"]["contract_signature_status"];
@@ -695,6 +718,7 @@ export type Database = {
           id?: string;
           invalidated_at?: string | null;
           signed_at?: string;
+          signed_contract_hash?: string | null;
           signed_pdf_path?: string | null;
           signer_name?: string;
           status?: Database["public"]["Enums"]["contract_signature_status"];
@@ -765,6 +789,7 @@ export type Database = {
           is_safe_to_sit: boolean;
           maintenance_event_uuid: string | null;
           note: string | null;
+          photos_uploaded: boolean;
           resolved_at: string | null;
           seat_damage: Database["public"]["Enums"]["damage_severity"];
         };
@@ -780,6 +805,7 @@ export type Database = {
           is_safe_to_sit?: boolean;
           maintenance_event_uuid?: string | null;
           note?: string | null;
+          photos_uploaded?: boolean;
           resolved_at?: string | null;
           seat_damage?: Database["public"]["Enums"]["damage_severity"];
         };
@@ -795,6 +821,7 @@ export type Database = {
           is_safe_to_sit?: boolean;
           maintenance_event_uuid?: string | null;
           note?: string | null;
+          photos_uploaded?: boolean;
           resolved_at?: string | null;
           seat_damage?: Database["public"]["Enums"]["damage_severity"];
         };
@@ -840,6 +867,7 @@ export type Database = {
           rows_quick_filter: number | null;
           season: string | null;
           show_address_tooltip: boolean;
+          show_distance_tooltip: boolean;
           show_unassigned_zone: boolean;
           state_provinces: string;
           summer_home_base_uuids: string;
@@ -859,6 +887,7 @@ export type Database = {
           rows_quick_filter?: number | null;
           season?: string | null;
           show_address_tooltip?: boolean;
+          show_distance_tooltip?: boolean;
           show_unassigned_zone?: boolean;
           state_provinces?: string;
           summer_home_base_uuids?: string;
@@ -878,6 +907,7 @@ export type Database = {
           rows_quick_filter?: number | null;
           season?: string | null;
           show_address_tooltip?: boolean;
+          show_distance_tooltip?: boolean;
           show_unassigned_zone?: boolean;
           state_provinces?: string;
           summer_home_base_uuids?: string;
@@ -936,6 +966,88 @@ export type Database = {
           },
         ];
       };
+      DriverDocuments: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          doc_type: string;
+          driver_uuid: string;
+          gallery_asset_id: string | null;
+          id: string;
+          last_attempt_at: string | null;
+          last_error: string | null;
+          photo_path: string;
+          upload_status: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          doc_type: string;
+          driver_uuid: string;
+          gallery_asset_id?: string | null;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          photo_path: string;
+          upload_status?: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          doc_type?: string;
+          driver_uuid?: string;
+          gallery_asset_id?: string | null;
+          id?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
+          photo_path?: string;
+          upload_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "DriverDocuments_driver_uuid_fkey";
+            columns: ["driver_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Drivers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      DriverPayRanges: {
+        Row: {
+          created_at: string;
+          driver_uuid: string;
+          id: string;
+          max_value: number | null;
+          min_value: number;
+          rate: number;
+        };
+        Insert: {
+          created_at?: string;
+          driver_uuid: string;
+          id?: string;
+          max_value?: number | null;
+          min_value?: number;
+          rate?: number;
+        };
+        Update: {
+          created_at?: string;
+          driver_uuid?: string;
+          id?: string;
+          max_value?: number | null;
+          min_value?: number;
+          rate?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "driver_pay_ranges_driver_uuid_fkey";
+            columns: ["driver_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Drivers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       Drivers: {
         Row: {
           account_manager_uuid: string | null;
@@ -944,6 +1056,7 @@ export type Database = {
           app_version: string | null;
           app_version_reported_at: string | null;
           created_at: string;
+          deadhead_cents: number;
           id: string;
           insurance_expires_on: string | null;
           insurance_photo_path: string | null;
@@ -968,6 +1081,7 @@ export type Database = {
           app_version?: string | null;
           app_version_reported_at?: string | null;
           created_at?: string;
+          deadhead_cents?: number;
           id?: string;
           insurance_expires_on?: string | null;
           insurance_photo_path?: string | null;
@@ -992,6 +1106,7 @@ export type Database = {
           app_version?: string | null;
           app_version_reported_at?: string | null;
           created_at?: string;
+          deadhead_cents?: number;
           id?: string;
           insurance_expires_on?: string | null;
           insurance_photo_path?: string | null;
@@ -1177,6 +1292,153 @@ export type Database = {
           },
         ];
       };
+      EmailTemplateAttachments: {
+        Row: {
+          created_at: string;
+          created_by_user_uuid: string | null;
+          file_name: string;
+          file_size_bytes: number | null;
+          id: string;
+          mime_type: string | null;
+          storage_path: string;
+          template_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          file_name: string;
+          file_size_bytes?: number | null;
+          id?: string;
+          mime_type?: string | null;
+          storage_path: string;
+          template_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          file_name?: string;
+          file_size_bytes?: number | null;
+          id?: string;
+          mime_type?: string | null;
+          storage_path?: string;
+          template_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EmailTemplateAttachments_created_by_user_uuid_fkey";
+            columns: ["created_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EmailTemplateAttachments_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "EmailTemplates";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      EmailTemplates: {
+        Row: {
+          created_at: string;
+          created_by_user_uuid: string | null;
+          deleted_at: string | null;
+          edited_by_user_uuid: string | null;
+          error_message: string | null;
+          html_body: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          subject: string;
+          trigger_uuid: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          deleted_at?: string | null;
+          edited_by_user_uuid?: string | null;
+          error_message?: string | null;
+          html_body?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          subject?: string;
+          trigger_uuid: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_uuid?: string | null;
+          deleted_at?: string | null;
+          edited_by_user_uuid?: string | null;
+          error_message?: string | null;
+          html_body?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          subject?: string;
+          trigger_uuid?: string;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EmailTemplates_created_by_user_uuid_fkey";
+            columns: ["created_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EmailTemplates_edited_by_user_uuid_fkey";
+            columns: ["edited_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EmailTemplates_trigger_uuid_fkey";
+            columns: ["trigger_uuid"];
+            isOneToOne: false;
+            referencedRelation: "EmailTriggerBindings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      EmailTriggerBindings: {
+        Row: {
+          created_at: string;
+          id: string;
+          sales_office_uuid: string;
+          trigger: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          sales_office_uuid: string;
+          trigger: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          sales_office_uuid?: string;
+          trigger?: string;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EmailTriggerBindings_sales_office_uuid_fkey";
+            columns: ["sales_office_uuid"];
+            isOneToOne: false;
+            referencedRelation: "SalesOffices";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       EventAttachments: {
         Row: {
           created_at: string;
@@ -1263,6 +1525,54 @@ export type Database = {
             columns: ["event_uuid"];
             isOneToOne: false;
             referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      EventEmailLog: {
+        Row: {
+          event_uuid: string;
+          fired_at: string;
+          id: string;
+          reason: string | null;
+          status: Database["public"]["Enums"]["email_send_status"];
+          template_id: string | null;
+          to_email: string | null;
+          trigger: string;
+        };
+        Insert: {
+          event_uuid: string;
+          fired_at?: string;
+          id?: string;
+          reason?: string | null;
+          status: Database["public"]["Enums"]["email_send_status"];
+          template_id?: string | null;
+          to_email?: string | null;
+          trigger: string;
+        };
+        Update: {
+          event_uuid?: string;
+          fired_at?: string;
+          id?: string;
+          reason?: string | null;
+          status?: Database["public"]["Enums"]["email_send_status"];
+          template_id?: string | null;
+          to_email?: string | null;
+          trigger?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "EventEmailLog_event_uuid_fkey";
+            columns: ["event_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Events";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "EventEmailLog_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "EmailTemplates";
             referencedColumns: ["id"];
           },
         ];
@@ -1510,6 +1820,8 @@ export type Database = {
           address_uuid: string | null;
           booked_at: string | null;
           contact_uuid: string | null;
+          content_hash: string | null;
+          contract_hash: string | null;
           contract_revenue_cents: number | null;
           created_at: string;
           created_by_user_uuid: string | null;
@@ -1546,6 +1858,8 @@ export type Database = {
           address_uuid?: string | null;
           booked_at?: string | null;
           contact_uuid?: string | null;
+          content_hash?: string | null;
+          contract_hash?: string | null;
           contract_revenue_cents?: number | null;
           created_at?: string;
           created_by_user_uuid?: string | null;
@@ -1582,6 +1896,8 @@ export type Database = {
           address_uuid?: string | null;
           booked_at?: string | null;
           contact_uuid?: string | null;
+          content_hash?: string | null;
+          contract_hash?: string | null;
           contract_revenue_cents?: number | null;
           created_at?: string;
           created_by_user_uuid?: string | null;
@@ -1796,25 +2112,40 @@ export type Database = {
       };
       InspectionPhotos: {
         Row: {
+          attempts: number;
           caption: string | null;
           created_at: string;
+          gallery_asset_id: string | null;
           id: string;
           inspection_uuid: string;
+          last_attempt_at: string | null;
+          last_error: string | null;
           storage_path: string;
+          upload_status: string;
         };
         Insert: {
+          attempts?: number;
           caption?: string | null;
           created_at?: string;
+          gallery_asset_id?: string | null;
           id?: string;
           inspection_uuid: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
           storage_path: string;
+          upload_status?: string;
         };
         Update: {
+          attempts?: number;
           caption?: string | null;
           created_at?: string;
+          gallery_asset_id?: string | null;
           id?: string;
           inspection_uuid?: string;
+          last_attempt_at?: string | null;
+          last_error?: string | null;
           storage_path?: string;
+          upload_status?: string;
         };
         Relationships: [
           {
@@ -1859,6 +2190,7 @@ export type Database = {
           cost_cents: number | null;
           created_at: string;
           created_by_user_uuid: string | null;
+          deleted: boolean;
           event_end: string;
           event_name: string;
           event_start: string;
@@ -1870,6 +2202,7 @@ export type Database = {
           cost_cents?: number | null;
           created_at?: string;
           created_by_user_uuid?: string | null;
+          deleted?: boolean;
           event_end: string;
           event_name?: string;
           event_start: string;
@@ -1881,6 +2214,7 @@ export type Database = {
           cost_cents?: number | null;
           created_at?: string;
           created_by_user_uuid?: string | null;
+          deleted?: boolean;
           event_end?: string;
           event_name?: string;
           event_start?: string;
@@ -1980,6 +2314,7 @@ export type Database = {
           payment_method_type: string | null;
           status: string;
           stripe_checkout_session_id: string | null;
+          stripe_connection_uuid: string | null;
           stripe_payment_intent_id: string | null;
           stripe_receipt_url: string | null;
         };
@@ -1997,6 +2332,7 @@ export type Database = {
           payment_method_type?: string | null;
           status?: string;
           stripe_checkout_session_id?: string | null;
+          stripe_connection_uuid?: string | null;
           stripe_payment_intent_id?: string | null;
           stripe_receipt_url?: string | null;
         };
@@ -2014,6 +2350,7 @@ export type Database = {
           payment_method_type?: string | null;
           status?: string;
           stripe_checkout_session_id?: string | null;
+          stripe_connection_uuid?: string | null;
           stripe_payment_intent_id?: string | null;
           stripe_receipt_url?: string | null;
         };
@@ -2030,6 +2367,13 @@ export type Database = {
             columns: ["installment_id"];
             isOneToOne: false;
             referencedRelation: "PaymentInstallments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "PaymentHistory_stripe_connection_uuid_fkey";
+            columns: ["stripe_connection_uuid"];
+            isOneToOne: false;
+            referencedRelation: "StripeConnections";
             referencedColumns: ["id"];
           },
         ];
@@ -2625,6 +2969,7 @@ export type Database = {
           name: string;
           phone: string | null;
           quickbook_uuid: string;
+          stripe_connection_uuid: string | null;
         };
         Insert: {
           address_uuid?: string | null;
@@ -2635,6 +2980,7 @@ export type Database = {
           name: string;
           phone?: string | null;
           quickbook_uuid: string;
+          stripe_connection_uuid?: string | null;
         };
         Update: {
           address_uuid?: string | null;
@@ -2645,6 +2991,7 @@ export type Database = {
           name?: string;
           phone?: string | null;
           quickbook_uuid?: string;
+          stripe_connection_uuid?: string | null;
         };
         Relationships: [
           {
@@ -2666,6 +3013,13 @@ export type Database = {
             columns: ["quickbook_uuid"];
             isOneToOne: false;
             referencedRelation: "QboConnections";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "SalesOffices_stripe_connection_uuid_fkey";
+            columns: ["stripe_connection_uuid"];
+            isOneToOne: false;
+            referencedRelation: "StripeConnections";
             referencedColumns: ["id"];
           },
         ];
@@ -2784,6 +3138,42 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      StripeConnections: {
+        Row: {
+          charges_enabled: boolean;
+          created_at: string;
+          deleted_at: string | null;
+          details_submitted: boolean;
+          id: string;
+          livemode: boolean;
+          payouts_enabled: boolean;
+          stripe_account_id: string | null;
+          stripe_business_name: string | null;
+        };
+        Insert: {
+          charges_enabled?: boolean;
+          created_at?: string;
+          deleted_at?: string | null;
+          details_submitted?: boolean;
+          id?: string;
+          livemode?: boolean;
+          payouts_enabled?: boolean;
+          stripe_account_id?: string | null;
+          stripe_business_name?: string | null;
+        };
+        Update: {
+          charges_enabled?: boolean;
+          created_at?: string;
+          deleted_at?: string | null;
+          details_submitted?: boolean;
+          id?: string;
+          livemode?: boolean;
+          payouts_enabled?: boolean;
+          stripe_account_id?: string | null;
+          stripe_business_name?: string | null;
+        };
+        Relationships: [];
       };
       SubrentalEvents: {
         Row: {
@@ -3014,6 +3404,7 @@ export type Database = {
       Users: {
         Row: {
           avatar_image_url: string | null;
+          changelog_last_read_at: string | null;
           clerk_user_id: string | null;
           created_at: string;
           email: string;
@@ -3029,6 +3420,7 @@ export type Database = {
         };
         Insert: {
           avatar_image_url?: string | null;
+          changelog_last_read_at?: string | null;
           clerk_user_id?: string | null;
           created_at?: string;
           email: string;
@@ -3044,6 +3436,7 @@ export type Database = {
         };
         Update: {
           avatar_image_url?: string | null;
+          changelog_last_read_at?: string | null;
           clerk_user_id?: string | null;
           created_at?: string;
           email?: string;
@@ -3220,6 +3613,47 @@ export type Database = {
           walk_around_complete?: boolean;
         };
         Relationships: [];
+      };
+      WorkTrackerLineItems: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          id: string;
+          is_automatically_managed: boolean;
+          quantity: number;
+          type: Database["public"]["Enums"]["work_tracker_line_item_type"];
+          unit_amt_cents: number;
+          work_tracker_uuid: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          is_automatically_managed?: boolean;
+          quantity?: number;
+          type: Database["public"]["Enums"]["work_tracker_line_item_type"];
+          unit_amt_cents?: number;
+          work_tracker_uuid: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          is_automatically_managed?: boolean;
+          quantity?: number;
+          type?: Database["public"]["Enums"]["work_tracker_line_item_type"];
+          unit_amt_cents?: number;
+          work_tracker_uuid?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "work_tracker_line_items_work_tracker_uuid_fkey";
+            columns: ["work_tracker_uuid"];
+            isOneToOne: false;
+            referencedRelation: "WorkTrackers";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       WorkTrackers: {
         Row: {
@@ -3563,6 +3997,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      damage_reports_recompute_photos_uploaded: {
+        Args: { p_ids: string[] };
+        Returns: undefined;
+      };
+      drivers_backfill_document: {
+        Args: { p_doc_type: string; p_driver_id: string; p_photo_path: string };
+        Returns: undefined;
+      };
       generate_invoice_number: { Args: never; Returns: number };
       get_current_account_manager_id: { Args: never; Returns: string };
       get_current_driver_id: { Args: never; Returns: string };
@@ -3585,6 +4027,15 @@ export type Database = {
         Args: { p_year: number };
         Returns: undefined;
       };
+      recompute_quote_hashes: {
+        Args: { p_event_id: string };
+        Returns: undefined;
+      };
+      user_can_manage_zone: { Args: { p_zone_uuid: string }; Returns: boolean };
+      user_shares_zone_with_driver: {
+        Args: { p_driver_uuid: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       alert_entity_type: "event" | "bleacher_event" | "work_tracker";
@@ -3594,6 +4045,7 @@ export type Database = {
       contract_signature_status: "active" | "invalidated";
       currency: "USD" | "CAD";
       damage_severity: "none" | "minor" | "major";
+      email_send_status: "sent" | "failed";
       event_status: "quoted" | "booked" | "lost" | "draft";
       pay_currency_type: "CAD" | "USD";
       pay_per_unit_type: "KM" | "MI" | "HR";
@@ -3615,6 +4067,14 @@ export type Database = {
         | "in_staging"
         | "paused";
       task_type: "feature" | "bug";
+      work_tracker_line_item_type:
+        | "hauling"
+        | "deadhead"
+        | "setup"
+        | "teardown"
+        | "maintenance"
+        | "per_diem"
+        | "custom";
       worktracker_group_status:
         | "draft"
         | "qbo_bill_creating"
@@ -3768,6 +4228,7 @@ export const Constants = {
       contract_signature_status: ["active", "invalidated"],
       currency: ["USD", "CAD"],
       damage_severity: ["none", "minor", "major"],
+      email_send_status: ["sent", "failed"],
       event_status: ["quoted", "booked", "lost", "draft"],
       pay_currency_type: ["CAD", "USD"],
       pay_per_unit_type: ["KM", "MI", "HR"],
@@ -3791,6 +4252,15 @@ export const Constants = {
         "paused",
       ],
       task_type: ["feature", "bug"],
+      work_tracker_line_item_type: [
+        "hauling",
+        "deadhead",
+        "setup",
+        "teardown",
+        "maintenance",
+        "per_diem",
+        "custom",
+      ],
       worktracker_group_status: [
         "draft",
         "qbo_bill_creating",

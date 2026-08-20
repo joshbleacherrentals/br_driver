@@ -21,6 +21,13 @@ export type DriverCheck = {
  * Driver present, still loading) so callers can distinguish "still syncing",
  * "account not found" and "no driver profile". Combine with sync status in
  * useDriverGate to decide what to show.
+ *
+ * Deliberately NOT built on `useDriverScope()`, unlike the other hooks that
+ * used to repeat this Clerk → `Users` → `Drivers` chain. The scope answers
+ * "which driver", collapsing every failure to `null` (§15: both ids or
+ * nothing) — and telling those failures apart is this hook's entire job. It
+ * also needs `Drivers.is_active`, which the scope does not carry: a scope
+ * exists for an inactive driver too.
  */
 export function useCheckDriver(): DriverCheck {
   const { user, isSignedIn } = useUser();

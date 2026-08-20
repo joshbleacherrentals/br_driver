@@ -41,6 +41,11 @@ function RootLayoutContent() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
 
+    // Deliberately its own `Users` lookup rather than `useDriverScope()` (§15).
+    // Two reasons: push registration needs only `Users.id` and must keep
+    // working for a signed-in user who has no `Drivers` row yet — the scope is
+    // `null` for exactly that person — and this is an imperative poll waiting
+    // for the row to arrive by sync, not a reactive read.
     const setup = async () => {
       try {
         let dbUser = null;
