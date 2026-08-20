@@ -722,37 +722,25 @@ export type Database = {
       }
       DamageReportPhotos: {
         Row: {
-          attempts: number
           created_at: string
           damage_report_uuid: string
-          gallery_asset_id: string | null
           id: string
-          last_attempt_at: string | null
-          last_error: string | null
           photo_path: string
           thumbnail: string | null
           upload_status: string
         }
         Insert: {
-          attempts?: number
           created_at?: string
           damage_report_uuid: string
-          gallery_asset_id?: string | null
           id?: string
-          last_attempt_at?: string | null
-          last_error?: string | null
           photo_path: string
           thumbnail?: string | null
           upload_status?: string
         }
         Update: {
-          attempts?: number
           created_at?: string
           damage_report_uuid?: string
-          gallery_asset_id?: string | null
           id?: string
-          last_attempt_at?: string | null
-          last_error?: string | null
           photo_path?: string
           thumbnail?: string | null
           upload_status?: string
@@ -780,6 +768,7 @@ export type Database = {
           is_safe_to_sit: boolean
           maintenance_event_uuid: string | null
           note: string | null
+          photos_uploaded: boolean
           resolved_at: string | null
           seat_damage: Database["public"]["Enums"]["damage_severity"]
         }
@@ -795,6 +784,7 @@ export type Database = {
           is_safe_to_sit?: boolean
           maintenance_event_uuid?: string | null
           note?: string | null
+          photos_uploaded?: boolean
           resolved_at?: string | null
           seat_damage?: Database["public"]["Enums"]["damage_severity"]
         }
@@ -810,6 +800,7 @@ export type Database = {
           is_safe_to_sit?: boolean
           maintenance_event_uuid?: string | null
           note?: string | null
+          photos_uploaded?: boolean
           resolved_at?: string | null
           seat_damage?: Database["public"]["Enums"]["damage_severity"]
         }

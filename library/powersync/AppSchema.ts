@@ -157,6 +157,14 @@ const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, {
 });
 
 // damage reports
+//
+// `satisfies Partial<...>` rather than the full mapping: `photos_uploaded` is
+// server-derived (Postgres triggers only, see
+// bleacher_rentals/supabase/migrations/20260820120000_damage_reports_photos_uploaded.sql)
+// and no client — this one included — ever writes it, so it is deliberately
+// not declared here. `Partial` still checks every column that IS declared, so
+// a typo'd name or a text/integer mix-up is still caught exactly as before;
+// only "you listed all of them" is relaxed.
 const DamageReportsCols = {
   inspection_uuid: column.text,
   bleacher_uuid: column.text,
@@ -170,7 +178,7 @@ const DamageReportsCols = {
   maintenance_event_uuid: column.text,
   created_by_user_uuid: column.text,
   deleted: column.integer,
-} satisfies PowerSyncColsFor<"DamageReports">;
+} satisfies Partial<PowerSyncColsFor<"DamageReports">>;
 const DamageReports = new Table(DamageReportsCols, {
   // `created_by_user_uuid` backs the photo queue's ownership subquery (§15) and
   // the "my damage reports" history screen.
@@ -193,7 +201,8 @@ const DamageReports = new Table(DamageReportsCols, {
 // Postgres" never meant "the photo is in the bucket". `upload_status` was, and
 // remains, the only server-visible signal that an upload actually completed:
 // it is what a human checks in Postgres to confirm a report's photos landed,
-// and what the upcoming `DamageReports.isReady` gate will read.
+// and what the `DamageReports.photos_uploaded` gate reads (server-computed —
+// see the Partial<> comment on `DamageReportsCols` above).
 //
 // What makes keeping it affordable is that the client writes it exactly ONCE
 // per photo, and only ever the value `uploaded`

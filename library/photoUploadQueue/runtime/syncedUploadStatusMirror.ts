@@ -12,8 +12,9 @@
  * file finishes uploading, so "the row is in Postgres" has never meant "the
  * photo is in the bucket". `upload_status` was the difference, and two things
  * outside this device depend on it: someone checking in Postgres whether a
- * report's photos really made it, and the upcoming `DamageReports.isReady`
- * gate that decides when a report is fit to show in the web admin.
+ * report's photos really made it, and the `DamageReports.photos_uploaded`
+ * gate (server-computed via Postgres triggers) that decides when a report is
+ * fit to show in the web admin.
  *
  * SO THIS IS A ONE-WAY MIRROR, NOT A SECOND SOURCE OF TRUTH
  * - It writes one value, `uploaded`, and only on the genuine terminal
