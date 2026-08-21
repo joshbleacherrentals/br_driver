@@ -18,7 +18,12 @@ import {
   UserContactData,
 } from "@/hooks/db/useAccountManager";
 import { AddressData, useAddress } from "@/hooks/db/useAddress";
-import { useDriver, useVehicle } from "@/hooks/db/useDriver";
+import {
+  DriverPayRangeData,
+  useDriver,
+  useDriverPayRanges,
+  useVehicle,
+} from "@/hooks/db/useDriver";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,6 +58,7 @@ export default function ProfileScreen() {
 
   const { driver } = useDriver();
   const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
+  const { payRanges } = useDriverPayRanges(driver?.id ?? null);
 
   const { address } = useAddress(driver?.address_uuid ?? null);
   const { accountManager } = useAccountManager(
@@ -119,9 +125,57 @@ export default function ProfileScreen() {
     );
   };
 
-  const formatPayRate = (cents: number | null) => {
+  const currencySymbol = (currency: string | null) => {
+    if (currency === "CAD") return "C$";
+    return "$";
+  };
+
+  const formatPayRate = (cents: number | null, currency: string | null) => {
     if (cents === null) return "Not set";
-    return `$${(cents / 100).toFixed(2)}`;
+    return `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+  };
+
+  const formatDeadhead = (
+    cents: number | null,
+    currency: string | null,
+    unit: string | null,
+  ) => {
+    if (cents === null) return "Not set";
+    const value = `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+    return unit ? `${value} per ${unit}` : value;
+  };
+
+  const formatMoneyWithCurrency = (
+    cents: number | null,
+    currency: string | null,
+  ) => {
+    if (cents === null) return "Not set";
+    return `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+  };
+
+  const formatRateValue = (rate: number | null) => {
+    if (rate === null) return "0";
+    return parseFloat(rate.toFixed(2)).toString();
+  };
+
+  const formatPayRangeSpan = (
+    range: DriverPayRangeData,
+    unit: string | null,
+  ) => {
+    const span =
+      range.max_value !== null
+        ? `${range.min_value} - ${range.max_value}`
+        : `over ${range.min_value}`;
+    return [span, unit].filter(Boolean).join(" ");
+  };
+
+  const formatPayRangeRate = (
+    range: DriverPayRangeData,
+    currency: string | null,
+    unit: string | null,
+  ) => {
+    const rateText = `${currencySymbol(currency)}${formatRateValue(range.rate)}`;
+    return unit ? `${rateText} per ${unit}` : rateText;
   };
 
   const formatPhoneNumber = (phone: string | null) => {
@@ -250,13 +304,70 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Pay Rate</Text>
-              <Text style={styles.infoViewOnlyValue}>
-                {formatPayRate(driver.pay_rate_cents)}
-                {driver.pay_per_unit && ` per ${driver.pay_per_unit}`}
-              </Text>
-            </View>
+            {driver.deadhead_cents !== null && driver.deadhead_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Deadhead</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatDeadhead(
+                    driver.deadhead_cents,
+                    driver.pay_currency,
+                    driver.pay_per_unit,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {driver.setup_cents !== null && driver.setup_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Setup</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatMoneyWithCurrency(
+                    driver.setup_cents,
+                    driver.pay_currency,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {driver.teardown_cents !== null && driver.teardown_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Teardown</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatMoneyWithCurrency(
+                    driver.teardown_cents,
+                    driver.pay_currency,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {payRanges.length === 0 ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Pay Rate</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatPayRate(driver.pay_rate_cents, driver.pay_currency)}
+                  {driver.pay_per_unit && ` per ${driver.pay_per_unit}`}
+                </Text>
+              </View>
+            ) : (
+              payRanges.map((range) => (
+                <View style={styles.infoRow} key={range.id}>
+                  <Text style={styles.infoLabel}>Pay Rate</Text>
+                  <View style={styles.payRangeValue}>
+                    <Text style={styles.payRangeRate}>
+                      {formatPayRangeRate(
+                        range,
+                        driver.pay_currency,
+                        driver.pay_per_unit,
+                      )}
+                    </Text>
+                    <Text style={styles.payRangeSpan}>
+                      {formatPayRangeSpan(range, driver.pay_per_unit)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
 
             {driver.tax !== null && (
               <View style={styles.infoRow}>
@@ -569,6 +680,20 @@ function makeStyles(theme: ThemeColors) {
       ...typeScale.footnote,
       color: theme.textSecondary,
       fontWeight: "600",
+    },
+    payRangeValue: {
+      alignItems: "flex-end",
+      gap: 2,
+    },
+    payRangeRate: {
+      ...typeScale.subhead,
+      color: theme.textPrimary,
+      fontWeight: "600",
+    },
+    payRangeSpan: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      fontWeight: "400",
     },
     documentRow: {
       flexDirection: "row",

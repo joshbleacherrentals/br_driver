@@ -11,6 +11,9 @@ export type DriverData = {
     pay_rate_cents: number | null;
     pay_currency: string | null;
     pay_per_unit: string | null;
+    deadhead_cents: number | null;
+    setup_cents: number | null;
+    teardown_cents: number | null;
     is_active: number | null;
     account_manager_uuid: string | null;
     user_uuid: string | null;
@@ -32,6 +35,14 @@ export type VehicleData = {
   model: string | null;
   year: number | null;
   vin_number: string | null
+};
+
+export type DriverPayRangeData = {
+  id: string;
+  driver_uuid: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  rate: number | null;
 };
 
 /**
@@ -59,6 +70,9 @@ export function useDriver(): { driver: DriverData | null } {
         "pay_rate_cents",
         "pay_currency",
         "pay_per_unit",
+        "deadhead_cents",
+        "setup_cents",
+        "teardown_cents",
         "is_active",
         "account_manager_uuid",
         "user_uuid",
@@ -108,4 +122,27 @@ export function useVehicle(vehicle_id: string | null): { vehicle: VehicleData | 
   const vehicleData = useTypedQuery(compiled, expect<VehicleData>());
 
   return { vehicle: vehicleData.data?.[0] ?? null };
+}
+
+/**
+ * Fetch the driver's tiered pay ranges (min/max distance -> rate), ordered
+ * from lowest to highest range. Empty when the driver has a flat pay rate.
+ */
+export function useDriverPayRanges(driverId: string | null): {
+  payRanges: DriverPayRangeData[];
+} {
+  const compiled = useMemo(() => {
+    if (!driverId) return null;
+
+    return db
+      .selectFrom("DriverPayRanges")
+      .select(["id", "driver_uuid", "min_value", "max_value", "rate"])
+      .where("driver_uuid", "=", driverId)
+      .orderBy("min_value", "asc")
+      .compile();
+  }, [driverId]);
+
+  const payRangeData = useTypedQuery(compiled, expect<DriverPayRangeData>());
+
+  return { payRanges: payRangeData.data ?? [] };
 }

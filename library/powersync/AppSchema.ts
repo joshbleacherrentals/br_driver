@@ -74,7 +74,9 @@ const DriversCols = {
   pay_per_unit: column.text,
   pay_rate_cents: column.integer,
   phone_number: column.text,
+  setup_cents: column.integer,
   tax: column.integer,
+  teardown_cents: column.integer,
   user_uuid: column.text,
   vehicle_uuid: column.text,
   vendor_uuid: column.text,
@@ -89,6 +91,18 @@ const DriverUnavailabilityCols = {
   updated_at: column.text,
 } satisfies PowerSyncColsFor<"DriverUnavailability">;
 const DriverUnavailability = new Table(DriverUnavailabilityCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
+});
+
+// tiered pay rates: min/max distance range -> rate, per driver
+const DriverPayRangesCols = {
+  driver_uuid: column.text,
+  min_value: column.integer,
+  max_value: column.integer,
+  rate: column.real,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverPayRanges">;
+const DriverPayRanges = new Table(DriverPayRangesCols, {
   indexes: { driver_uuid: ["driver_uuid"] },
 });
 
@@ -404,6 +418,7 @@ export const AppSchema = new Schema({
   Users,
   Drivers,
   DriverUnavailability,
+  DriverPayRanges,
   Bleachers,
   Addresses,
   AccountManagers,
