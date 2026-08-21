@@ -1,5 +1,6 @@
 import Badge from "@/components/ui/Badge";
 import BillOfLading, { BOLButton } from "@/components/widgets/billOfLading";
+import { PayAmount } from "@/components/widgets/payBreakdown";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import InspectionSummaryWidget from "@/components/widgets/inspectionSummaryWidget";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
@@ -57,9 +58,6 @@ export default function CompletedTrips({
   );
   const { damageReports } = useDamageReports(workTracker.bleacher_uuid);
   const [bolVisible, setBolVisible] = React.useState(false);
-
-  const formatPay = (cents: number | null) =>
-    cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 
   const formatTime = (time: string | null) => time ?? "";
 
@@ -163,9 +161,12 @@ export default function CompletedTrips({
               )}
             </View>
             <Text style={styles.heroDate}>{formatDate(workTracker.date)}</Text>
-            {workTracker.pay_cents ? (
-              <Text style={styles.heroPay}>{formatPay(workTracker.pay_cents)}</Text>
-            ) : null}
+            <View style={styles.heroPayRow}>
+              <PayAmount
+                workTrackerId={workTracker.id}
+                payCents={workTracker.pay_cents}
+              />
+            </View>
           </View>
           <View style={styles.heroActions}>
             <Badge
@@ -466,12 +467,7 @@ function makeStyles(theme: ThemeColors) {
       color: theme.textSecondary,
       marginTop: 4,
     },
-    heroPay: {
-      ...typeScale.subhead,
-      fontWeight: "600",
-      color: theme.textPrimary,
-      marginTop: 2,
-    },
+    heroPayRow: { alignSelf: "flex-start", marginTop: 4 },
     heroActions: {
       alignItems: "flex-end",
       gap: 8,

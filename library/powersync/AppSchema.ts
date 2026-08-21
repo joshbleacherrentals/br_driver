@@ -375,6 +375,22 @@ const WorkTrackers = new Table(WorkTrackersCols, {
   },
 });
 
+// WorkTracker line items — the pay breakdown behind WorkTrackers.pay_cents.
+// One row per billable line (hauling, deadhead, setup, …); `unit_amt_cents`
+// times `quantity` is that line's total.
+const WorkTrackerLineItemsCols = {
+  work_tracker_uuid: column.text,
+  type: column.text,
+  quantity: column.integer,
+  unit_amt_cents: column.integer,
+  description: column.text,
+  is_automatically_managed: column.integer,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"WorkTrackerLineItems">;
+const WorkTrackerLineItems = new Table(WorkTrackerLineItemsCols, {
+  indexes: { work_tracker_uuid: ["work_tracker_uuid"] },
+});
+
 // Vehicles
 const VehiclesCols = {
   created_at: column.text,
@@ -430,6 +446,7 @@ export const AppSchema = new Schema({
   InspectionPhotos,
   DriverDocuments,
   WorkTrackers,
+  WorkTrackerLineItems,
   Vehicles,
   BlueBook,
   AppVersionPolicy,
@@ -450,5 +467,6 @@ export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
+export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];

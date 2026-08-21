@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import BillOfLading, { BOLButton } from "./billOfLading";
+import { PayAmount } from "./payBreakdown";
 
 function getStatusBadge(status: WorkTracker["status"], theme: ThemeColors) {
   switch (status) {
@@ -121,9 +122,6 @@ function TripItem({
     return `${address.street}`;
   };
 
-  const formatPay = (cents: number | null) =>
-    cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
-
   const formatTime = (time: string | null) => time ?? "";
 
   const formatDate = (dateISO?: string | null) => {
@@ -204,7 +202,7 @@ function TripItem({
       {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
-          {/* Title row: bleacher number + damage badge inline */}
+          {/* Title row: bleacher number + damage badge + tappable pay */}
           <View style={styles.titleRow}>
             <Text style={[styles.mainTitle, { color: theme.textPrimary }]}>
               {bleacher_uuid &&
@@ -216,8 +214,8 @@ function TripItem({
                   bleacherNumber={bleacher?.bleacher_number}
                 />
               )}
-              {pay_cents !== null && formatPay(pay_cents)}
             </Text>
+            <PayAmount workTrackerId={workTracker.id} payCents={pay_cents} />
           </View>
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>
             {formatDate(date)}
