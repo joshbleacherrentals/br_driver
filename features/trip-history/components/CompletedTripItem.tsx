@@ -10,6 +10,7 @@ import { useDamageReports } from "@/hooks/db/useDamageReport";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
+import { ContactButton } from "@/components/widgets/contactSheet";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
@@ -242,6 +243,11 @@ export default function CompletedTrips({
                 POC: {workTracker.pickup_poc}
               </Text>
             ) : null}
+            <ContactButton
+              contactId={workTracker.pickup_poc_contact_uuid}
+              status={workTracker.status}
+              acceptedAt={workTracker.accepted_at}
+            />
             {workTracker.teardown_required !== null &&
             workTracker.teardown_required !== undefined ? (
               <View style={styles.flagRow}>
@@ -319,6 +325,11 @@ export default function CompletedTrips({
                 POC: {workTracker.dropoff_poc}
               </Text>
             ) : null}
+            <ContactButton
+              contactId={workTracker.dropoff_poc_contact_uuid}
+              status={workTracker.status}
+              acceptedAt={workTracker.accepted_at}
+            />
             {workTracker.setup_required !== null &&
             workTracker.setup_required !== undefined ? (
               <View style={styles.flagRow}>

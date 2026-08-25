@@ -2,6 +2,7 @@ import { db } from "@/components/providers/SystemProvider";
 import { typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useFormTheme } from "@/hooks/useTheme";
+import { formatPhoneNumber } from "@/utils/phone";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";
 import React, { useState } from "react";
@@ -53,16 +54,6 @@ export default function EditDriverInfo({
       return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
     if (cleaned.length > 0) return `(${cleaned}`;
     return "";
-  };
-
-  const formatPhoneNumber = (phone: string | null) => {
-    if (!phone) return "Not set";
-    // Format as (XXX) XXX-XXXX if 10 digits
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
   };
 
   const handlePhoneChange = (text: string) => {

@@ -29,6 +29,8 @@ export type WorkTracker = {
   pickup_instructions: string | null;
   setup_required: number | null;
   dropoff_instructions: string | null;
+  pickup_poc_contact_uuid: string | null;
+  dropoff_poc_contact_uuid: string | null;
   project_number: string | null;
   bol_number: string | null;
   pre_inspection_uuid: string | null;
@@ -69,6 +71,8 @@ const WORK_TRACKER_COLUMNS = [
   "pickup_instructions",
   "setup_required",
   "dropoff_instructions",
+  "pickup_poc_contact_uuid",
+  "dropoff_poc_contact_uuid",
   "project_number",
   "bol_number",
   "pre_inspection_uuid",

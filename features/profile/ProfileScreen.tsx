@@ -25,6 +25,7 @@ import {
   useVehicle,
 } from "@/hooks/db/useDriver";
 import { useTheme } from "@/hooks/useTheme";
+import { formatPhoneNumber } from "@/utils/phone";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -178,16 +179,6 @@ export default function ProfileScreen() {
     return unit ? `${rateText} per ${unit}` : rateText;
   };
 
-  const formatPhoneNumber = (phone: string | null) => {
-    if (!phone) return "Not set";
-    // Format as (XXX) XXX-XXXX if 10 digits
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
-  };
-
   const formatAM = (accountManager: UserContactData | null) => {
     if (!accountManager) return "Not set";
     return `${accountManager?.first_name} ${accountManager?.last_name}`;
@@ -286,7 +277,7 @@ export default function ProfileScreen() {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Phone Number</Text>
               <Text style={styles.infoValue}>
-                {formatPhoneNumber(driver.phone_number)}
+                {formatPhoneNumber(driver.phone_number) ?? "Not set"}
               </Text>
             </View>
 

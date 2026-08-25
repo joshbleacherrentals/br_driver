@@ -46,6 +46,7 @@ const TABLES = [
   "DamageReportPhotos",
   "PhotoUploadStatus",
   "InspectionPhotos",
+  "Contacts",
 ] as const;
 
 /**
@@ -73,6 +74,19 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("driver_uuid", "text")
     .addColumn("pre_inspection_uuid", "text")
     .addColumn("post_inspection_uuid", "text")
+    .execute();
+
+  await db.schema
+    .createTable("Contacts")
+    .addColumn("id", "text", (col) => col.primaryKey())
+    .addColumn("first_name", "text")
+    .addColumn("last_name", "text")
+    .addColumn("phone", "text")
+    .addColumn("email", "text")
+    .addColumn("company_uuid", "text")
+    .addColumn("notes", "text")
+    .addColumn("deleted", "integer")
+    .addColumn("created_at", "text")
     .execute();
 
   await db.schema
@@ -395,4 +409,35 @@ export async function linkInspectionToDriver(args: {
       post_inspection_uuid: leg === "post" ? inspectionId : null,
     })
     .execute();
+}
+
+/** Contact columns a test may vary; the defaults describe a live contact. */
+export type ContactColumns = {
+  first_name?: string;
+  last_name?: string | null;
+  phone?: string | null;
+  deleted?: number;
+};
+
+/** One `Contacts` row — the POC an office user attached to a trip. */
+export async function seedContact(
+  id: string,
+  columns: ContactColumns = {},
+): Promise<string> {
+  await mockDb
+    .insertInto("Contacts")
+    .values({
+      id,
+      first_name: columns.first_name ?? "Dave",
+      last_name: columns.last_name ?? "Brubeck",
+      phone: columns.phone ?? "5551234567",
+      email: null,
+      company_uuid: null,
+      notes: null,
+      deleted: columns.deleted ?? 0,
+      created_at: "2026-08-25T10:00:00Z",
+    })
+    .execute();
+
+  return id;
 }

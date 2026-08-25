@@ -356,6 +356,8 @@ const WorkTrackersCols = {
   pickup_instructions: column.text,
   setup_required: column.integer,
   dropoff_instructions: column.text,
+  pickup_poc_contact_uuid: column.text,
+  dropoff_poc_contact_uuid: column.text,
   bol_number: column.text,
   project_number: column.text,
   worktracker_group_uuid: column.text,
@@ -374,6 +376,24 @@ const WorkTrackers = new Table(WorkTrackersCols, {
     post_inspection_uuid: ["post_inspection_uuid"],
   },
 });
+
+// Contacts — the on-site POC an office user attaches to a trip leg.
+//
+// Only the contacts referenced by this driver's own WorkTrackers sync here
+// (see the mobile stream in br_powersync/config/sync_rules.yaml); the wider
+// customer contact book never reaches a device.
+const ContactsCols = {
+  first_name: column.text,
+  last_name: column.text,
+  phone: column.text,
+  email: column.text,
+  company_uuid: column.text,
+  notes: column.text,
+  deleted: column.integer,
+  created_at: column.text,
+  created_by_user_uuid: column.text,
+} satisfies PowerSyncColsFor<"Contacts">;
+const Contacts = new Table(ContactsCols);
 
 // WorkTracker line items — the pay breakdown behind WorkTrackers.pay_cents.
 // One row per billable line (hauling, deadhead, setup, …); `unit_amt_cents`
@@ -447,6 +467,7 @@ export const AppSchema = new Schema({
   DriverDocuments,
   WorkTrackers,
   WorkTrackerLineItems,
+  Contacts,
   Vehicles,
   BlueBook,
   AppVersionPolicy,
@@ -468,5 +489,6 @@ export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
+export type ContactRecord = PowerSyncDB["Contacts"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];

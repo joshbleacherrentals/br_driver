@@ -20,6 +20,7 @@ module.exports = {
     "/dist/",
   ],
   modulePathIgnorePatterns: ["/android/", "/ios/", "/.expo/", "/dist/"],
+  setupFiles: ["<rootDir>/jest.setup.js"],
   clearMocks: true,
   restoreMocks: true,
 };

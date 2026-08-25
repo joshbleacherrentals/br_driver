@@ -3676,6 +3676,7 @@ export type Database = {
           dropoff_address_uuid: string | null;
           dropoff_instructions: string | null;
           dropoff_poc: string | null;
+          dropoff_poc_contact_uuid: string | null;
           dropoff_time: string | null;
           id: string;
           internal_notes: string | null;
@@ -3684,6 +3685,7 @@ export type Database = {
           pickup_address_uuid: string | null;
           pickup_instructions: string | null;
           pickup_poc: string | null;
+          pickup_poc_contact_uuid: string | null;
           pickup_time: string | null;
           post_inspection_uuid: string | null;
           pre_inspection_uuid: string | null;
@@ -3712,6 +3714,7 @@ export type Database = {
           dropoff_address_uuid?: string | null;
           dropoff_instructions?: string | null;
           dropoff_poc?: string | null;
+          dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
           id?: string;
           internal_notes?: string | null;
@@ -3720,6 +3723,7 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_instructions?: string | null;
           pickup_poc?: string | null;
+          pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
@@ -3748,6 +3752,7 @@ export type Database = {
           dropoff_address_uuid?: string | null;
           dropoff_instructions?: string | null;
           dropoff_poc?: string | null;
+          dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
           id?: string;
           internal_notes?: string | null;
@@ -3756,6 +3761,7 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_instructions?: string | null;
           pickup_poc?: string | null;
+          pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
@@ -3800,10 +3806,24 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "WorkTrackers_dropoff_poc_contact_uuid_fkey";
+            columns: ["dropoff_poc_contact_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Contacts";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "worktrackers_pickup_address_uuid_fkey";
             columns: ["pickup_address_uuid"];
             isOneToOne: false;
             referencedRelation: "Addresses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "WorkTrackers_pickup_poc_contact_uuid_fkey";
+            columns: ["pickup_poc_contact_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Contacts";
             referencedColumns: ["id"];
           },
           {

@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
 import { InspectionPhotoRepair } from "@/components/widgets/InspectionPhotoRepair";
+import { ContactButton } from "@/components/widgets/contactSheet";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
@@ -82,6 +83,9 @@ function TripItem({
     pickup_instructions,
     setup_required,
     dropoff_instructions,
+    pickup_poc_contact_uuid,
+    dropoff_poc_contact_uuid,
+    accepted_at,
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
@@ -254,11 +258,18 @@ function TripItem({
               PICKUP
             </Text>
           </View>
-          {pickup_time && (
-            <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-              {formatTime(pickup_time)}
-            </Text>
-          )}
+          <View style={styles.stopHeaderRight}>
+            {pickup_time && (
+              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
+                {formatTime(pickup_time)}
+              </Text>
+            )}
+            <ContactButton
+              contactId={pickup_poc_contact_uuid}
+              status={status}
+              acceptedAt={accepted_at}
+            />
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -415,11 +426,18 @@ function TripItem({
               DROP-OFF
             </Text>
           </View>
-          {dropoff_time && (
-            <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-              {formatTime(dropoff_time)}
-            </Text>
-          )}
+          <View style={styles.stopHeaderRight}>
+            {dropoff_time && (
+              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
+                {formatTime(dropoff_time)}
+              </Text>
+            )}
+            <ContactButton
+              contactId={dropoff_poc_contact_uuid}
+              status={status}
+              acceptedAt={accepted_at}
+            />
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -650,6 +668,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stopHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  stopHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   locationLabel: { ...typeScale.footnote, fontWeight: "700", letterSpacing: 0.5 },
   timeText: { ...typeScale.subhead, fontWeight: "600" },
   addressText: {
