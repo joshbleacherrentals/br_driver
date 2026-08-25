@@ -97,6 +97,7 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("issues_found", "integer")
     .addColumn("issue_description", "text")
     .addColumn("answers_json", "text")
+    .addColumn("bleacher_uuid", "text")
     .execute();
 
   await db.schema

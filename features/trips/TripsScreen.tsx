@@ -52,7 +52,6 @@ export default function TripsScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("today");
   const [inspectionData, setInspectionData] = useState<{
     workTrackerId: string;
-    bleacherUuid: string | null;
     type: InspectionType;
   } | null>(null);
 
@@ -151,10 +150,9 @@ export default function TripsScreen() {
 
   const handleStartInspection = useCallback((
     workTrackerId: string,
-    bleacherUuid: string | null,
     type: "pickup" | "dropoff",
   ) => {
-    setInspectionData({ workTrackerId, bleacherUuid, type });
+    setInspectionData({ workTrackerId, type });
   }, []);
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
@@ -217,7 +215,6 @@ export default function TripsScreen() {
       <InspectionScreen
         workTrackerId={inspectionData.workTrackerId}
         inspectionType={inspectionData.type}
-        bleacherUuid={inspectionData.bleacherUuid}
         onComplete={() => {
           void handleInspectionComplete(inspectionData.workTrackerId);
         }}

@@ -3596,6 +3596,7 @@ export type Database = {
       WorkTrackerInspections: {
         Row: {
           answers_json: string | null;
+          bleacher_uuid: string | null;
           created_at: string;
           id: string;
           issue_description: string | null;
@@ -3604,6 +3605,7 @@ export type Database = {
         };
         Insert: {
           answers_json?: string | null;
+          bleacher_uuid?: string | null;
           created_at?: string;
           id?: string;
           issue_description?: string | null;
@@ -3612,13 +3614,22 @@ export type Database = {
         };
         Update: {
           answers_json?: string | null;
+          bleacher_uuid?: string | null;
           created_at?: string;
           id?: string;
           issue_description?: string | null;
           issues_found?: boolean;
           walk_around_complete?: boolean;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "WorkTrackerInspections_bleacher_uuid_fkey";
+            columns: ["bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       WorkTrackerLineItems: {
         Row: {
@@ -3664,6 +3675,8 @@ export type Database = {
       WorkTrackers: {
         Row: {
           accepted_at: string | null;
+          actual_bleacher_uuid: string | null;
+          bleacher_change_reason: string | null;
           bleacher_uuid: string | null;
           bol_number: string | null;
           completed_at: string | null;
@@ -3702,6 +3715,8 @@ export type Database = {
         };
         Insert: {
           accepted_at?: string | null;
+          actual_bleacher_uuid?: string | null;
+          bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
           bol_number?: string | null;
           completed_at?: string | null;
@@ -3740,6 +3755,8 @@ export type Database = {
         };
         Update: {
           accepted_at?: string | null;
+          actual_bleacher_uuid?: string | null;
+          bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
           bol_number?: string | null;
           completed_at?: string | null;
@@ -3777,6 +3794,13 @@ export type Database = {
           worktracker_group_uuid?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "WorkTrackers_actual_bleacher_uuid_fkey";
+            columns: ["actual_bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "WorkTrackers_bleacher_uuid_fkey";
             columns: ["bleacher_uuid"];

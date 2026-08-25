@@ -30,10 +30,21 @@ import {
 } from "@/utils/photoLimit";
 import { type ThemeColors, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
-import { executeTypedMutation } from "@/library/powersync/typedMutation";
+import {
+  executeTypedMutation,
+  executeTypedTransaction,
+} from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useAllBleachers } from "@/hooks/db/useBleacher";
+import { useWorkTracker } from "@/hooks/db/useWorkTrackers";
+import { orderBleacherOptions } from "@/utils/orderBleacherOptions";
+import BleacherConfirmation from "./inspection/BleacherConfirmation";
+import {
+  buildInspectionSubmission,
+  checkBleacherSelection,
+} from "./inspection/buildInspectionSubmission";
 import {
   Alert,
   ScrollView,
@@ -63,7 +74,6 @@ type InspectionType = "pickup" | "dropoff";
 
 interface InspectionScreenProps {
   workTrackerId: string;
-  bleacherUuid: string | null;
   inspectionType: InspectionType;
   onComplete: () => void;
   onCancel: () => void;
@@ -195,7 +205,6 @@ function PhotoQuestion({
 
 export default function InspectionScreen({
   workTrackerId,
-  bleacherUuid,
   inspectionType,
   onComplete,
   onCancel,
@@ -207,6 +216,31 @@ export default function InspectionScreen({
   // gated on before *any* write happens; see `handleSubmit`.
   const scope = useDriverScope();
   const [answers, setAnswers] = useState<AnswerMap>({});
+
+  // Which bleacher this inspection is really about. The manager assigned one,
+  // but the driver may have taken an equivalent that was easier to reach; they
+  // confirm it here, before answering a single question about it.
+  const { workTracker } = useWorkTracker(workTrackerId);
+  const assignedBleacherUuid = workTracker?.bleacher_uuid ?? null;
+  const confirmedBleacherUuid = workTracker?.actual_bleacher_uuid ?? null;
+
+  const { bleachers } = useAllBleachers();
+  const assignedBleacher =
+    bleachers.find((b) => b.id === assignedBleacherUuid) ?? null;
+  const bleacherOptions = useMemo(
+    () => orderBleacherOptions(bleachers, assignedBleacher),
+    [bleachers, assignedBleacher],
+  );
+
+  const [pickedBleacherUuid, setPickedBleacherUuid] = useState<string | null>(
+    null,
+  );
+  const [changeReason, setChangeReason] = useState<string | null>(null);
+
+  // The work tracker arrives asynchronously, so the driver's own pick wins once
+  // made and the trip's bleacher stands in until then.
+  const bleacherUuid =
+    pickedBleacherUuid ?? confirmedBleacherUuid ?? assignedBleacherUuid;
   const checkboxQuestions = questions.filter(
     (q) => q.question_type === "checkbox",
   );
@@ -337,7 +371,23 @@ export default function InspectionScreen({
     await runImport(questionId, (options) => pickDamagePhotosFromCamera(options));
   };
 
+  const SELECTION_MESSAGES: Record<string, string> = {
+    no_bleacher_selected: "Please select which bleacher you took",
+    reason_required: "Please say why you took a different bleacher",
+    unknown_reason: "Please pick one of the listed reasons",
+  };
+
   const validate = (): string | null => {
+    // Checked first, and before a single row is written: the answers below save
+    // photo rows on their way in, and refusing after that would orphan them.
+    const selectionError = checkBleacherSelection({
+      assignedBleacherUuid,
+      selectedBleacherUuid: bleacherUuid,
+      confirmedBleacherUuid,
+      changeReason,
+    });
+    if (selectionError) return SELECTION_MESSAGES[selectionError];
+
     for (const q of questions) {
       if (!q.required) continue;
       const answer = answers[q.id];
@@ -513,25 +563,50 @@ export default function InspectionScreen({
         }
       }
 
-      await executeTypedMutation(
-        db
-          .insertInto("WorkTrackerInspections")
-          .values({
-            id: inspectionId,
-            created_at: now,
-            walk_around_complete: walkAroundComplete ? 1 : 0,
-            issues_found: damageFound ? 1 : 0,
-            issue_description: null,
-            answers_json: JSON.stringify(answersPayload),
-          })
-          .compile(),
-      );
+      const submission = buildInspectionSubmission({
+        workTrackerId,
+        inspectionId,
+        inspectionType,
+        now,
+        assignedBleacherUuid,
+        selectedBleacherUuid: bleacherUuid,
+        confirmedBleacherUuid,
+        changeReason,
+        walkAroundComplete,
+        damageFound: damageFound === true,
+        answersPayload,
+      });
+
+      if (!submission.ok) {
+        Alert.alert("Required", SELECTION_MESSAGES[submission.error]);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // The inspection row and the work tracker pointing at it commit together.
+      // Written separately, a crash in between left an inspection that no trip
+      // knew about — invisible to the driver and impossible to finish.
+      await executeTypedTransaction(async (tx) => {
+        await tx.run(
+          db
+            .insertInto("WorkTrackerInspections")
+            .values(submission.inspectionRow)
+            .compile(),
+        );
+        await tx.run(
+          db
+            .updateTable("WorkTrackers")
+            .set(submission.workTrackerUpdate)
+            .where("id", "=", workTrackerId)
+            .compile(),
+        );
+      });
 
       let damageFailureAlert: { title: string; message: string } | null = null;
 
       if (damagePrep?.ok) {
         const damageResult = await commitDamageReport(damagePrep.draft, {
-          bleacherUuid,
+          bleacherUuid: submission.damageBleacherUuid,
           inspectionUuid: inspectionId,
           seatDamage: damageDetails.seatDamage,
           haulDamage: damageDetails.haulDamage,
@@ -553,19 +628,6 @@ export default function InspectionScreen({
           );
         }
       }
-
-      const inspectionField =
-        inspectionType === "pickup"
-          ? { pre_inspection_uuid: inspectionId }
-          : { post_inspection_uuid: inspectionId };
-
-      await executeTypedMutation(
-        db
-          .updateTable("WorkTrackers")
-          .set({ ...inspectionField, updated_at: now })
-          .where("id", "=", workTrackerId)
-          .compile(),
-      );
 
       // Kick the queue for the inspection (and damage) photos just recorded.
       void getPhotoUploadService()?.triggerFast();
@@ -612,6 +674,16 @@ export default function InspectionScreen({
             Complete the inspection before proceeding
           </Text>
         </View>
+
+        <BleacherConfirmation
+          options={bleacherOptions}
+          assignedBleacherUuid={assignedBleacherUuid}
+          selectedUuid={bleacherUuid}
+          confirmedBleacherUuid={confirmedBleacherUuid}
+          reason={changeReason}
+          onSelect={setPickedBleacherUuid}
+          onReasonChange={setChangeReason}
+        />
 
         {checkboxQuestions.length > 0 && (
           <TouchableOpacity

@@ -167,6 +167,9 @@ const WorkTrackerInspectionsCols = {
   issues_found: column.integer,
   issue_description: column.text,
   answers_json: column.text,
+  // Which bleacher this inspection actually covered. Inspection rows are
+  // immutable, so this survives a later correction of the work tracker.
+  bleacher_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackerInspections">;
 const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, {
   indexes: { id: ["id"] },
@@ -365,6 +368,11 @@ const WorkTrackersCols = {
   distance_meters: column.integer,
   drive_minutes: column.integer,
   created_by_user_uuid: column.text,
+  // The bleacher the driver confirmed taking. Null until an inspection is
+  // submitted — null is "not confirmed yet", never "same as bleacher_uuid",
+  // which is written explicitly. Read through getEffectiveBleacherUuid().
+  actual_bleacher_uuid: column.text,
+  bleacher_change_reason: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide

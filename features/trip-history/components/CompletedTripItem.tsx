@@ -2,6 +2,7 @@ import Badge from "@/components/ui/Badge";
 import BillOfLading, { BOLButton } from "@/components/widgets/billOfLading";
 import { PayAmount } from "@/components/widgets/payBreakdown";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
+import { getEffectiveBleacherUuid } from "@/utils/effectiveBleacher";
 import InspectionSummaryWidget from "@/components/widgets/inspectionSummaryWidget";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
@@ -50,14 +51,16 @@ export default function CompletedTrips({
   const { address: dropoffAddress } = useAddress(
     workTracker.dropoff_address_uuid,
   );
-  const { bleacher } = useBleacher(workTracker.bleacher_uuid);
+  // The bleacher actually hauled, not the one originally assigned.
+  const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
+  const { bleacher } = useBleacher(effectiveBleacherUuid);
   const { inspection: preInspection } = useInspection(
     workTracker.pre_inspection_uuid ?? null,
   );
   const { inspection: postInspection } = useInspection(
     workTracker.post_inspection_uuid ?? null,
   );
-  const { damageReports } = useDamageReports(workTracker.bleacher_uuid);
+  const { damageReports } = useDamageReports(effectiveBleacherUuid);
   const [bolVisible, setBolVisible] = React.useState(false);
 
   const formatTime = (time: string | null) => time ?? "";

@@ -35,6 +35,8 @@ export type WorkTracker = {
   bol_number: string | null;
   pre_inspection_uuid: string | null;
   post_inspection_uuid: string | null;
+  actual_bleacher_uuid: string | null;
+  bleacher_change_reason: string | null;
 };
 
 export type UserData = {
@@ -77,6 +79,8 @@ const WORK_TRACKER_COLUMNS = [
   "bol_number",
   "pre_inspection_uuid",
   "post_inspection_uuid",
+  "actual_bleacher_uuid",
+  "bleacher_change_reason",
 ] as const;
 
 /** Single work tracker by id — for completed-trip detail route. */

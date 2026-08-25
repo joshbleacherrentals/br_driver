@@ -7,6 +7,11 @@ import { ContactButton } from "@/components/widgets/contactSheet";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
+import {
+  getEffectiveBleacherUuid,
+  isSwappedBleacher,
+} from "@/utils/effectiveBleacher";
+import { bleacherChangeReasonLabel } from "@/constants/bleacherChangeReasons";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
@@ -53,7 +58,6 @@ interface TripItemProps {
   onArrived?: (workTrackerId: string, arrivedAt: string) => void;
   onStartInspection?: (
     workTrackerId: string,
-    bleacherUuid: string | null,
     inspectionType: "pickup" | "dropoff",
   ) => void;
 }
@@ -76,7 +80,6 @@ function TripItem({
     dropoff_time,
     pickup_poc,
     dropoff_poc,
-    bleacher_uuid,
     pay_cents,
     notes,
     teardown_required,
@@ -95,7 +98,17 @@ function TripItem({
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
-  const { bleacher } = useBleacher(bleacher_uuid);
+  // What the driver is physically hauling: the bleacher they confirmed taking,
+  // falling back to the one the manager assigned until they confirm.
+  const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
+  const { bleacher } = useBleacher(effectiveBleacherUuid);
+
+  // Only when the two differ is the assigned bleacher worth naming — and only
+  // then is it worth a second query, which `useBleacher(null)` skips entirely.
+  const swapped = isSwappedBleacher(workTracker);
+  const { bleacher: assignedBleacher } = useBleacher(
+    swapped ? workTracker.bleacher_uuid : null,
+  );
 
   // Load full inspection (incl. answers_json) only when the modal is open.
   const { inspection: preInspection } = useInspection(
@@ -109,8 +122,8 @@ function TripItem({
       : null,
   );
 
-  // ── Damage report for the assigned bleacher ─────────────────────────────
-  const { damageReports } = useDamageReports(bleacher_uuid);
+  // ── Damage report for the bleacher actually being hauled ────────────────
+  const { damageReports } = useDamageReports(effectiveBleacherUuid);
 
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
@@ -193,12 +206,13 @@ function TripItem({
   const showTeardown = teardown_required === 1;
   const showSetup = setup_required === 1;
 
+  // Which bleacher the inspection is for is settled inside the inspection
+  // itself — the driver confirms it there — so it is not passed down.
   const handleStartInspection = (
     id: string,
-    bleacherUuid: string | null,
     type: "pickup" | "dropoff",
   ) => {
-    onStartInspection?.(id, bleacherUuid, type);
+    onStartInspection?.(id, type);
   };
 
   return (
@@ -209,7 +223,7 @@ function TripItem({
           {/* Title row: bleacher number + damage badge + tappable pay */}
           <View style={styles.titleRow}>
             <Text style={[styles.mainTitle, { color: theme.textPrimary }]}>
-              {bleacher_uuid &&
+              {effectiveBleacherUuid &&
                 bleacher &&
                 `Bleacher #${bleacher.bleacher_number} `}
               {damageReports.length > 0 && (
@@ -221,6 +235,14 @@ function TripItem({
             </Text>
             <PayAmount workTrackerId={workTracker.id} payCents={pay_cents} />
           </View>
+          {swapped && assignedBleacher ? (
+            <Text style={[styles.swapNote, { color: theme.warning }]}>
+              {`Assigned #${assignedBleacher.bleacher_number}`}
+              {bleacherChangeReasonLabel(workTracker.bleacher_change_reason)
+                ? ` — ${bleacherChangeReasonLabel(workTracker.bleacher_change_reason)}`
+                : ""}
+            </Text>
+          ) : null}
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>
             {formatDate(date)}
           </Text>
@@ -355,11 +377,7 @@ function TripItem({
               { backgroundColor: theme.warning },
             ]}
             onPress={() =>
-              handleStartInspection(
-                workTracker.id,
-                workTracker.bleacher_uuid,
-                "pickup",
-              )
+              handleStartInspection(workTracker.id, "pickup")
             }
           >
             <Text
@@ -549,11 +567,7 @@ function TripItem({
             { backgroundColor: theme.warning },
           ]}
           onPress={() =>
-            handleStartInspection(
-              workTracker.id,
-              workTracker.bleacher_uuid,
-              "dropoff",
-            )
+            handleStartInspection(workTracker.id, "dropoff")
           }
         >
           <Text
@@ -635,6 +649,7 @@ export default React.memo(TripItem, tripItemPropsEqual);
 
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: "flex-end", flexShrink: 0 },
+  swapNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   card: {
     marginVertical: 6,
     marginHorizontal: 16,
