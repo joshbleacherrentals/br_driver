@@ -18,12 +18,13 @@ import {
 import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
+  type PhotoImportOptions,
+  type PhotoImportProgress,
 } from "@/features/damage-report/utils/pickDamagePhotos";
 import { prepareDamageReportPhotos } from "@/features/damage-report/utils/prepareDamageReportPhotos";
 import {
   INSPECTION_QUESTION_PHOTO_SUBJECT,
   MAX_PHOTOS,
-  admitPickedPhotos,
   describePhotoLimit,
   photoLimitReachedAlert,
 } from "@/utils/photoLimit";
@@ -157,6 +158,7 @@ function CheckboxQuestion({
 function PhotoQuestion({
   question,
   photos,
+  importing,
   onAddFromCamera,
   onAddFromLibrary,
   onRemove,
@@ -164,6 +166,7 @@ function PhotoQuestion({
 }: {
   question: InspectionQuestion;
   photos: DocumentPhoto[];
+  importing?: PhotoImportProgress | null;
   onAddFromCamera: () => void;
   onAddFromLibrary: () => void;
   onRemove: (index: number) => void;
@@ -181,6 +184,7 @@ function PhotoQuestion({
         // problem on the driver's phone.
         maxPhotos={MAX_PHOTOS}
         limitSubject={INSPECTION_QUESTION_PHOTO_SUBJECT}
+        importing={importing}
         onAddFromCamera={onAddFromCamera}
         onAddFromLibrary={onAddFromLibrary}
         onRemove={onRemove}
@@ -274,6 +278,38 @@ export default function InspectionScreen({
       INSPECTION_QUESTION_PHOTO_SUBJECT,
     );
 
+  /**
+   * The question whose selection is still being copied off the picker, and how
+   * far it has got. Only one import can be running — both add controls are
+   * disabled while one is — so a single slot is enough.
+   */
+  const [importing, setImporting] = useState<{
+    questionId: string;
+    progress: PhotoImportProgress;
+  } | null>(null);
+
+  /**
+   * Run a pick with its photos streamed into the question as they land, rather
+   * than appearing in one lump when the whole batch has been copied. Thirty
+   * photos take tens of seconds; a screen that shows nothing for that long
+   * reads as a lost selection.
+   */
+  const runImport = async (
+    questionId: string,
+    pick: (options: PhotoImportOptions) => Promise<DocumentPhoto[]>,
+  ) => {
+    // On before the picker even opens — see `DamageDetailsForm`.
+    setImporting({ questionId, progress: { done: 0, total: null } });
+    try {
+      await pick({
+        onProgress: (progress) => setImporting({ questionId, progress }),
+        onPhoto: (photo) => addPhotosToQuestion(questionId, [photo]),
+      });
+    } finally {
+      setImporting(null);
+    }
+  };
+
   const pickImageForQuestion = async (questionId: string) => {
     const limit = photoLimitFor(questionId);
     if (limit.remaining <= 0) {
@@ -282,17 +318,12 @@ export default function InspectionScreen({
       return;
     }
 
-    // The picker is asked for at most the headroom, so the driver is stopped
-    // inside the picker itself on platforms that honour `selectionLimit`; the
-    // result is trimmed as well for the ones that do not, and never silently.
-    const picked = await pickDamagePhotosFromLibrary({
-      selectionLimit: limit.remaining,
-    });
-    if (picked.length === 0) return;
-
-    const { kept, alert } = admitPickedPhotos(picked, limit);
-    if (alert) Alert.alert(alert.title, alert.message);
-    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
+    // The picker is asked for at most the headroom, and the result is trimmed
+    // against it as well for the platforms that ignore `selectionLimit` — both
+    // inside `pickDamagePhotosFromLibrary`, before the first tile appears.
+    await runImport(questionId, (options) =>
+      pickDamagePhotosFromLibrary({ ...options, limit }),
+    );
   };
 
   const takePhotoForQuestion = async (questionId: string) => {
@@ -303,12 +334,7 @@ export default function InspectionScreen({
       return;
     }
 
-    const picked = await pickDamagePhotosFromCamera();
-    if (picked.length === 0) return;
-
-    const { kept, alert } = admitPickedPhotos(picked, limit);
-    if (alert) Alert.alert(alert.title, alert.message);
-    if (kept.length > 0) addPhotosToQuestion(questionId, kept);
+    await runImport(questionId, (options) => pickDamagePhotosFromCamera(options));
   };
 
   const validate = (): string | null => {
@@ -649,6 +675,11 @@ export default function InspectionScreen({
                 key={question.id}
                 question={question}
                 photos={answers[question.id]?.photos ?? []}
+                importing={
+                  importing?.questionId === question.id
+                    ? importing.progress
+                    : null
+                }
                 onAddFromCamera={() => takePhotoForQuestion(question.id)}
                 onAddFromLibrary={() => pickImageForQuestion(question.id)}
                 onRemove={(index) =>

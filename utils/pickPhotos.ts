@@ -70,9 +70,16 @@ export async function pickPhotosFromCamera(): Promise<PickedPhoto[]> {
  * Multi-select from the photo library. Assets that fail to normalise are
  * skipped rather than failing the whole selection — losing one pick is
  * recoverable, losing the batch is not.
+ *
+ * @param options.onSelected Called with the number of assets the driver chose,
+ *   before any of them is normalised. Normalising a large selection is itself
+ *   seconds of work, so this is the earliest moment a caller can put a "working
+ *   on 30 photos" indicator on screen — waiting until the batch is returned is
+ *   exactly the silence drivers read as a lost selection.
  */
 export async function pickPhotosFromLibrary(options?: {
   selectionLimit?: number;
+  onSelected?: (count: number) => void;
 }): Promise<PickedPhoto[]> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== "granted") {
@@ -83,13 +90,20 @@ export async function pickPhotosFromLibrary(options?: {
     return [];
   }
 
+  // Deliberately no `quality`: it makes the picker decode and re-encode every
+  // selected asset *before* it resolves, so a 25-photo selection pays a full
+  // JPEG pass while the driver is still looking at the picker and the app
+  // cannot show anything. That pass is also redundant — `toPickedPhoto` below
+  // downscales and converts each photo itself, at 0.8, one at a time and with
+  // progress reported. Camera capture keeps its `quality`, being a single shot.
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     allowsMultipleSelection: true,
     selectionLimit: options?.selectionLimit,
-    quality: 0.8,
   });
   if (result.canceled || !result.assets?.length) return [];
+
+  options?.onSelected?.(result.assets.length);
 
   const photos: PickedPhoto[] = [];
   for (const asset of result.assets) {
