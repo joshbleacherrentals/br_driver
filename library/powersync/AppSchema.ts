@@ -458,6 +458,36 @@ const AppVersionPolicy = new Table(AppVersionPolicyCols, {
   indexes: { environment: ["environment"] },
 });
 
+// Backlog tickets a driver files straight to the developers ("Direct Line to
+// Developers"). `RoadmapTasks` is the *whole* developer roadmap in Postgres —
+// features, sprints, assignees — but only a driver's own `is_backlog` rows ever
+// reach a phone (see the mobile stream in br_powersync/config/sync_rules.yaml).
+//
+// `satisfies Partial<...>` for the same reason `DamageReports` uses it: the
+// roadmap-side columns (`sprint_id`, `feature_id`, `developer_uuid`,
+// `completed_at`) are the web app's business and no driver device reads or
+// writes them, so declaring them would only widen what syncs. Every column that
+// IS declared is still checked against database.types.ts.
+//
+// `deleted_at` is declared and soft-deleted rows deliberately keep syncing to
+// the device: the daily create limit counts tickets *created*, withdrawn ones
+// included, and the count has to match the Postgres trigger exactly (see
+// utils/dailyTicketLimit.ts). The list query filters them out instead.
+const RoadmapTasksCols = {
+  title: column.text,
+  description: column.text,
+  status: column.text,
+  sort_order: column.integer,
+  is_backlog: column.integer,
+  created_by_user_uuid: column.text,
+  created_at: column.text,
+  deleted_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"RoadmapTasks">>;
+const RoadmapTasks = new Table(RoadmapTasksCols, {
+  // Every read on this table starts from "the tickets this driver wrote".
+  indexes: { created_by_user_uuid: ["created_by_user_uuid"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -479,6 +509,7 @@ export const AppSchema = new Schema({
   Vehicles,
   BlueBook,
   AppVersionPolicy,
+  RoadmapTasks,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),
@@ -498,5 +529,6 @@ export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
 export type ContactRecord = PowerSyncDB["Contacts"];
+export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];

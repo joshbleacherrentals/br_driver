@@ -59,6 +59,28 @@ export function damageReportOwnedBy(
   return eb("DamageReports.created_by_user_uuid", "=", scope.userUuid);
 }
 
+/**
+ * A `RoadmapTasks` row this driver filed as a backlog ticket.
+ *
+ * Unlike the photo tables, this one syncs owner-scoped already (the mobile
+ * stream joins through `created_by_user_uuid`). The predicate exists anyway:
+ * `RoadmapTasks` is the developers' entire board in Postgres, so "a driver only
+ * ever reads and rewrites their own ticket" is a guarantee that should hold in
+ * the statement rather than only in a sync rule one config change away from
+ * being wider. `is_backlog` is part of ownership here for the same reason — a
+ * task pulled into a sprint is no longer the driver's to see through this
+ * feature.
+ */
+export function backlogTicketOwnedBy(
+  eb: ExpressionBuilder<PowerSyncDB, "RoadmapTasks">,
+  scope: DriverScope,
+) {
+  return eb.and([
+    eb("RoadmapTasks.created_by_user_uuid", "=", scope.userUuid),
+    eb("RoadmapTasks.is_backlog", "=", 1),
+  ]);
+}
+
 /** A `DamageReportPhotos` row whose report this driver created. */
 export function damageReportPhotoOwnedBy(
   eb: ExpressionBuilder<PowerSyncDB, "DamageReportPhotos">,

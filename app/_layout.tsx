@@ -106,6 +106,15 @@ function RootLayoutContent() {
           }}
         />
         <Stack.Screen
+          name="backlog-ticket"
+          options={{
+            headerShown: false,
+            presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
           name="completed-trip"
           options={{
             headerShown: false,
