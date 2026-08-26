@@ -11,13 +11,17 @@
 
 import { ThemeColors, radius, typeScale } from "@/constants/theme";
 import { DAILY_TICKET_LIMIT } from "@/features/backlog-tickets/utils/dailyTicketLimit";
-import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useTheme } from "@/hooks/useTheme";
+import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-type Point = { icon: keyof typeof Ionicons.glyphMap; title: string; body: string };
+type Point = {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+};
 
 const POINTS: Point[] = [
   {
@@ -41,7 +45,7 @@ const POINTS: Point[] = [
     body:
       "For a day after you send a ticket you can reopen it, fix the wording, " +
       "or delete it. After that it stays as written — the team may already be " +
-      "working from it.",
+      "working on it.",
   },
   {
     icon: "time-outline",

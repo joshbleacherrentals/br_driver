@@ -11,7 +11,10 @@
  */
 
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
-import { useBacklogTicket, useMyBacklogTickets } from "@/hooks/db/useBacklogTickets";
+import {
+  useBacklogTicket,
+  useMyBacklogTickets,
+} from "@/hooks/db/useBacklogTickets";
 import { useDriverScope } from "@/hooks/useDriverScope";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -38,18 +41,15 @@ import TicketActionBar, {
 } from "./components/TicketActionBar";
 import { useNow } from "./hooks/useNow";
 import { createBacklogTicket } from "./utils/createBacklogTicket";
-import { hasUnsavedChanges } from "./utils/hasUnsavedChanges";
 import { deleteBacklogTicket } from "./utils/deleteBacklogTicket";
+import { hasUnsavedChanges } from "./utils/hasUnsavedChanges";
 import {
   canEditTicket,
-  formatEditWindowLeft,
   editWindowMsLeft,
+  formatEditWindowLeft,
 } from "./utils/ticketEditWindow";
+import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from "./utils/ticketText";
 import { updateBacklogTicket } from "./utils/updateBacklogTicket";
-import {
-  DESCRIPTION_MAX_LENGTH,
-  TITLE_MAX_LENGTH,
-} from "./utils/ticketText";
 
 /**
  * Every way a write can be refused, in words a driver can act on.
@@ -345,7 +345,7 @@ export default function BacklogTicketScreen() {
 
     Alert.alert(
       "Delete this ticket?",
-      "The developers will no longer see it. This cannot be undone, and it does not give you back today's ticket.",
+      "This cannot be undone, and it does not give you back today's ticket.",
       [
         { text: "Keep it", style: "cancel" },
         {
@@ -384,7 +384,11 @@ export default function BacklogTicketScreen() {
 
     if (mode === "edit") {
       return {
-        secondary: { label: "Cancel", onPress: handleCancelEdit, disabled: busy },
+        secondary: {
+          label: "Cancel",
+          onPress: handleCancelEdit,
+          disabled: busy,
+        },
         primary: {
           label: "Save",
           onPress: handleSave,
@@ -417,7 +421,11 @@ export default function BacklogTicketScreen() {
   ]);
 
   const headerTitle =
-    mode === "create" ? "New Ticket" : mode === "edit" ? "Edit Ticket" : "Ticket";
+    mode === "create"
+      ? "New Ticket"
+      : mode === "edit"
+        ? "Edit Ticket"
+        : "Ticket";
 
   const missing = !isNew && !resolving && !ticket;
   const canDelete = mode === "view" && withinWindow && !resolving;
@@ -428,7 +436,8 @@ export default function BacklogTicketScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP * 2,
+            paddingTop:
+              insets.top + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP * 2,
             paddingBottom: ACTION_BAR_CLEARANCE + insets.bottom,
           },
         ]}
@@ -446,7 +455,9 @@ export default function BacklogTicketScreen() {
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
         ) : missing ? (
-          <Text style={styles.missing}>This ticket is no longer available.</Text>
+          <Text style={styles.missing}>
+            This ticket is no longer available.
+          </Text>
         ) : (
           <>
             {mode === "create" ? (
