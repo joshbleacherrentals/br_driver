@@ -227,7 +227,9 @@ function TabsContent() {
         onClose={() => setSheetVisible(false)}
       >
         {/* Mount list only while sheet is open — avoids permanent RAM cost */}
-        {sheetVisible ? <PendingTripsList /> : null}
+        {sheetVisible ? (
+          <PendingTripsList onLeave={() => setSheetVisible(false)} />
+        ) : null}
       </BottomSheetModal>
     </>
   );

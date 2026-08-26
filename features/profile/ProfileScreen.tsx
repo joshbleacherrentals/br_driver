@@ -41,7 +41,6 @@ import {
   View,
 } from "react-native";
 import EditDriverInfo from "./components/EditDriverInfo";
-import EditProfileDocs from "./components/EditProfileDocs";
 import EditVehicleInfo from "./components/EditVehicleInfo";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -52,7 +51,6 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showEditDriver, setShowEditDriver] = useState(false);
   const [isRetryingDocs, setIsRetryingDocs] = useState(false);
@@ -215,21 +213,6 @@ export default function ProfileScreen() {
             {user?.emailAddresses[0]?.emailAddress}
           </Text>
         </View>
-
-        {/* Edit Documents Modal */}
-        {showEditDocs && (
-          <EditProfileDocs
-            showMedCard={isUSA}
-            driverId={driver?.id ?? null}
-            licensePath={driver?.license_photo_path ?? null}
-            insurancePath={driver?.insurance_photo_path ?? null}
-            medicalCardPath={driver?.medical_card_photo_path ?? null}
-            licenseExpiresOn={driver?.license_expires_on ?? null}
-            insuranceExpiresOn={driver?.insurance_expires_on ?? null}
-            medicalCardExpiresOn={driver?.medical_card_expires_on ?? null}
-            onClose={() => setShowEditDocs(false)}
-          />
-        )}
 
         {/* Edit Vehicles Info Modal */}
         {showEditVehicle && (
@@ -445,7 +428,7 @@ export default function ProfileScreen() {
                   )}
                 <TouchableOpacity
                   style={styles.editButton}
-                  onPress={() => setShowEditDocs(true)}
+                  onPress={() => router.push("/edit-documents")}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>

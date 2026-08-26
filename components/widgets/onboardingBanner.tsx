@@ -19,6 +19,7 @@ export default function ProfileCompletionBanner() {
     hasDriver,
     hasExpiredDocuments,
     expiredDocumentNames,
+    problemDocSlug,
   } = useProfileCompletion();
 
   if (!hasDriver || isProfileComplete) {
@@ -32,10 +33,19 @@ export default function ProfileCompletionBanner() {
     ? `Update ${expiredDocumentNames.join(", ")} before you can accept trips`
     : "Enter your profile information before you can start accepting trips!";
 
+  // Expired documents are fixed on the documents screen, so go straight
+  // there — landing on the profile leaves the driver to find it themselves.
+  const target = hasExpiredDocuments
+    ? ({
+        pathname: "/edit-documents",
+        params: problemDocSlug ? { focus: problemDocSlug } : {},
+      } as const)
+    : ("/(tabs)/profile" as const);
+
   return (
     <TouchableOpacity
       style={styles.banner}
-      onPress={() => router.push("/(tabs)/profile")}
+      onPress={() => router.push(target)}
       activeOpacity={0.8}
     >
       <View style={styles.content}>

@@ -9,34 +9,34 @@ import {
   type PhotoSource,
 } from "@/library/photoUploadQueue";
 import { typeScale } from "@/constants/theme";
-import { DocReplacePrompt } from "@/features/profile/components/DocReplacePrompt";
+import { DocumentSection } from "@/features/profile/components/DocumentSection";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
-import { ExpiryDateField } from "@/features/profile/components/ExpiryDateField";
 import { useDriverDocUploadStatuses } from "@/features/profile/hooks/useDriverDocUploadStatuses";
 import { resolveDriverDocumentUri } from "@/features/profile/utils/resolveDriverDocumentUri";
 import { useFormTheme } from "@/hooks/useTheme";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { convertToJpegIfNeeded } from "@/utils/convertToJpeg";
+import { blocksTripDate, DocSlug, tripBlockLabel } from "@/utils/documentExpiry";
 import { promptForPhotos } from "@/utils/pickPhotos";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type LayoutChangeEvent,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface EditProfileDocsProps {
+interface EditDocumentsFormProps {
   showMedCard: boolean;
   driverId: string | null;
   licensePath: string | null;
@@ -45,6 +45,12 @@ interface EditProfileDocsProps {
   licenseExpiresOn: string | null;
   insuranceExpiresOn: string | null;
   medicalCardExpiresOn: string | null;
+  /** Section to scroll to on open — set by the banner / blocked trip. */
+  focus?: DocSlug | null;
+  /** Why the driver was sent here, in full sentences. */
+  notice?: string | null;
+  /** Date of the trip they could not accept, when they came from one. */
+  tripDate?: string | null;
   onClose: () => void;
 }
 
@@ -61,7 +67,7 @@ interface DocumentPhoto {
   source?: PhotoSource;
 }
 
-export default function EditProfileDocs({
+export default function EditDocumentsForm({
   showMedCard,
   driverId,
   licensePath,
@@ -70,8 +76,11 @@ export default function EditProfileDocs({
   licenseExpiresOn,
   insuranceExpiresOn,
   medicalCardExpiresOn,
+  focus = null,
+  notice = null,
+  tripDate = null,
   onClose,
-}: EditProfileDocsProps) {
+}: EditDocumentsFormProps) {
   const [licensePhoto, setLicensePhoto] = useState<DocumentPhoto>({
     uri: licensePath ? getLocalUriForAttachment(licensePath) : null,
     attachmentId: licensePath,
@@ -96,6 +105,13 @@ export default function EditProfileDocs({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [replacingDocType, setReplacingDocType] = useState<string | null>(null);
+  /** Missing expiry dates only turn red once the driver has tried to save. */
+  const [showExpiryErrors, setShowExpiryErrors] = useState(false);
+
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionOffsets = useRef<Partial<Record<DocSlug, number>>>({});
+  const didScrollToFocus = useRef(false);
 
   /**
    * The mount-time `uri` above is a local-file guess: correct for the common
@@ -138,7 +154,7 @@ export default function EditProfileDocs({
   const { hasPending, hasFailed, canRetry, retryFailed, statuses, rows } =
     useDriverDocUploadStatuses(activePaths);
 
-  const { form: theme } = useFormTheme();
+  const { form: theme, theme: appTheme } = useFormTheme();
 
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
@@ -307,16 +323,16 @@ export default function EditProfileDocs({
       return;
     }
 
-    const missingExpiry: string[] = [];
-    if (!licenseExpiry) missingExpiry.push("Driver's License");
-    if (!insuranceExpiry) missingExpiry.push("Insurance");
-    if (showMedCard && !medicalCardExpiry) missingExpiry.push("Medical Card");
+    // Point at the offending field instead of naming it in an alert the
+    // driver then has to go hunting for.
+    const missingExpiry: DocSlug[] = [];
+    if (!licenseExpiry) missingExpiry.push("license");
+    if (!insuranceExpiry) missingExpiry.push("insurance");
+    if (showMedCard && !medicalCardExpiry) missingExpiry.push("medical_card");
 
     if (missingExpiry.length > 0) {
-      Alert.alert(
-        "Expiration dates required",
-        `Please set an expiration date for: ${missingExpiry.join(", ")}`,
-      );
+      setShowExpiryErrors(true);
+      scrollToSection(missingExpiry[0]);
       return;
     }
 
@@ -431,191 +447,227 @@ export default function EditProfileDocs({
     return null;
   };
 
-  const renderDocumentSection = (
-    title: string,
-    iconName: string,
-    photo: DocumentPhoto,
-    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
-    expiry: string | null,
-    setExpiry: (date: string | null) => void,
-    docType: string,
-  ) => (
-    <View style={[styles.documentSection, { backgroundColor: theme.card }]}>
-      <View style={styles.documentHeader}>
-        <View style={styles.documentIconContainer}>
-          <Ionicons name={iconName as any} size={24} color={theme.accent} />
-        </View>
-        <Text style={[styles.documentTitle, { color: theme.text }]}>
-          {title}
-        </Text>
-      </View>
+  const scrollToSection = (slug: DocSlug) => {
+    const y = sectionOffsets.current[slug];
+    if (y === undefined) return;
+    scrollRef.current?.scrollTo({ y: Math.max(y - 12, 0), animated: true });
+  };
 
-      {/* Renders only once a direct bucket check confirmed this document's file
-          never arrived — see DocReplacePrompt for the gate. */}
-      <DocReplacePrompt
-        docRow={photo.attachmentId ? rows[photo.attachmentId] : undefined}
-        isBusy={replacingDocType === docType}
-        onReplace={(rowId) => {
-          void handleReplaceDoc(docType, rowId, setter);
-        }}
-      />
+  const handleSectionLayout = (slug: DocSlug) => (event: LayoutChangeEvent) => {
+    sectionOffsets.current[slug] = event.nativeEvent.layout.y;
+    // Land on the document the driver was sent here to fix, once we know
+    // where it is. Only ever on the first layout pass.
+    if (focus === slug && !didScrollToFocus.current) {
+      didScrollToFocus.current = true;
+      requestAnimationFrame(() => scrollToSection(slug));
+    }
+  };
 
-      {photo.uri ? (
-        <View style={styles.photoContainer}>
-          <Image source={{ uri: photo.uri }} style={styles.photo} />
-          {statusLabel(photo.attachmentId) ? (
-            <Text style={[styles.statusText, { color: theme.textTertiary }]}>
-              {statusLabel(photo.attachmentId)}
-            </Text>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.removeButton, { backgroundColor: theme.danger }]}
-            onPress={() => setter({ uri: null, attachmentId: null })}
-          >
-            <Text style={[styles.removeButtonText, { color: theme.onAccent }]}>
-              Remove
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.emptyPhotoContainer,
-            { backgroundColor: theme.inputBg, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.emptyPhotoText, { color: theme.textTertiary }]}>
-            No photo uploaded
-          </Text>
-        </View>
-      )}
+  /**
+   * Unsaved work: a freshly picked photo, a removed one, or an edited date.
+   * A bucket-confirmed replacement is deliberately excluded — that path saves
+   * itself immediately, so it is never pending here.
+   */
+  const isDirty =
+    Boolean(licensePhoto.isNew || insurancePhoto.isNew || medicalCardPhoto.isNew) ||
+    (licensePath !== null && licensePhoto.attachmentId === null) ||
+    (insurancePath !== null && insurancePhoto.attachmentId === null) ||
+    (medicalCardPath !== null && medicalCardPhoto.attachmentId === null) ||
+    licenseExpiry !== licenseExpiresOn ||
+    insuranceExpiry !== insuranceExpiresOn ||
+    (showMedCard && medicalCardExpiry !== medicalCardExpiresOn);
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={[styles.photoButton, { backgroundColor: theme.accent }]}
-          onPress={() => takePhoto(setter)}
-        >
-          <Ionicons name="camera" size={16} color={theme.onAccent} />
-          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
-            Take Photo
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.photoButton, { backgroundColor: theme.accent }]}
-          onPress={() => pickImageFromLibrary(setter)}
-        >
-          <Ionicons name="images" size={16} color={theme.onAccent} />
-          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
-            Choose Photo
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.photoButton, { backgroundColor: theme.accent }]}
-          onPress={() => pickFile(setter)}
-        >
-          <Ionicons name="document-attach" size={16} color={theme.onAccent} />
-          <Text style={[styles.photoButtonText, { color: theme.onAccent }]}>
-            Choose File
-          </Text>
-        </TouchableOpacity>
-      </View>
+  const handleCancel = () => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    Alert.alert(
+      "Discard changes?",
+      "Your new photos and dates will not be saved.",
+      [
+        { text: "Keep editing", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: onClose },
+      ],
+    );
+  };
 
-      <ExpiryDateField value={expiry} onChange={setExpiry} />
-    </View>
-  );
+  const sections: {
+    slug: DocSlug;
+    title: string;
+    icon: string;
+    photo: DocumentPhoto;
+    setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>;
+    expiry: string | null;
+    setExpiry: (date: string | null) => void;
+  }[] = [
+    {
+      slug: "license",
+      title: "Driver's License",
+      icon: "card",
+      photo: licensePhoto,
+      setter: setLicensePhoto,
+      expiry: licenseExpiry,
+      setExpiry: setLicenseExpiry,
+    },
+    {
+      slug: "insurance",
+      title: "Certificate of Insurance",
+      icon: "shield-checkmark",
+      photo: insurancePhoto,
+      setter: setInsurancePhoto,
+      expiry: insuranceExpiry,
+      setExpiry: setInsuranceExpiry,
+    },
+    ...(showMedCard
+      ? [
+          {
+            slug: "medical_card" as DocSlug,
+            title: "Medical Card",
+            icon: "medical",
+            photo: medicalCardPhoto,
+            setter: setMedicalCardPhoto,
+            expiry: medicalCardExpiry,
+            setExpiry: setMedicalCardExpiry,
+          },
+        ]
+      : []),
+  ];
+
+  /**
+   * Recomputed from the dates on screen, not from the saved row, so the
+   * highlight clears the moment the driver picks a valid date.
+   */
+  const tripBlockFor = (expiry: string | null) =>
+    tripDate && blocksTripDate(expiry, tripDate)
+      ? tripBlockLabel(expiry, tripDate)
+      : null;
+  const stillBlocked = sections.some((section) => tripBlockFor(section.expiry));
 
   return (
-    <Modal
-      visible={true}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={[styles.container, { backgroundColor: theme.bg }]}>
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: theme.card, borderBottomColor: theme.border },
-          ]}
-        >
-          <TouchableOpacity onPress={onClose}>
-            <Text style={[styles.cancelButton, { color: theme.accent }]}>
-              Cancel
-            </Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>
-            Edit Documents
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.card,
+            borderBottomColor: theme.border,
+            paddingTop: insets.top + 12,
+          },
+        ]}
+      >
+        <TouchableOpacity onPress={handleCancel} style={styles.headerSide}>
+          <Text style={[styles.cancelButton, { color: theme.accent }]}>
+            Cancel
           </Text>
-          <View style={{ width: 60 }} />
-        </View>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          Edit Documents
+        </Text>
+        <View style={styles.headerSide} />
+      </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <DocUploadStatusBanner
-            hasPending={hasPending}
-            hasFailed={hasFailed}
-            isRetrying={isRetrying}
-            canRetry={canRetry}
-            onRetry={handleRetry}
-          />
-
-          {renderDocumentSection(
-            "Driver's License",
-            "card",
-            licensePhoto,
-            setLicensePhoto,
-            licenseExpiry,
-            setLicenseExpiry,
-            "license",
-          )}
-
-          {renderDocumentSection(
-            "Certificate of Insurance",
-            "shield-checkmark",
-            insurancePhoto,
-            setInsurancePhoto,
-            insuranceExpiry,
-            setInsuranceExpiry,
-            "insurance",
-          )}
-
-          {showMedCard &&
-            renderDocumentSection(
-              "Medical Card",
-              "medical",
-              medicalCardPhoto,
-              setMedicalCardPhoto,
-              medicalCardExpiry,
-              setMedicalCardExpiry,
-              "medical_card",
-            )}
-
-          <TouchableOpacity
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {notice && (!tripDate || stillBlocked) ? (
+          <View
             style={[
-              styles.submitButton,
-              { backgroundColor: theme.secondaryAccent },
-              isSubmitting && {
-                backgroundColor: theme.secondaryAccent + "66",
+              styles.notice,
+              {
+                backgroundColor: appTheme.danger + "14",
+                borderColor: appTheme.danger,
               },
             ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <ActivityIndicator color={theme.onSecondaryAccent} />
-            ) : (
-              <Text
-                style={[
-                  styles.submitButtonText,
-                  { color: theme.onSecondaryAccent },
-                ]}
-              >
-                Save Changes
-              </Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
+            <Ionicons
+              name="alert-circle"
+              size={18}
+              color={appTheme.danger}
+            />
+            <Text style={[styles.noticeText, { color: theme.text }]}>
+              {notice}
+            </Text>
+          </View>
+        ) : null}
+
+        <DocUploadStatusBanner
+          hasPending={hasPending}
+          hasFailed={hasFailed}
+          isRetrying={isRetrying}
+          canRetry={canRetry}
+          onRetry={handleRetry}
+        />
+
+        {sections.map((section) => (
+          <DocumentSection
+            key={section.slug}
+            title={section.title}
+            iconName={section.icon}
+            photoUri={section.photo.uri}
+            uploadStatus={statusLabel(section.photo.attachmentId)}
+            expiry={section.expiry}
+            onChangeExpiry={section.setExpiry}
+            onTakePhoto={() => takePhoto(section.setter)}
+            onChoosePhoto={() => pickImageFromLibrary(section.setter)}
+            onChooseFile={() => pickFile(section.setter)}
+            onRemovePhoto={() =>
+              section.setter({ uri: null, attachmentId: null })
+            }
+            docRow={
+              section.photo.attachmentId
+                ? rows[section.photo.attachmentId]
+                : undefined
+            }
+            isReplacing={replacingDocType === section.slug}
+            onReplace={(rowId) => {
+              void handleReplaceDoc(section.slug, rowId, section.setter);
+            }}
+            showMissingExpiryError={showExpiryErrors}
+            tripBlockNote={tripBlockFor(section.expiry)}
+            onLayout={handleSectionLayout(section.slug)}
+          />
+        ))}
+      </ScrollView>
+
+      {/* Fixed footer: the save action stays under the driver's thumb instead
+          of scrolling away below three tall document cards. */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            { backgroundColor: theme.secondaryAccent },
+            isSubmitting && { backgroundColor: theme.secondaryAccent + "66" },
+          ]}
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color={theme.onSecondaryAccent} />
+          ) : (
+            <Text
+              style={[
+                styles.submitButtonText,
+                { color: theme.onSecondaryAccent },
+              ]}
+            >
+              Save Changes
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -633,8 +685,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
+  },
+  headerSide: {
+    minWidth: 60,
   },
   cancelButton: {
     ...typeScale.callout,
@@ -646,87 +701,31 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 24,
   },
-  documentSection: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  documentHeader: {
+  notice: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  documentIconContainer: {
-    width: 32,
-    height: 32,
-    marginRight: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  documentTitle: {
-    ...typeScale.title3,
-    fontWeight: "700",
-  },
-  photoContainer: {
-    marginBottom: 12,
-  },
-  photo: {
-    width: "100%",
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  statusText: {
-    ...typeScale.footnote,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  removeButton: {
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  removeButtonText: {
-    ...typeScale.subhead,
-    fontWeight: "600",
-  },
-  emptyPhotoContainer: {
-    height: 200,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  emptyPhotoText: {
-    ...typeScale.subhead,
-    fontWeight: "400",
-  },
-  buttonRow: {
-    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
   },
-  photoButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    flexDirection: "column",
-    justifyContent: "center",
-    gap: 4,
-  },
-  photoButtonText: {
-    ...typeScale.caption2,
+  noticeText: {
+    ...typeScale.subhead,
     fontWeight: "600",
+    flex: 1,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
   submitButton: {
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 32,
   },
   submitButtonText: {
     ...typeScale.callout,

@@ -52,6 +52,14 @@ function getStatusBadge(status: WorkTracker["status"], theme: ThemeColors) {
 
 interface TripItemProps {
   workTracker: WorkTracker;
+  /**
+   * Short reason this trip cannot be accepted (from `useAcceptTrip`), or
+   * `null` when it can. Shown on the button so the driver sees the problem
+   * before tapping, not after.
+   */
+  acceptBlockReason?: string | null;
+  /** Opens the fix for `acceptBlockReason` — the documents screen. */
+  onFixBlock?: (workTrackerId: string) => void;
   onAccept?: (workTrackerId: string) => void;
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
@@ -64,6 +72,8 @@ interface TripItemProps {
 
 function TripItem({
   workTracker,
+  acceptBlockReason = null,
+  onFixBlock,
   onAccept,
   onStartTrip,
   onSkip,
@@ -515,21 +525,46 @@ function TripItem({
       </View>
 
       {/* Action buttons */}
-      {status === "released" && (
-        <TouchableOpacity
-          style={[
-            styles.acceptButton,
-            { backgroundColor: theme.secondaryAccent },
-          ]}
-          onPress={() => onAccept?.(workTracker.id)}
-        >
-          <Text
-            style={[styles.acceptButtonText, { color: theme.onSecondaryAccent }]}
+      {status === "released" &&
+        (acceptBlockReason ? (
+          /* No Accept button at all while something blocks it — the one
+             control on the card is the way out of the block. */
+          <TouchableOpacity
+            style={[
+              styles.blockedButton,
+              { backgroundColor: theme.danger + "14", borderColor: theme.danger },
+            ]}
+            onPress={() => onFixBlock?.(workTracker.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`${acceptBlockReason}. Tap to fix.`}
           >
-            Accept Trip
-          </Text>
-        </TouchableOpacity>
-      )}
+            <Ionicons
+              name="alert-circle-outline"
+              size={16}
+              color={theme.danger}
+            />
+            <Text style={[styles.blockedButtonText, { color: theme.danger }]}>
+              {acceptBlockReason} — tap to fix
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.acceptButton,
+              { backgroundColor: theme.secondaryAccent },
+            ]}
+            onPress={() => onAccept?.(workTracker.id)}
+          >
+            <Text
+              style={[
+                styles.acceptButtonText,
+                { color: theme.onSecondaryAccent },
+              ]}
+            >
+              Accept Trip
+            </Text>
+          </TouchableOpacity>
+        ))}
       {status === "accepted" && (
         <View style={styles.buttonRow}>
           <TouchableOpacity
@@ -637,6 +672,8 @@ function tripItemPropsEqual(
 ): boolean {
   return (
     prev.workTracker === next.workTracker &&
+    prev.acceptBlockReason === next.acceptBlockReason &&
+    prev.onFixBlock === next.onFixBlock &&
     prev.onAccept === next.onAccept &&
     prev.onStartTrip === next.onStartTrip &&
     prev.onSkip === next.onSkip &&
@@ -723,6 +760,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   acceptButtonText: { ...typeScale.subhead, fontWeight: "600" },
+  blockedButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  blockedButtonText: {
+    ...typeScale.subhead,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "center",
+  },
   inspectionBlock: { marginTop: 12, gap: 10 },
   inspectionButton: {
     paddingVertical: 12,

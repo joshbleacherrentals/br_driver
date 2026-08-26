@@ -4,45 +4,39 @@ import TripItem from "@/components/widgets/trip_item";
 import { useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
-import { useProfileCompletion } from "@/hooks/useProfileCompletion";
+import { useAcceptTrip } from "@/hooks/useAcceptTrip";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 
-export default function PendingTripsList() {
+export default function PendingTripsList({
+  onLeave,
+}: {
+  /** Close the sheet this list lives in, when navigating away from it. */
+  onLeave?: () => void;
+}) {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const workTrackers = useWorkTrackers().workTrackers;
-  const { getAcceptBlockReason } = useProfileCompletion();
+  const { acceptTrip, blockFor, openFix } = useAcceptTrip({
+    beforeNavigate: onLeave,
+  });
 
   const pendingTrips = useMemo(
     () => (workTrackers ?? []).filter((wt) => wt.status === "released"),
     [workTrackers],
   );
 
-  const handleAccept = useCallback(async (workTrackerId: string) => {
-    const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
-    const blockReason = getAcceptBlockReason(trip?.date ?? todayISODate());
-    if (blockReason) {
-      Alert.alert("Cannot accept trip", blockReason);
-      return;
-    }
-    try {
-      const now = new Date().toISOString();
-      await executeTypedMutationVoid(
-        db
-          .updateTable("WorkTrackers")
-          .set({ status: "accepted", accepted_at: now, updated_at: now })
-          .where("id", "=", workTrackerId)
-          .compile(),
-      );
-    } catch {
-      Alert.alert("Error", "Failed to accept trip.");
-    }
-  }, [getAcceptBlockReason, workTrackers]);
+  const handleAccept = useCallback(
+    async (workTrackerId: string) => {
+      const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+      await acceptTrip(workTrackerId, trip?.date ?? todayISODate());
+    },
+    [acceptTrip, workTrackers],
+  );
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Skip Trip", "Are you sure you want to skip this trip?", [
@@ -82,6 +76,10 @@ export default function PendingTripsList() {
       renderItem={({ item }) => (
         <TripItem
           workTracker={item}
+          acceptBlockReason={
+            blockFor(item.date ?? todayISODate())?.shortReason ?? null
+          }
+          onFixBlock={() => openFix(item.date ?? todayISODate())}
           onAccept={handleAccept}
           onStartTrip={noop}
           onSkip={handleSkip}
