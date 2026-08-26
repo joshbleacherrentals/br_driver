@@ -24,7 +24,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import BacklogTicketCard from "./components/BacklogTicketCard";
 import HowThisWorksSheet from "./components/HowThisWorksSheet";
@@ -104,7 +103,7 @@ export default function BacklogTicketsScreen() {
   }, [hasSlot, createdAts, now, router]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <View style={styles.container}>
       {isLoading ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>Loading...</Text>
@@ -158,7 +157,7 @@ export default function BacklogTicketsScreen() {
       >
         <HowThisWorksSheet />
       </BottomSheetModal>
-    </SafeAreaView>
+    </View>
   );
 }
 
