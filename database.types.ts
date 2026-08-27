@@ -4047,6 +4047,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      bleacher_change_reason_label: { Args: { code: string }; Returns: string };
       damage_reports_recompute_photos_uploaded: {
         Args: { p_ids: string[] };
         Returns: undefined;
