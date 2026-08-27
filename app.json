@@ -67,11 +67,12 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Bleacher Rentals Driver accesses your photo library so you can attach existing photos to reports and documents.",
           "savePhotosPermission": "Bleacher Rentals Driver saves the photos you capture to your device's photo library so an original copy is kept safe until it finishes uploading.",
-          "isAccessMediaLocationEnabled": false
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": []
         }
       ],
+      "./plugins/withMediaPermissionScrub",
       "@react-native-community/datetimepicker",
       [
         "expo-audio",

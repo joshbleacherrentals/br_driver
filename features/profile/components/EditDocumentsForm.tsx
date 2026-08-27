@@ -159,16 +159,9 @@ export default function EditDocumentsForm({
   const pickImageFromLibrary = async (
     setter: React.Dispatch<React.SetStateAction<DocumentPhoto>>,
   ) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "We need camera roll permissions to select photos",
-      );
-      return;
-    }
-
+    // No permission request: this opens the system photo picker, which needs
+    // none — and asking for one is what Google Play rejected the app for. See
+    // `plugins/withMediaPermissionScrub.js` and `utils/pickPhotos.ts`.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsMultipleSelection: false,

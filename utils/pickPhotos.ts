@@ -81,15 +81,13 @@ export async function pickPhotosFromLibrary(options?: {
   selectionLimit?: number;
   onSelected?: (count: number) => void;
 }): Promise<PickedPhoto[]> {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== "granted") {
-    Alert.alert(
-      "Permission needed",
-      "Media library permission is required to add photos",
-    );
-    return [];
-  }
-
+  // Deliberately no permission request: `launchImageLibraryAsync` opens the
+  // system photo picker, which runs outside the app and hands back only the
+  // assets the driver tapped — so there is nothing to ask for. Asking anyway is
+  // what Google Play rejected the app for, and once READ_MEDIA_IMAGES is out of
+  // the manifest such a request can only ever resolve "denied", locking the
+  // picker shut. See `plugins/withMediaPermissionScrub.js`.
+  //
   // Deliberately no `quality`: it makes the picker decode and re-encode every
   // selected asset *before* it resolves, so a 25-photo selection pays a full
   // JPEG pass while the driver is still looking at the picker and the app
