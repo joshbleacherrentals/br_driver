@@ -9,6 +9,12 @@
  * daily limit are measured from creation — a ticket filed in a dead zone on
  * Friday would otherwise reset its own window on Monday.
  *
+ * The ticket does not travel alone: a system message is written into
+ * `RoadmapTaskMessages` in the same transaction, naming the driver who filed
+ * it. The board shows a task's thread rather than its foreign keys, so without
+ * that message a backlog ticket reads as having come from nowhere — and nothing
+ * back-fills it later, which is why the two rows commit together or not at all.
+ *
  * The column set is exactly what the mobile RLS policy admits: the driver's own
  * `created_by_user_uuid`, `is_backlog = true`, `status = 'to_do'`. Sprint,
  * feature, assignee and completion are the web roadmap's to set, and a write
@@ -18,16 +24,19 @@
 
 import { db } from "@/library/powersync/db";
 import type { DriverScope } from "@/library/powersync/scoping";
-import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
+import { executeTypedTransaction } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";
 
 import { canCreateTicket } from "./dailyTicketLimit";
+import type { TicketAuthor } from "./ticketAuthorNotice";
+import { ticketNoticeInsert } from "./ticketNoticeInsert";
 import { validateTicketText, type TicketTextRejection } from "./ticketText";
 
 export {
   DESCRIPTION_MAX_LENGTH,
   TITLE_MAX_LENGTH,
 } from "./ticketText";
+export type { TicketAuthor } from "./ticketAuthorNotice";
 
 export type CreateBacklogTicketInput = {
   title: string;
@@ -46,6 +55,14 @@ export type CreateBacklogTicketInput = {
    * disagree about the same rule.
    */
   recentCreatedAts: readonly (string | null | undefined)[];
+  /**
+   * The driver's own `Users` row, for the authorship notice. `null` is a real
+   * case, not a defensive one: `Users` arrives by sync, so a driver can reach
+   * this screen on a fresh device before their profile has landed. The notice
+   * degrades to "a driver with no name on file" and still carries `user_uuid`,
+   * which is strictly better than no message at all.
+   */
+  author: TicketAuthor | null;
   /** Injected so the window is testable and one render's clock is used once. */
   now: number;
 };
@@ -58,6 +75,7 @@ export async function createBacklogTicket({
   title,
   description,
   scope,
+  author,
   recentCreatedAts,
   now,
 }: CreateBacklogTicketInput): Promise<CreateBacklogTicketResult> {
@@ -71,25 +89,35 @@ export async function createBacklogTicket({
   }
 
   const id = randomUUID();
+  const createdAt = new Date(now).toISOString();
 
-  await executeTypedMutationVoid(
-    db
-      .insertInto("RoadmapTasks")
-      .values({
-        id,
-        title: validated.text.title,
-        description: validated.text.description,
-        status: "to_do",
-        // Backlog tickets are unordered — the developers rank them when they
-        // pull one into a sprint.
-        sort_order: 0,
-        // PowerSync mirrors Postgres booleans as 0/1.
-        is_backlog: 1,
-        created_by_user_uuid: scope.userUuid,
-        created_at: new Date(now).toISOString(),
-      })
-      .compile(),
-  );
+  await executeTypedTransaction(async (tx) => {
+    await tx.run(
+      db
+        .insertInto("RoadmapTasks")
+        .values({
+          id,
+          title: validated.text.title,
+          description: validated.text.description,
+          status: "to_do",
+          // Backlog tickets are unordered — the developers rank them when they
+          // pull one into a sprint.
+          sort_order: 0,
+          // PowerSync mirrors Postgres booleans as 0/1.
+          is_backlog: 1,
+          created_by_user_uuid: scope.userUuid,
+          created_at: createdAt,
+        })
+        .compile(),
+    );
+
+    // Second, never first: PowerSync replays CRUD in the order it recorded it,
+    // and this row's `task_id` foreign key points at a task Postgres has to
+    // have seen already.
+    await tx.run(
+      ticketNoticeInsert({ kind: "created", taskId: id, scope, author, now }),
+    );
+  });
 
   return { ok: true, id };
 }

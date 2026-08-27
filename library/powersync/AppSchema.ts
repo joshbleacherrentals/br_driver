@@ -488,6 +488,33 @@ const RoadmapTasks = new Table(RoadmapTasksCols, {
   indexes: { created_by_user_uuid: ["created_by_user_uuid"] },
 });
 
+// The message thread the developers read on a roadmap task. A phone writes into
+// it and never reads it back: the notices that say which driver filed, edited
+// or withdrew a ticket (see features/backlog-tickets/utils/ticketNoticeInsert.ts),
+// each posted in the same transaction as the change it describes.
+//
+// What syncs back down is only this driver's own `is_system` notices, and only
+// on their own backlog tickets (mobile stream in br_powersync/config/
+// sync_rules.yaml). Not because anything on the device reads them — nothing
+// does — but so the local database holds what Postgres actually accepted
+// instead of writes that vanish at the next checkpoint. The rest of the thread
+// is the developers' conversation, and drivers are deliberately never shown
+// ticket status; a reply reaching a phone with no UI for it would promise an
+// answer the product does not make.
+const RoadmapTaskMessagesCols = {
+  task_id: column.text,
+  user_uuid: column.text,
+  body: column.text,
+  // Postgres boolean, mirrored as 0/1. Always 1 from a phone: the notice is
+  // written by the app, not typed by the driver, and the board renders system
+  // messages as notes rather than as somebody's reply.
+  is_system: column.integer,
+  created_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"RoadmapTaskMessages">>;
+const RoadmapTaskMessages = new Table(RoadmapTaskMessagesCols, {
+  indexes: { task_id: ["task_id"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -510,6 +537,7 @@ export const AppSchema = new Schema({
   BlueBook,
   AppVersionPolicy,
   RoadmapTasks,
+  RoadmapTaskMessages,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),
@@ -530,5 +558,6 @@ export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
 export type ContactRecord = PowerSyncDB["Contacts"];
 export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
+export type RoadmapTaskMessageRecord = PowerSyncDB["RoadmapTaskMessages"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];

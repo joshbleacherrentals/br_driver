@@ -15,6 +15,7 @@ import {
   useBacklogTicket,
   useMyBacklogTickets,
 } from "@/hooks/db/useBacklogTickets";
+import { useCurrentUser } from "@/hooks/db/useCurrentUser";
 import { useDriverScope } from "@/hooks/useDriverScope";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -136,6 +137,10 @@ export default function BacklogTicketScreen() {
   const router = useRouter();
   const now = useNow();
   const scope = useDriverScope();
+  // Names the driver in the ticket's authorship notice; see
+  // utils/ticketAuthorNotice.ts. Absent on a fresh device whose profile has
+  // not synced yet, which the notice handles rather than the screen blocking.
+  const { identity } = useCurrentUser();
 
   const { ticketId } = useLocalSearchParams<{ ticketId?: string }>();
   const isNew = !ticketId;
@@ -287,6 +292,7 @@ export default function BacklogTicketScreen() {
         title,
         description,
         scope,
+        author: identity,
         recentCreatedAts: createdAts,
         now: Date.now(),
       });
@@ -299,7 +305,7 @@ export default function BacklogTicketScreen() {
     } finally {
       setBusy(false);
     }
-  }, [scope, busy, title, description, createdAts]);
+  }, [scope, identity, busy, title, description, createdAts]);
 
   const handleSave = useCallback(async () => {
     if (!scope || !ticketId || busy) return;
@@ -310,6 +316,7 @@ export default function BacklogTicketScreen() {
         title,
         description,
         scope,
+        author: identity,
         createdAt,
         now: Date.now(),
       });
@@ -322,7 +329,7 @@ export default function BacklogTicketScreen() {
     } finally {
       setBusy(false);
     }
-  }, [scope, ticketId, busy, title, description, createdAt]);
+  }, [scope, identity, ticketId, busy, title, description, createdAt]);
 
   const revertEdit = useCallback(() => {
     setTitle(savedDraft?.title ?? "");
@@ -355,6 +362,7 @@ export default function BacklogTicketScreen() {
             const result = await deleteBacklogTicket({
               id: ticketId,
               scope,
+              author: identity,
               createdAt,
               now: Date.now(),
             });
@@ -368,7 +376,7 @@ export default function BacklogTicketScreen() {
         },
       ],
     );
-  }, [scope, ticketId, createdAt, close]);
+  }, [scope, identity, ticketId, createdAt, close]);
 
   const actions = useMemo(() => {
     if (mode === "create") {
