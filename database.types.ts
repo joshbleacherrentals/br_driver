@@ -1233,6 +1233,163 @@ export type Database = {
           },
         ];
       };
+      DriverSurveyQuestions: {
+        Row: {
+          created_at: string;
+          follow_up_max_score: number | null;
+          follow_up_prompt: string | null;
+          id: string;
+          is_active: boolean;
+          is_required: boolean;
+          kind: string;
+          prompt: string;
+          sort_order: number;
+          survey_uuid: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          follow_up_max_score?: number | null;
+          follow_up_prompt?: string | null;
+          id?: string;
+          is_active?: boolean;
+          is_required?: boolean;
+          kind?: string;
+          prompt: string;
+          sort_order?: number;
+          survey_uuid: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          follow_up_max_score?: number | null;
+          follow_up_prompt?: string | null;
+          id?: string;
+          is_active?: boolean;
+          is_required?: boolean;
+          kind?: string;
+          prompt?: string;
+          sort_order?: number;
+          survey_uuid?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "DriverSurveyQuestions_survey_uuid_fkey";
+            columns: ["survey_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      DriverSurveyResponses: {
+        Row: {
+          app_platform: string | null;
+          app_version: string | null;
+          created_at: string;
+          driver_uuid: string;
+          id: string;
+          prompt_snapshot: string;
+          question_uuid: string;
+          reason_text: string | null;
+          score: number | null;
+          submission_uuid: string;
+          submitted_at: string;
+          survey_uuid: string;
+          user_uuid: string | null;
+        };
+        Insert: {
+          app_platform?: string | null;
+          app_version?: string | null;
+          created_at?: string;
+          driver_uuid: string;
+          id?: string;
+          prompt_snapshot: string;
+          question_uuid: string;
+          reason_text?: string | null;
+          score?: number | null;
+          submission_uuid: string;
+          submitted_at?: string;
+          survey_uuid: string;
+          user_uuid?: string | null;
+        };
+        Update: {
+          app_platform?: string | null;
+          app_version?: string | null;
+          created_at?: string;
+          driver_uuid?: string;
+          id?: string;
+          prompt_snapshot?: string;
+          question_uuid?: string;
+          reason_text?: string | null;
+          score?: number | null;
+          submission_uuid?: string;
+          submitted_at?: string;
+          survey_uuid?: string;
+          user_uuid?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "DriverSurveyResponses_driver_uuid_fkey";
+            columns: ["driver_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Drivers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_question_uuid_fkey";
+            columns: ["question_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveyQuestions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_survey_uuid_fkey";
+            columns: ["survey_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveys";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_user_uuid_fkey";
+            columns: ["user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      DriverSurveys: {
+        Row: {
+          created_at: string;
+          id: string;
+          interval_days: number;
+          is_active: boolean;
+          sort_order: number;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          interval_days?: number;
+          is_active?: boolean;
+          sort_order?: number;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          interval_days?: number;
+          is_active?: boolean;
+          sort_order?: number;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       DriverUnavailability: {
         Row: {
           date_unavailable: string;

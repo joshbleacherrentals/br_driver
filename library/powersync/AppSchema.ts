@@ -515,6 +515,77 @@ const RoadmapTaskMessages = new Table(RoadmapTaskMessagesCols, {
   indexes: { task_id: ["task_id"] },
 });
 
+// ── Driver Satisfaction Score ───────────────────────────────────────────────
+//
+// The survey a driver cannot dismiss. Definitions (survey + questions) are
+// reference data: small, synced in full while active, and read on the device so
+// the question can be asked with no connection at all. The wording lives in
+// Postgres rather than in this bundle precisely so it can change without an App
+// Store release.
+const DriverSurveysCols = {
+  title: column.text,
+  // How long after a submission the same driver is asked again — 30 today, 7
+  // from next quarter. A column, not a constant in a mobile build.
+  interval_days: column.integer,
+  is_active: column.integer,
+  sort_order: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveys">;
+const DriverSurveys = new Table(DriverSurveysCols, {
+  indexes: { is_active: ["is_active"] },
+});
+
+const DriverSurveyQuestionsCols = {
+  survey_uuid: column.text,
+  prompt: column.text,
+  kind: column.text,
+  // At or below this score the written reason becomes mandatory. Read from the
+  // row and never hardcoded — see features/driver-survey/utils/surveyValidation.ts.
+  follow_up_max_score: column.integer,
+  follow_up_prompt: column.text,
+  is_required: column.integer,
+  is_active: column.integer,
+  sort_order: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveyQuestions">;
+const DriverSurveyQuestions = new Table(DriverSurveyQuestionsCols, {
+  indexes: { survey_uuid: ["survey_uuid"] },
+});
+
+// One row per question answered — there is no submission parent table, by
+// design (see the migration header in bleacher_rentals). `submission_uuid`
+// groups the rows written together, and everything about the submission lives
+// on the row, so one answer is one local write that crosses the sync boundary
+// alone: nothing to sequence, nothing to orphan.
+//
+// This table IS the app's memory of when it last asked: the gate compares
+// `max(submitted_at)` against the survey's interval. Nothing here is ever
+// pruned on the device, and the mobile sync rule deliberately carries no date
+// filter — a driver whose last answer fell outside a narrowed window would be
+// asked again every morning.
+const DriverSurveyResponsesCols = {
+  submission_uuid: column.text,
+  survey_uuid: column.text,
+  question_uuid: column.text,
+  driver_uuid: column.text,
+  user_uuid: column.text,
+  score: column.integer,
+  reason_text: column.text,
+  // The wording the driver was actually shown. Questions become editable in the
+  // web app next quarter; without this copy, every historical answer would be
+  // silently re-labelled with a question nobody was asked.
+  prompt_snapshot: column.text,
+  submitted_at: column.text,
+  app_version: column.text,
+  app_platform: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveyResponses">;
+const DriverSurveyResponses = new Table(DriverSurveyResponsesCols, {
+  indexes: { driver_uuid: ["driver_uuid", "survey_uuid"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -538,6 +609,9 @@ export const AppSchema = new Schema({
   AppVersionPolicy,
   RoadmapTasks,
   RoadmapTaskMessages,
+  DriverSurveys,
+  DriverSurveyQuestions,
+  DriverSurveyResponses,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),
@@ -561,3 +635,6 @@ export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
 export type RoadmapTaskMessageRecord = PowerSyncDB["RoadmapTaskMessages"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];
+export type DriverSurveyRecord = PowerSyncDB["DriverSurveys"];
+export type DriverSurveyQuestionRecord = PowerSyncDB["DriverSurveyQuestions"];
+export type DriverSurveyResponseRecord = PowerSyncDB["DriverSurveyResponses"];
