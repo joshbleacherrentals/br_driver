@@ -3,9 +3,15 @@ import Card from "@/components/ui/Card";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
 import { InspectionPhotoRepair } from "@/components/widgets/InspectionPhotoRepair";
+import { ContactButton } from "@/components/widgets/contactSheet";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
+import {
+  getEffectiveBleacherUuid,
+  isSwappedBleacher,
+} from "@/utils/effectiveBleacher";
+import { bleacherChangeReasonLabel } from "@/constants/bleacherChangeReasons";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
@@ -22,6 +28,7 @@ import {
   View,
 } from "react-native";
 import BillOfLading, { BOLButton } from "./billOfLading";
+import { PayAmount } from "./payBreakdown";
 
 function getStatusBadge(status: WorkTracker["status"], theme: ThemeColors) {
   switch (status) {
@@ -45,19 +52,28 @@ function getStatusBadge(status: WorkTracker["status"], theme: ThemeColors) {
 
 interface TripItemProps {
   workTracker: WorkTracker;
+  /**
+   * Short reason this trip cannot be accepted (from `useAcceptTrip`), or
+   * `null` when it can. Shown on the button so the driver sees the problem
+   * before tapping, not after.
+   */
+  acceptBlockReason?: string | null;
+  /** Opens the fix for `acceptBlockReason` — the documents screen. */
+  onFixBlock?: (workTrackerId: string) => void;
   onAccept?: (workTrackerId: string) => void;
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
   onArrived?: (workTrackerId: string, arrivedAt: string) => void;
   onStartInspection?: (
     workTrackerId: string,
-    bleacherUuid: string | null,
     inspectionType: "pickup" | "dropoff",
   ) => void;
 }
 
 function TripItem({
   workTracker,
+  acceptBlockReason = null,
+  onFixBlock,
   onAccept,
   onStartTrip,
   onSkip,
@@ -74,13 +90,15 @@ function TripItem({
     dropoff_time,
     pickup_poc,
     dropoff_poc,
-    bleacher_uuid,
     pay_cents,
     notes,
     teardown_required,
     pickup_instructions,
     setup_required,
     dropoff_instructions,
+    pickup_poc_contact_uuid,
+    dropoff_poc_contact_uuid,
+    accepted_at,
   } = workTracker;
 
   const [bolVisible, setBolVisible] = React.useState(false);
@@ -90,7 +108,17 @@ function TripItem({
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
-  const { bleacher } = useBleacher(bleacher_uuid);
+  // What the driver is physically hauling: the bleacher they confirmed taking,
+  // falling back to the one the manager assigned until they confirm.
+  const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
+  const { bleacher } = useBleacher(effectiveBleacherUuid);
+
+  // Only when the two differ is the assigned bleacher worth naming — and only
+  // then is it worth a second query, which `useBleacher(null)` skips entirely.
+  const swapped = isSwappedBleacher(workTracker);
+  const { bleacher: assignedBleacher } = useBleacher(
+    swapped ? workTracker.bleacher_uuid : null,
+  );
 
   // Load full inspection (incl. answers_json) only when the modal is open.
   const { inspection: preInspection } = useInspection(
@@ -104,8 +132,8 @@ function TripItem({
       : null,
   );
 
-  // ── Damage report for the assigned bleacher ─────────────────────────────
-  const { damageReports } = useDamageReports(bleacher_uuid);
+  // ── Damage report for the bleacher actually being hauled ────────────────
+  const { damageReports } = useDamageReports(effectiveBleacherUuid);
 
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
@@ -120,9 +148,6 @@ function TripItem({
     if (!address) return "Address not set";
     return `${address.street}`;
   };
-
-  const formatPay = (cents: number | null) =>
-    cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 
   const formatTime = (time: string | null) => time ?? "";
 
@@ -191,12 +216,13 @@ function TripItem({
   const showTeardown = teardown_required === 1;
   const showSetup = setup_required === 1;
 
+  // Which bleacher the inspection is for is settled inside the inspection
+  // itself — the driver confirms it there — so it is not passed down.
   const handleStartInspection = (
     id: string,
-    bleacherUuid: string | null,
     type: "pickup" | "dropoff",
   ) => {
-    onStartInspection?.(id, bleacherUuid, type);
+    onStartInspection?.(id, type);
   };
 
   return (
@@ -204,10 +230,10 @@ function TripItem({
       {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
-          {/* Title row: bleacher number + damage badge inline */}
+          {/* Title row: bleacher number + damage badge + tappable pay */}
           <View style={styles.titleRow}>
             <Text style={[styles.mainTitle, { color: theme.textPrimary }]}>
-              {bleacher_uuid &&
+              {effectiveBleacherUuid &&
                 bleacher &&
                 `Bleacher #${bleacher.bleacher_number} `}
               {damageReports.length > 0 && (
@@ -216,9 +242,17 @@ function TripItem({
                   bleacherNumber={bleacher?.bleacher_number}
                 />
               )}
-              {pay_cents !== null && formatPay(pay_cents)}
             </Text>
+            <PayAmount workTrackerId={workTracker.id} payCents={pay_cents} />
           </View>
+          {swapped && assignedBleacher ? (
+            <Text style={[styles.swapNote, { color: theme.warning }]}>
+              {`Assigned #${assignedBleacher.bleacher_number}`}
+              {bleacherChangeReasonLabel(workTracker.bleacher_change_reason)
+                ? ` — ${bleacherChangeReasonLabel(workTracker.bleacher_change_reason)}`
+                : ""}
+            </Text>
+          ) : null}
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>
             {formatDate(date)}
           </Text>
@@ -256,11 +290,18 @@ function TripItem({
               PICKUP
             </Text>
           </View>
-          {pickup_time && (
-            <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-              {formatTime(pickup_time)}
-            </Text>
-          )}
+          <View style={styles.stopHeaderRight}>
+            {pickup_time && (
+              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
+                {formatTime(pickup_time)}
+              </Text>
+            )}
+            <ContactButton
+              contactId={pickup_poc_contact_uuid}
+              status={status}
+              acceptedAt={accepted_at}
+            />
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -346,11 +387,7 @@ function TripItem({
               { backgroundColor: theme.warning },
             ]}
             onPress={() =>
-              handleStartInspection(
-                workTracker.id,
-                workTracker.bleacher_uuid,
-                "pickup",
-              )
+              handleStartInspection(workTracker.id, "pickup")
             }
           >
             <Text
@@ -417,11 +454,18 @@ function TripItem({
               DROP-OFF
             </Text>
           </View>
-          {dropoff_time && (
-            <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-              {formatTime(dropoff_time)}
-            </Text>
-          )}
+          <View style={styles.stopHeaderRight}>
+            {dropoff_time && (
+              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
+                {formatTime(dropoff_time)}
+              </Text>
+            )}
+            <ContactButton
+              contactId={dropoff_poc_contact_uuid}
+              status={status}
+              acceptedAt={accepted_at}
+            />
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => {
@@ -481,21 +525,46 @@ function TripItem({
       </View>
 
       {/* Action buttons */}
-      {status === "released" && (
-        <TouchableOpacity
-          style={[
-            styles.acceptButton,
-            { backgroundColor: theme.secondaryAccent },
-          ]}
-          onPress={() => onAccept?.(workTracker.id)}
-        >
-          <Text
-            style={[styles.acceptButtonText, { color: theme.onSecondaryAccent }]}
+      {status === "released" &&
+        (acceptBlockReason ? (
+          /* No Accept button at all while something blocks it — the one
+             control on the card is the way out of the block. */
+          <TouchableOpacity
+            style={[
+              styles.blockedButton,
+              { backgroundColor: theme.danger + "14", borderColor: theme.danger },
+            ]}
+            onPress={() => onFixBlock?.(workTracker.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`${acceptBlockReason}. Tap to fix.`}
           >
-            Accept Trip
-          </Text>
-        </TouchableOpacity>
-      )}
+            <Ionicons
+              name="alert-circle-outline"
+              size={16}
+              color={theme.danger}
+            />
+            <Text style={[styles.blockedButtonText, { color: theme.danger }]}>
+              {acceptBlockReason} — tap to fix
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.acceptButton,
+              { backgroundColor: theme.secondaryAccent },
+            ]}
+            onPress={() => onAccept?.(workTracker.id)}
+          >
+            <Text
+              style={[
+                styles.acceptButtonText,
+                { color: theme.onSecondaryAccent },
+              ]}
+            >
+              Accept Trip
+            </Text>
+          </TouchableOpacity>
+        ))}
       {status === "accepted" && (
         <View style={styles.buttonRow}>
           <TouchableOpacity
@@ -533,11 +602,7 @@ function TripItem({
             { backgroundColor: theme.warning },
           ]}
           onPress={() =>
-            handleStartInspection(
-              workTracker.id,
-              workTracker.bleacher_uuid,
-              "dropoff",
-            )
+            handleStartInspection(workTracker.id, "dropoff")
           }
         >
           <Text
@@ -607,6 +672,8 @@ function tripItemPropsEqual(
 ): boolean {
   return (
     prev.workTracker === next.workTracker &&
+    prev.acceptBlockReason === next.acceptBlockReason &&
+    prev.onFixBlock === next.onFixBlock &&
     prev.onAccept === next.onAccept &&
     prev.onStartTrip === next.onStartTrip &&
     prev.onSkip === next.onSkip &&
@@ -619,6 +686,7 @@ export default React.memo(TripItem, tripItemPropsEqual);
 
 const styles = StyleSheet.create({
   badgeAndBol: { alignItems: "flex-end", flexShrink: 0 },
+  swapNote: { fontSize: 12, lineHeight: 16, marginTop: 2 },
   card: {
     marginVertical: 6,
     marginHorizontal: 16,
@@ -652,6 +720,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stopHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  stopHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   locationLabel: { ...typeScale.footnote, fontWeight: "700", letterSpacing: 0.5 },
   timeText: { ...typeScale.subhead, fontWeight: "600" },
   addressText: {
@@ -691,6 +760,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   acceptButtonText: { ...typeScale.subhead, fontWeight: "600" },
+  blockedButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  blockedButtonText: {
+    ...typeScale.subhead,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "center",
+  },
   inspectionBlock: { marginTop: 12, gap: 10 },
   inspectionButton: {
     paddingVertical: 12,

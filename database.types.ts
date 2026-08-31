@@ -645,6 +645,7 @@ export type Database = {
           last_name: string | null;
           notes: string | null;
           phone: string | null;
+          preferred_language: Database["public"]["Enums"]["preferred_language"];
         };
         Insert: {
           company_uuid?: string | null;
@@ -657,6 +658,7 @@ export type Database = {
           last_name?: string | null;
           notes?: string | null;
           phone?: string | null;
+          preferred_language?: Database["public"]["Enums"]["preferred_language"];
         };
         Update: {
           company_uuid?: string | null;
@@ -669,6 +671,7 @@ export type Database = {
           last_name?: string | null;
           notes?: string | null;
           phone?: string | null;
+          preferred_language?: Database["public"]["Enums"]["preferred_language"];
         };
         Relationships: [
           {
@@ -1069,7 +1072,9 @@ export type Database = {
           pay_per_unit: Database["public"]["Enums"]["pay_per_unit_type"];
           pay_rate_cents: number;
           phone_number: string | null;
+          setup_cents: number;
           tax: number;
+          teardown_cents: number;
           user_uuid: string | null;
           vehicle_uuid: string | null;
           vendor_uuid: string | null;
@@ -1094,7 +1099,9 @@ export type Database = {
           pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"];
           pay_rate_cents?: number;
           phone_number?: string | null;
+          setup_cents?: number;
           tax?: number;
+          teardown_cents?: number;
           user_uuid?: string | null;
           vehicle_uuid?: string | null;
           vendor_uuid?: string | null;
@@ -1119,7 +1126,9 @@ export type Database = {
           pay_per_unit?: Database["public"]["Enums"]["pay_per_unit_type"];
           pay_rate_cents?: number;
           phone_number?: string | null;
+          setup_cents?: number;
           tax?: number;
+          teardown_cents?: number;
           user_uuid?: string | null;
           vehicle_uuid?: string | null;
           vendor_uuid?: string | null;
@@ -1226,6 +1235,163 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      DriverSurveyQuestions: {
+        Row: {
+          created_at: string;
+          follow_up_max_score: number | null;
+          follow_up_prompt: string | null;
+          id: string;
+          is_active: boolean;
+          is_required: boolean;
+          kind: string;
+          prompt: string;
+          sort_order: number;
+          survey_uuid: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          follow_up_max_score?: number | null;
+          follow_up_prompt?: string | null;
+          id?: string;
+          is_active?: boolean;
+          is_required?: boolean;
+          kind?: string;
+          prompt: string;
+          sort_order?: number;
+          survey_uuid: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          follow_up_max_score?: number | null;
+          follow_up_prompt?: string | null;
+          id?: string;
+          is_active?: boolean;
+          is_required?: boolean;
+          kind?: string;
+          prompt?: string;
+          sort_order?: number;
+          survey_uuid?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "DriverSurveyQuestions_survey_uuid_fkey";
+            columns: ["survey_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      DriverSurveyResponses: {
+        Row: {
+          app_platform: string | null;
+          app_version: string | null;
+          created_at: string;
+          driver_uuid: string;
+          id: string;
+          prompt_snapshot: string;
+          question_uuid: string;
+          reason_text: string | null;
+          score: number | null;
+          submission_uuid: string;
+          submitted_at: string;
+          survey_uuid: string;
+          user_uuid: string | null;
+        };
+        Insert: {
+          app_platform?: string | null;
+          app_version?: string | null;
+          created_at?: string;
+          driver_uuid: string;
+          id?: string;
+          prompt_snapshot: string;
+          question_uuid: string;
+          reason_text?: string | null;
+          score?: number | null;
+          submission_uuid: string;
+          submitted_at?: string;
+          survey_uuid: string;
+          user_uuid?: string | null;
+        };
+        Update: {
+          app_platform?: string | null;
+          app_version?: string | null;
+          created_at?: string;
+          driver_uuid?: string;
+          id?: string;
+          prompt_snapshot?: string;
+          question_uuid?: string;
+          reason_text?: string | null;
+          score?: number | null;
+          submission_uuid?: string;
+          submitted_at?: string;
+          survey_uuid?: string;
+          user_uuid?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "DriverSurveyResponses_driver_uuid_fkey";
+            columns: ["driver_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Drivers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_question_uuid_fkey";
+            columns: ["question_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveyQuestions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_survey_uuid_fkey";
+            columns: ["survey_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DriverSurveys";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "DriverSurveyResponses_user_uuid_fkey";
+            columns: ["user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      DriverSurveys: {
+        Row: {
+          created_at: string;
+          id: string;
+          interval_days: number;
+          is_active: boolean;
+          sort_order: number;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          interval_days?: number;
+          is_active?: boolean;
+          sort_order?: number;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          interval_days?: number;
+          is_active?: boolean;
+          sort_order?: number;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       DriverUnavailability: {
         Row: {
@@ -2600,6 +2766,7 @@ export type Database = {
         Row: {
           completed_at: string | null;
           created_at: string;
+          deleted_at: string | null;
           description: string | null;
           id: string;
           quarter_id: string;
@@ -2610,6 +2777,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string | null;
           id?: string;
           quarter_id: string;
@@ -2620,6 +2788,7 @@ export type Database = {
         Update: {
           completed_at?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string | null;
           id?: string;
           quarter_id?: string;
@@ -3590,6 +3759,7 @@ export type Database = {
       WorkTrackerInspections: {
         Row: {
           answers_json: string | null;
+          bleacher_uuid: string | null;
           created_at: string;
           id: string;
           issue_description: string | null;
@@ -3598,6 +3768,7 @@ export type Database = {
         };
         Insert: {
           answers_json?: string | null;
+          bleacher_uuid?: string | null;
           created_at?: string;
           id?: string;
           issue_description?: string | null;
@@ -3606,13 +3777,22 @@ export type Database = {
         };
         Update: {
           answers_json?: string | null;
+          bleacher_uuid?: string | null;
           created_at?: string;
           id?: string;
           issue_description?: string | null;
           issues_found?: boolean;
           walk_around_complete?: boolean;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "WorkTrackerInspections_bleacher_uuid_fkey";
+            columns: ["bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       WorkTrackerLineItems: {
         Row: {
@@ -3658,6 +3838,8 @@ export type Database = {
       WorkTrackers: {
         Row: {
           accepted_at: string | null;
+          actual_bleacher_uuid: string | null;
+          bleacher_change_reason: string | null;
           bleacher_uuid: string | null;
           bol_number: string | null;
           completed_at: string | null;
@@ -3670,6 +3852,7 @@ export type Database = {
           dropoff_address_uuid: string | null;
           dropoff_instructions: string | null;
           dropoff_poc: string | null;
+          dropoff_poc_contact_uuid: string | null;
           dropoff_time: string | null;
           id: string;
           internal_notes: string | null;
@@ -3678,6 +3861,7 @@ export type Database = {
           pickup_address_uuid: string | null;
           pickup_instructions: string | null;
           pickup_poc: string | null;
+          pickup_poc_contact_uuid: string | null;
           pickup_time: string | null;
           post_inspection_uuid: string | null;
           pre_inspection_uuid: string | null;
@@ -3694,6 +3878,8 @@ export type Database = {
         };
         Insert: {
           accepted_at?: string | null;
+          actual_bleacher_uuid?: string | null;
+          bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
           bol_number?: string | null;
           completed_at?: string | null;
@@ -3706,6 +3892,7 @@ export type Database = {
           dropoff_address_uuid?: string | null;
           dropoff_instructions?: string | null;
           dropoff_poc?: string | null;
+          dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
           id?: string;
           internal_notes?: string | null;
@@ -3714,6 +3901,7 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_instructions?: string | null;
           pickup_poc?: string | null;
+          pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
@@ -3730,6 +3918,8 @@ export type Database = {
         };
         Update: {
           accepted_at?: string | null;
+          actual_bleacher_uuid?: string | null;
+          bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
           bol_number?: string | null;
           completed_at?: string | null;
@@ -3742,6 +3932,7 @@ export type Database = {
           dropoff_address_uuid?: string | null;
           dropoff_instructions?: string | null;
           dropoff_poc?: string | null;
+          dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
           id?: string;
           internal_notes?: string | null;
@@ -3750,6 +3941,7 @@ export type Database = {
           pickup_address_uuid?: string | null;
           pickup_instructions?: string | null;
           pickup_poc?: string | null;
+          pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
@@ -3765,6 +3957,13 @@ export type Database = {
           worktracker_group_uuid?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "WorkTrackers_actual_bleacher_uuid_fkey";
+            columns: ["actual_bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "WorkTrackers_bleacher_uuid_fkey";
             columns: ["bleacher_uuid"];
@@ -3794,10 +3993,24 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "WorkTrackers_dropoff_poc_contact_uuid_fkey";
+            columns: ["dropoff_poc_contact_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Contacts";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "worktrackers_pickup_address_uuid_fkey";
             columns: ["pickup_address_uuid"];
             isOneToOne: false;
             referencedRelation: "Addresses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "WorkTrackers_pickup_poc_contact_uuid_fkey";
+            columns: ["pickup_poc_contact_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Contacts";
             referencedColumns: ["id"];
           },
           {
@@ -3997,6 +4210,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      bleacher_change_reason_label: { Args: { code: string }; Returns: string };
       damage_reports_recompute_photos_uploaded: {
         Args: { p_ids: string[] };
         Returns: undefined;
@@ -4050,6 +4264,7 @@ export type Database = {
       pay_currency_type: "CAD" | "USD";
       pay_per_unit_type: "KM" | "MI" | "HR";
       payment_installment_status: "unpaid" | "paid";
+      preferred_language: "english" | "french";
       question_type: "text" | "checkbox" | "photo";
       roadmap_attachment_parent_type: "task" | "feature";
       roadmap_feature_status:
@@ -4233,6 +4448,7 @@ export const Constants = {
       pay_currency_type: ["CAD", "USD"],
       pay_per_unit_type: ["KM", "MI", "HR"],
       payment_installment_status: ["unpaid", "paid"],
+      preferred_language: ["english", "french"],
       question_type: ["text", "checkbox", "photo"],
       roadmap_attachment_parent_type: ["task", "feature"],
       roadmap_feature_status: [

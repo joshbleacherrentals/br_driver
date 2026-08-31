@@ -65,6 +65,76 @@ export function formatExpiryDate(expiresOn: string): string {
   });
 }
 
+/**
+ * Would this document stop the driver accepting a trip on `tripDate`?
+ *
+ * Independent of the 30-day warning window: a licence expiring in five weeks
+ * is "ok" today and still blocks a trip six weeks out.
+ */
+export function blocksTripDate(
+  expiresOn: string | null | undefined,
+  tripDate: string | null | undefined,
+): boolean {
+  const trip = toISODateOnly(tripDate);
+  if (!trip) return false;
+  return !isDocValidOnDate(expiresOn, trip);
+}
+
+/** Why this document blocks that trip, with both dates spelled out. */
+export function tripBlockLabel(
+  expiresOn: string | null | undefined,
+  tripDate: string,
+): string {
+  const date = toISODateOnly(expiresOn);
+  if (!date) return "Expiration date required to accept this trip";
+  return `Expires ${formatExpiryDate(date)} — before this trip on ${formatExpiryDate(tripDate)}`;
+}
+
+/** How loudly the UI should shout about an expiry status. */
+export type ExpiryTone = "danger" | "warning" | "neutral";
+
+export type ExpiryBadge = {
+  status: DocExpiryStatus;
+  tone: ExpiryTone;
+  label: string;
+};
+
+/**
+ * Status + colour tone + driver-facing label for one document's expiry.
+ *
+ * The label leads with the number the driver actually needs ("Expires in
+ * 6 days") rather than a bare date they have to subtract from today.
+ */
+export function expiryBadge(
+  expiresOn: string | null | undefined,
+  asOf: string = todayISODate(),
+): ExpiryBadge {
+  const status = getDocExpiryStatus(expiresOn, asOf);
+  const date = toISODateOnly(expiresOn);
+
+  if (status === "missing" || !date) {
+    return { status: "missing", tone: "danger", label: "Expiration date required" };
+  }
+  if (status === "expired") {
+    return {
+      status,
+      tone: "danger",
+      label: `Expired ${formatExpiryDate(date)}`,
+    };
+  }
+  if (status === "expiring_soon") {
+    const days = calendarDaysBetween(asOf, date);
+    const lead =
+      days <= 0
+        ? "Expires today"
+        : days === 1
+          ? "Expires tomorrow"
+          : `Expires in ${days} days`;
+    return { status, tone: "warning", label: `${lead} · ${formatExpiryDate(date)}` };
+  }
+  return { status, tone: "neutral", label: `Expires ${formatExpiryDate(date)}` };
+}
+
 export function expiryStatusLabel(
   status: DocExpiryStatus,
   expiresOn: string | null | undefined,
@@ -86,8 +156,14 @@ export type DriverDocExpiryFields = {
   medical_card_expires_on: string | null;
 };
 
+/** Stable key for one required document — also the `?focus=` deep-link value. */
+export type DocSlug = "license" | "insurance" | "medical_card";
+
 export type RequiredDocExpiry = {
+  slug: DocSlug;
   name: string;
+  /** Compact name for tight spots (a disabled button's reason line). */
+  shortName: string;
   photoPath: string | null;
   expiresOn: string | null;
 };
@@ -98,19 +174,25 @@ export function getRequiredDocExpiries(
 ): RequiredDocExpiry[] {
   const docs: RequiredDocExpiry[] = [
     {
+      slug: "license",
       name: "Driver's License",
+      shortName: "License",
       photoPath: driver.license_photo_path,
       expiresOn: driver.license_expires_on,
     },
     {
+      slug: "insurance",
       name: "Insurance",
+      shortName: "Insurance",
       photoPath: driver.insurance_photo_path,
       expiresOn: driver.insurance_expires_on,
     },
   ];
   if (isUSA) {
     docs.push({
+      slug: "medical_card",
       name: "Medical Card",
+      shortName: "Medical card",
       photoPath: driver.medical_card_photo_path,
       expiresOn: driver.medical_card_expires_on,
     });

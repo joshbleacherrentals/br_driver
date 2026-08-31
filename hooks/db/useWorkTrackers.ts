@@ -29,10 +29,14 @@ export type WorkTracker = {
   pickup_instructions: string | null;
   setup_required: number | null;
   dropoff_instructions: string | null;
+  pickup_poc_contact_uuid: string | null;
+  dropoff_poc_contact_uuid: string | null;
   project_number: string | null;
   bol_number: string | null;
   pre_inspection_uuid: string | null;
   post_inspection_uuid: string | null;
+  actual_bleacher_uuid: string | null;
+  bleacher_change_reason: string | null;
 };
 
 export type UserData = {
@@ -69,10 +73,14 @@ const WORK_TRACKER_COLUMNS = [
   "pickup_instructions",
   "setup_required",
   "dropoff_instructions",
+  "pickup_poc_contact_uuid",
+  "dropoff_poc_contact_uuid",
   "project_number",
   "bol_number",
   "pre_inspection_uuid",
   "post_inspection_uuid",
+  "actual_bleacher_uuid",
+  "bleacher_change_reason",
 ] as const;
 
 /** Single work tracker by id — for completed-trip detail route. */

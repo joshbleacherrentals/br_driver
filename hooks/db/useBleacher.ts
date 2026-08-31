@@ -27,7 +27,46 @@ export type BleacherData = {
   opening_direction: string | null;
   trailer_length_in: number | null;
   trailer_height_in: number | null;
+  zone_uuid: string | null;
+  storage_location_uuid: string | null;
+  bleacher_type_uuid: string | null;
+  deleted: number | null;
 };
+
+/**
+ * Every column behind `BleacherData`. Shared so the three queries below cannot
+ * drift apart — they were three hand-maintained copies of the same list.
+ */
+const BLEACHER_COLUMNS = [
+  "id",
+  "created_at",
+  "bleacher_number",
+  "bleacher_rows",
+  "bleacher_seats",
+  "created_by",
+  "updated_at",
+  "updated_by",
+  "linxup_device_id",
+  "summer_account_manager_uuid",
+  "winter_account_manager_uuid",
+  "summer_home_base_uuid",
+  "winter_home_base_uuid",
+  "hitch_type",
+  "vin_number",
+  "tag_number",
+  "manufacturer",
+  "height_folded_ft",
+  "trailer_length",
+  "gvwr",
+  "opening_direction",
+  "trailer_length_in",
+  "trailer_height_in",
+  // Needed by orderBleacherOptions to group the swap picker by warehouse/zone.
+  "zone_uuid",
+  "storage_location_uuid",
+  "bleacher_type_uuid",
+  "deleted",
+] as const;
 
 /**
  * Fetch BleacherData belonging to the bleacher_id
@@ -41,31 +80,7 @@ export function useBleacher(bleacher_id: string | null): {
 
     return db
       .selectFrom("Bleachers")
-      .select([
-        "id",
-        "created_at",
-        "bleacher_number",
-        "bleacher_rows",
-        "bleacher_seats",
-        "created_by",
-        "updated_at",
-        "updated_by",
-        "linxup_device_id",
-        "summer_account_manager_uuid",
-        "winter_account_manager_uuid",
-        "summer_home_base_uuid",
-        "winter_home_base_uuid",
-        "hitch_type",
-        "vin_number",
-        "tag_number",
-        "manufacturer",
-        "height_folded_ft",
-        "trailer_length",
-        "gvwr",
-        "opening_direction",
-        "trailer_height_in",
-        "trailer_length_in",
-      ])
+      .select([...BLEACHER_COLUMNS])
       .where("id", "=", bleacher_id)
       .limit(1)
       .compile();
@@ -90,31 +105,7 @@ export function useBatchBleachers(
 
     return db
       .selectFrom("Bleachers")
-      .select([
-        "id",
-        "created_at",
-        "bleacher_number",
-        "bleacher_rows",
-        "bleacher_seats",
-        "created_by",
-        "updated_at",
-        "updated_by",
-        "linxup_device_id",
-        "summer_account_manager_uuid",
-        "winter_account_manager_uuid",
-        "summer_home_base_uuid",
-        "winter_home_base_uuid",
-        "hitch_type",
-        "vin_number",
-        "tag_number",
-        "manufacturer",
-        "height_folded_ft",
-        "trailer_length",
-        "gvwr",
-        "opening_direction",
-        "trailer_height_in",
-        "trailer_length_in",
-      ])
+      .select([...BLEACHER_COLUMNS])
       .where("id", "in", uniqueIds)
       .compile();
   }, [uniqueIds]);
@@ -138,31 +129,7 @@ export function useAllBleachers(): { bleachers: BleacherData[] } {
     () =>
       db
         .selectFrom("Bleachers")
-        .select([
-          "id",
-          "created_at",
-          "bleacher_number",
-          "bleacher_rows",
-          "bleacher_seats",
-          "created_by",
-          "updated_at",
-          "updated_by",
-          "linxup_device_id",
-          "summer_account_manager_uuid",
-          "winter_account_manager_uuid",
-          "summer_home_base_uuid",
-          "winter_home_base_uuid",
-          "hitch_type",
-          "vin_number",
-          "tag_number",
-          "manufacturer",
-          "height_folded_ft",
-          "trailer_length",
-          "gvwr",
-          "opening_direction",
-          "trailer_length_in",
-          "trailer_height_in",
-        ])
+        .select([...BLEACHER_COLUMNS])
         .orderBy(sql`CAST(bleacher_number AS INTEGER)`, "asc")
         .compile(),
     [],

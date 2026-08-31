@@ -40,6 +40,11 @@ const MENU_ITEMS: MenuItem[] = [
     icon: "warning-outline",
     route: "/(drawer)/(tabs)/damage-report-history",
   },
+  {
+    label: "Direct Line to Developers",
+    icon: "chatbubble-ellipses-outline",
+    route: "/(drawer)/(tabs)/backlog-tickets",
+  },
 ];
 
 interface SideNavigationProps {

@@ -14,6 +14,7 @@ export type InspectionData = {
     issues_found: number | null;
     issue_description: string | null;
     answers_json: string | null;
+    bleacher_uuid: string | null;
 };
 
 export type InspectionPhotosData = {
@@ -48,6 +49,7 @@ export function buildInspectionQuery(
       "issues_found",
       "issue_description",
       "answers_json",
+      "bleacher_uuid",
     ])
     .where("id", "=", inspection_id)
     .limit(1);
