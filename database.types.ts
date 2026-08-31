@@ -645,6 +645,7 @@ export type Database = {
           last_name: string | null;
           notes: string | null;
           phone: string | null;
+          preferred_language: Database["public"]["Enums"]["preferred_language"];
         };
         Insert: {
           company_uuid?: string | null;
@@ -657,6 +658,7 @@ export type Database = {
           last_name?: string | null;
           notes?: string | null;
           phone?: string | null;
+          preferred_language?: Database["public"]["Enums"]["preferred_language"];
         };
         Update: {
           company_uuid?: string | null;
@@ -669,6 +671,7 @@ export type Database = {
           last_name?: string | null;
           notes?: string | null;
           phone?: string | null;
+          preferred_language?: Database["public"]["Enums"]["preferred_language"];
         };
         Relationships: [
           {
@@ -2763,6 +2766,7 @@ export type Database = {
         Row: {
           completed_at: string | null;
           created_at: string;
+          deleted_at: string | null;
           description: string | null;
           id: string;
           quarter_id: string;
@@ -2773,6 +2777,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string | null;
           id?: string;
           quarter_id: string;
@@ -2783,6 +2788,7 @@ export type Database = {
         Update: {
           completed_at?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string | null;
           id?: string;
           quarter_id?: string;
@@ -4258,6 +4264,7 @@ export type Database = {
       pay_currency_type: "CAD" | "USD";
       pay_per_unit_type: "KM" | "MI" | "HR";
       payment_installment_status: "unpaid" | "paid";
+      preferred_language: "english" | "french";
       question_type: "text" | "checkbox" | "photo";
       roadmap_attachment_parent_type: "task" | "feature";
       roadmap_feature_status:
@@ -4441,6 +4448,7 @@ export const Constants = {
       pay_currency_type: ["CAD", "USD"],
       pay_per_unit_type: ["KM", "MI", "HR"],
       payment_installment_status: ["unpaid", "paid"],
+      preferred_language: ["english", "french"],
       question_type: ["text", "checkbox", "photo"],
       roadmap_attachment_parent_type: ["task", "feature"],
       roadmap_feature_status: [

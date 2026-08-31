@@ -263,7 +263,7 @@ export class BackendConnector implements PowerSyncBackendConnector {
           .select("id");
 
       case UpdateType.PATCH:
-        return await table.update(op.opData).eq("id", op.id).select("id");
+        return await table.update(op.opData!).eq("id", op.id).select("id");
 
       case UpdateType.DELETE:
         return await table.delete().eq("id", op.id);

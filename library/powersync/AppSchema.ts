@@ -400,6 +400,7 @@ const ContactsCols = {
   deleted: column.integer,
   created_at: column.text,
   created_by_user_uuid: column.text,
+  preferred_language: column.text,
 } satisfies PowerSyncColsFor<"Contacts">;
 const Contacts = new Table(ContactsCols);
 
