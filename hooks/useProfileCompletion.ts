@@ -1,11 +1,15 @@
 import { useAddress } from "@/hooks/db/useAddress";
 import { useDriver } from "@/hooks/db/useDriver";
 import {
+  AcceptBlock,
+  getAcceptBlock as buildAcceptBlock,
+} from "@/utils/acceptBlock";
+import {
   areDocsValidOnDate,
+  getDocExpiryStatus,
   getExpiredDocNames,
   getExpiringSoonDocNames,
   getRequiredDocExpiries,
-  isDocValidOnDate,
   todayISODate,
 } from "@/utils/documentExpiry";
 import { useCallback, useMemo } from "react";
@@ -103,35 +107,36 @@ export function useProfileCompletion() {
     [driver, isProfileComplete, isUSA, today],
   );
 
-  const getAcceptBlockReason = useCallback(
-    (tripDate: string | null | undefined): string | null => {
-      if (!driver) {
-        return "Complete your profile before you can accept any trips";
-      }
-      if (!baseFieldsComplete) {
-        return "Complete your profile before you can accept any trips";
-      }
-      if (hasExpiredDocuments) {
-        return `Update expired documents (${expiredDocumentNames.join(", ")}) before you can accept trips`;
-      }
-      const date = tripDate?.trim() || today;
-      if (!areDocsValidOnDate(driver, isUSA, date)) {
-        const invalid = getRequiredDocExpiries(driver, isUSA)
-          .filter((doc) => !isDocValidOnDate(doc.expiresOn, date))
-          .map((doc) => doc.name);
-        return `Documents expire before this trip date (${invalid.join(", ") || "check expiration dates"})`;
-      }
-      return null;
-    },
-    [
-      driver,
-      baseFieldsComplete,
-      hasExpiredDocuments,
-      expiredDocumentNames,
-      isUSA,
-      today,
-    ],
+  /**
+   * Why this trip cannot be accepted, phrased for the driver — see
+   * `getAcceptBlock`. `null` means nothing is in the way.
+   */
+  const getAcceptBlock = useCallback(
+    (tripDate: string | null | undefined): AcceptBlock | null =>
+      buildAcceptBlock({
+        driver,
+        isUSA,
+        baseFieldsComplete,
+        missingFields,
+        tripDate: tripDate?.trim() || today,
+        today,
+      }),
+    [driver, isUSA, baseFieldsComplete, missingFields, today],
   );
+
+  /** Section the Edit Documents screen should open on, when one stands out. */
+  const problemDocSlug = useMemo(() => {
+    if (!driver) return null;
+    const docs = getRequiredDocExpiries(driver, isUSA);
+    const expired = docs.find(
+      (doc) => getDocExpiryStatus(doc.expiresOn, today) === "expired",
+    );
+    if (expired) return expired.slug;
+    const soon = docs.find(
+      (doc) => getDocExpiryStatus(doc.expiresOn, today) === "expiring_soon",
+    );
+    return soon?.slug ?? null;
+  }, [driver, isUSA, today]);
 
   return {
     isProfileComplete,
@@ -143,6 +148,7 @@ export function useProfileCompletion() {
     expiredDocumentNames,
     expiringSoonDocumentNames,
     canAcceptTripOnDate,
-    getAcceptBlockReason,
+    getAcceptBlock,
+    problemDocSlug,
   };
 }

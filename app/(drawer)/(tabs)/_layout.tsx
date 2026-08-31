@@ -219,6 +219,16 @@ function TabsContent() {
             tabBarItemStyle: { display: "none" },
           }}
         />
+        <Tabs.Screen
+          name="backlog-tickets"
+          options={{
+            title: "Direct Line to Developers",
+            // The header's "i" button is installed by the screen itself, not
+            // here: the sheet it opens is the screen's own state.
+            headerTitleStyle: { fontSize: 15, fontWeight: "600" },
+            tabBarItemStyle: { display: "none" },
+          }}
+        />
       </Tabs>
 
       {/* Auto-open pending trips sheet on launch */}
@@ -227,7 +237,9 @@ function TabsContent() {
         onClose={() => setSheetVisible(false)}
       >
         {/* Mount list only while sheet is open — avoids permanent RAM cost */}
-        {sheetVisible ? <PendingTripsList /> : null}
+        {sheetVisible ? (
+          <PendingTripsList onLeave={() => setSheetVisible(false)} />
+        ) : null}
       </BottomSheetModal>
     </>
   );

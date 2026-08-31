@@ -1,6 +1,7 @@
 import SystemProvider, { db } from "@/components/providers/SystemProvider";
 import AppThemeProvider from "@/components/providers/ThemeProvider";
 import AppVersionGate from "@/features/app-version/AppVersionGate";
+import DriverSurveyGate from "@/features/driver-survey/DriverSurveyGate";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ClerkProvider, useUser } from "@clerk/clerk-expo";
 import { resourceCache } from "@clerk/clerk-expo/resource-cache";
@@ -97,6 +98,24 @@ function RootLayoutContent() {
           }}
         />
         <Stack.Screen
+          name="edit-documents"
+          options={{
+            headerShown: false,
+            presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
+          name="backlog-ticket"
+          options={{
+            headerShown: false,
+            presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
           name="completed-trip"
           options={{
             headerShown: false,
@@ -111,6 +130,10 @@ function RootLayoutContent() {
           legible when the user overrides Light/Dark: dark text on light bg,
           light text on dark bg. */}
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+      {/* Order matters: the survey mounts first so a forced update modal,
+          mounted after it, renders on top. `shouldAskSurvey` already yields to
+          a force block — this is the belt to that pair of braces. */}
+      <DriverSurveyGate />
       <AppVersionGate />
     </ThemeProvider>
   );

@@ -24,6 +24,7 @@ import { db } from "@/library/powersync/db";
 
 import type { DriverScope } from "./driverScope";
 import {
+  backlogTicketOwnedBy,
   damageReportOwnedBy,
   damageReportPhotoOwnedBy,
   inspectionOwnedBy,
@@ -42,6 +43,13 @@ export function damageReportPhotosOf(scope: DriverScope) {
   return db
     .selectFrom("DamageReportPhotos")
     .where((eb) => damageReportPhotoOwnedBy(eb, scope));
+}
+
+/** Backlog tickets ("Direct Line to Developers") this driver filed. */
+export function backlogTicketsOf(scope: DriverScope) {
+  return db
+    .selectFrom("RoadmapTasks")
+    .where((eb) => backlogTicketOwnedBy(eb, scope));
 }
 
 /** `WorkTrackerInspections` that are a leg of one of this driver's trips. */

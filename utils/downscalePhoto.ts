@@ -15,11 +15,13 @@
  *    would strictly subtract from it and save nothing worth having.
  *  - anything larger is scaled down until it fits, preserving aspect ratio.
  *
- * The picker itself is already asked for `quality: 0.8`, so the compress here
- * is a second pass — acceptable only because it follows a resample, which
- * discards the first pass's artefacts along with the pixels they lived on. That
- * is also why the small-photo case must stay a true no-op: there is no resample
- * there to hide behind.
+ * For library picks this is the only compression pass — the picker is no longer
+ * asked for a `quality`, precisely so that it does not re-encode 25 assets
+ * before it returns (see `pickPhotos.ts`). A camera capture still arrives at
+ * `quality: 0.8`, making this its second pass; acceptable only because it
+ * follows a resample, which discards the first pass's artefacts along with the
+ * pixels they lived on. That is also why the small-photo case must stay a true
+ * no-op: there is no resample there to hide behind.
  */
 
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
@@ -29,7 +31,7 @@ export const MAX_LONG_EDGE = 1920;
 /** The short edge of the cap — the 1080. */
 export const MAX_SHORT_EDGE = 1080;
 
-/** Matches the picker's own `quality: 0.8`, so neither pass is the weak link. */
+/** Matches the camera's own `quality: 0.8`, so neither pass is the weak link. */
 const COMPRESS_QUALITY = 0.8;
 
 /**

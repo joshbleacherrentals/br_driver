@@ -19,7 +19,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 
@@ -186,7 +185,7 @@ export default function DamageReportHistoryScreen() {
   }, [photoCountRows]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <View style={styles.container}>
       {isLoading ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>Loading...</Text>
@@ -238,7 +237,7 @@ export default function DamageReportHistoryScreen() {
 
       {/* Cleared over the FAB, which owns the same corner. */}
       <PhotoUploadStatusOverlay bottomInset={FAB_SIZE + 12} />
-    </SafeAreaView>
+    </View>
   );
 }
 
