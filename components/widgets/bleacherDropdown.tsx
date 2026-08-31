@@ -19,6 +19,12 @@ export interface BleacherOption {
   uuid: string;
   bleacher_number: number | string;
   label?: string;
+  /**
+   * Heading this option sits under ("Same storage location"). Rows are already
+   * ordered by the caller; the header is drawn wherever the label changes, and
+   * suppressed while searching, where a flat list of hits is what you want.
+   */
+  groupLabel?: string;
   bleacher_rows?: number | null;
   resolved_address?: string | null;
 }
@@ -30,6 +36,54 @@ interface BleacherDropdownProps {
   placeholder?: string;
   disabled?: boolean;
 }
+
+type DropdownStyles = ReturnType<typeof makeStyles>;
+
+const BleacherRow = React.memo(function BleacherRow({
+  item,
+  selected,
+  header,
+  onSelect,
+  styles,
+  accentColor,
+}: {
+  item: BleacherOption;
+  selected: boolean;
+  header: string | null;
+  onSelect: (uuid: string) => void;
+  styles: DropdownStyles;
+  accentColor: string;
+}) {
+  const handlePress = useCallback(() => onSelect(item.uuid), [item.uuid, onSelect]);
+
+  return (
+    <>
+      {header ? <Text style={styles.groupHeader}>{header}</Text> : null}
+      <TouchableOpacity
+        style={[styles.listItem, selected && styles.listItemSelected]}
+        onPress={handlePress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.listItemLeft}>
+          <Text
+            style={[
+              styles.listItemNumber,
+              selected && styles.listItemNumberSelected,
+            ]}
+          >
+            #{item.bleacher_number}
+          </Text>
+          {!!item.label && (
+            <Text style={styles.listItemLabel}>{item.label}</Text>
+          )}
+        </View>
+        {selected && (
+          <Ionicons name="checkmark-circle" size={20} color={accentColor} />
+        )}
+      </TouchableOpacity>
+    </>
+  );
+});
 
 export default function BleacherDropdown({
   options,
@@ -60,6 +114,29 @@ export default function BleacherDropdown({
       setQuery("");
     },
     [onChange],
+  );
+
+  const searching = query.trim().length > 0;
+
+  const keyExtractor = useCallback((item: BleacherOption) => item.uuid, []);
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: BleacherOption; index: number }) => (
+      <BleacherRow
+        item={item}
+        selected={item.uuid === selectedUuid}
+        // Headers mark where a group starts; while searching there are no groups.
+        header={
+          searching || item.groupLabel === filtered[index - 1]?.groupLabel
+            ? null
+            : (item.groupLabel ?? null)
+        }
+        onSelect={handleSelect}
+        styles={styles}
+        accentColor={theme.accent}
+      />
+    ),
+    [filtered, handleSelect, searching, selectedUuid, styles, theme.accent],
   );
 
   const iconColor = disabled ? theme.textTertiary : theme.textPrimary;
@@ -127,48 +204,15 @@ export default function BleacherDropdown({
 
           <FlatList
             data={filtered}
-            keyExtractor={(item) => item.uuid}
+            keyExtractor={keyExtractor}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={
-              filtered.length === 0 && styles.emptyContainer
+              filtered.length === 0 ? styles.emptyContainer : undefined
             }
             ListEmptyComponent={
               <Text style={styles.emptyText}>No bleachers found</Text>
             }
-            renderItem={({ item }) => {
-              const isSelected = item.uuid === selectedUuid;
-              return (
-                <TouchableOpacity
-                  style={[
-                    styles.listItem,
-                    isSelected && styles.listItemSelected,
-                  ]}
-                  onPress={() => handleSelect(item.uuid)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.listItemLeft}>
-                    <Text
-                      style={[
-                        styles.listItemNumber,
-                        isSelected && styles.listItemNumberSelected,
-                      ]}
-                    >
-                      #{item.bleacher_number}
-                    </Text>
-                    {!!item.label && (
-                      <Text style={styles.listItemLabel}>{item.label}</Text>
-                    )}
-                  </View>
-                  {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={theme.accent}
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
+            renderItem={renderItem}
           />
         </KeyboardAvoidingView>
       </Modal>
@@ -237,6 +281,15 @@ function makeStyles(theme: ThemeColors) {
     },
     searchInput: { flex: 1, ...typeScale.subhead, color: theme.textPrimary },
     emptyContainer: { flex: 1, alignItems: "center", paddingTop: 32 },
+    groupHeader: {
+      ...typeScale.caption,
+      color: theme.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 6,
+    },
     emptyText: { ...typeScale.subhead, color: theme.textSecondary },
     listItem: {
       flexDirection: "row",

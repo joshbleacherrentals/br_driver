@@ -74,7 +74,9 @@ const DriversCols = {
   pay_per_unit: column.text,
   pay_rate_cents: column.integer,
   phone_number: column.text,
+  setup_cents: column.integer,
   tax: column.integer,
+  teardown_cents: column.integer,
   user_uuid: column.text,
   vehicle_uuid: column.text,
   vendor_uuid: column.text,
@@ -89,6 +91,18 @@ const DriverUnavailabilityCols = {
   updated_at: column.text,
 } satisfies PowerSyncColsFor<"DriverUnavailability">;
 const DriverUnavailability = new Table(DriverUnavailabilityCols, {
+  indexes: { driver_uuid: ["driver_uuid"] },
+});
+
+// tiered pay rates: min/max distance range -> rate, per driver
+const DriverPayRangesCols = {
+  driver_uuid: column.text,
+  min_value: column.integer,
+  max_value: column.integer,
+  rate: column.real,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverPayRanges">;
+const DriverPayRanges = new Table(DriverPayRangesCols, {
   indexes: { driver_uuid: ["driver_uuid"] },
 });
 
@@ -153,6 +167,9 @@ const WorkTrackerInspectionsCols = {
   issues_found: column.integer,
   issue_description: column.text,
   answers_json: column.text,
+  // Which bleacher this inspection actually covered. Inspection rows are
+  // immutable, so this survives a later correction of the work tracker.
+  bleacher_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackerInspections">;
 const WorkTrackerInspections = new Table(WorkTrackerInspectionsCols, {
   indexes: { id: ["id"] },
@@ -342,6 +359,8 @@ const WorkTrackersCols = {
   pickup_instructions: column.text,
   setup_required: column.integer,
   dropoff_instructions: column.text,
+  pickup_poc_contact_uuid: column.text,
+  dropoff_poc_contact_uuid: column.text,
   bol_number: column.text,
   project_number: column.text,
   worktracker_group_uuid: column.text,
@@ -349,6 +368,11 @@ const WorkTrackersCols = {
   distance_meters: column.integer,
   drive_minutes: column.integer,
   created_by_user_uuid: column.text,
+  // The bleacher the driver confirmed taking. Null until an inspection is
+  // submitted — null is "not confirmed yet", never "same as bleacher_uuid",
+  // which is written explicitly. Read through getEffectiveBleacherUuid().
+  actual_bleacher_uuid: column.text,
+  bleacher_change_reason: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide
@@ -359,6 +383,41 @@ const WorkTrackers = new Table(WorkTrackersCols, {
     pre_inspection_uuid: ["pre_inspection_uuid"],
     post_inspection_uuid: ["post_inspection_uuid"],
   },
+});
+
+// Contacts — the on-site POC an office user attaches to a trip leg.
+//
+// Only the contacts referenced by this driver's own WorkTrackers sync here
+// (see the mobile stream in br_powersync/config/sync_rules.yaml); the wider
+// customer contact book never reaches a device.
+const ContactsCols = {
+  first_name: column.text,
+  last_name: column.text,
+  phone: column.text,
+  email: column.text,
+  company_uuid: column.text,
+  notes: column.text,
+  deleted: column.integer,
+  created_at: column.text,
+  created_by_user_uuid: column.text,
+  preferred_language: column.text,
+} satisfies PowerSyncColsFor<"Contacts">;
+const Contacts = new Table(ContactsCols);
+
+// WorkTracker line items — the pay breakdown behind WorkTrackers.pay_cents.
+// One row per billable line (hauling, deadhead, setup, …); `unit_amt_cents`
+// times `quantity` is that line's total.
+const WorkTrackerLineItemsCols = {
+  work_tracker_uuid: column.text,
+  type: column.text,
+  quantity: column.integer,
+  unit_amt_cents: column.integer,
+  description: column.text,
+  is_automatically_managed: column.integer,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"WorkTrackerLineItems">;
+const WorkTrackerLineItems = new Table(WorkTrackerLineItemsCols, {
+  indexes: { work_tracker_uuid: ["work_tracker_uuid"] },
 });
 
 // Vehicles
@@ -400,10 +459,139 @@ const AppVersionPolicy = new Table(AppVersionPolicyCols, {
   indexes: { environment: ["environment"] },
 });
 
+// Backlog tickets a driver files straight to the developers ("Direct Line to
+// Developers"). `RoadmapTasks` is the *whole* developer roadmap in Postgres —
+// features, sprints, assignees — but only a driver's own `is_backlog` rows ever
+// reach a phone (see the mobile stream in br_powersync/config/sync_rules.yaml).
+//
+// `satisfies Partial<...>` for the same reason `DamageReports` uses it: the
+// roadmap-side columns (`sprint_id`, `feature_id`, `developer_uuid`,
+// `completed_at`) are the web app's business and no driver device reads or
+// writes them, so declaring them would only widen what syncs. Every column that
+// IS declared is still checked against database.types.ts.
+//
+// `deleted_at` is declared and soft-deleted rows deliberately keep syncing to
+// the device: the daily create limit counts tickets *created*, withdrawn ones
+// included, and the count has to match the Postgres trigger exactly (see
+// utils/dailyTicketLimit.ts). The list query filters them out instead.
+const RoadmapTasksCols = {
+  title: column.text,
+  description: column.text,
+  status: column.text,
+  sort_order: column.integer,
+  is_backlog: column.integer,
+  created_by_user_uuid: column.text,
+  created_at: column.text,
+  deleted_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"RoadmapTasks">>;
+const RoadmapTasks = new Table(RoadmapTasksCols, {
+  // Every read on this table starts from "the tickets this driver wrote".
+  indexes: { created_by_user_uuid: ["created_by_user_uuid"] },
+});
+
+// The message thread the developers read on a roadmap task. A phone writes into
+// it and never reads it back: the notices that say which driver filed, edited
+// or withdrew a ticket (see features/backlog-tickets/utils/ticketNoticeInsert.ts),
+// each posted in the same transaction as the change it describes.
+//
+// What syncs back down is only this driver's own `is_system` notices, and only
+// on their own backlog tickets (mobile stream in br_powersync/config/
+// sync_rules.yaml). Not because anything on the device reads them — nothing
+// does — but so the local database holds what Postgres actually accepted
+// instead of writes that vanish at the next checkpoint. The rest of the thread
+// is the developers' conversation, and drivers are deliberately never shown
+// ticket status; a reply reaching a phone with no UI for it would promise an
+// answer the product does not make.
+const RoadmapTaskMessagesCols = {
+  task_id: column.text,
+  user_uuid: column.text,
+  body: column.text,
+  // Postgres boolean, mirrored as 0/1. Always 1 from a phone: the notice is
+  // written by the app, not typed by the driver, and the board renders system
+  // messages as notes rather than as somebody's reply.
+  is_system: column.integer,
+  created_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"RoadmapTaskMessages">>;
+const RoadmapTaskMessages = new Table(RoadmapTaskMessagesCols, {
+  indexes: { task_id: ["task_id"] },
+});
+
+// ── Driver Satisfaction Score ───────────────────────────────────────────────
+//
+// The survey a driver cannot dismiss. Definitions (survey + questions) are
+// reference data: small, synced in full while active, and read on the device so
+// the question can be asked with no connection at all. The wording lives in
+// Postgres rather than in this bundle precisely so it can change without an App
+// Store release.
+const DriverSurveysCols = {
+  title: column.text,
+  // How long after a submission the same driver is asked again — 30 today, 7
+  // from next quarter. A column, not a constant in a mobile build.
+  interval_days: column.integer,
+  is_active: column.integer,
+  sort_order: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveys">;
+const DriverSurveys = new Table(DriverSurveysCols, {
+  indexes: { is_active: ["is_active"] },
+});
+
+const DriverSurveyQuestionsCols = {
+  survey_uuid: column.text,
+  prompt: column.text,
+  kind: column.text,
+  // At or below this score the written reason becomes mandatory. Read from the
+  // row and never hardcoded — see features/driver-survey/utils/surveyValidation.ts.
+  follow_up_max_score: column.integer,
+  follow_up_prompt: column.text,
+  is_required: column.integer,
+  is_active: column.integer,
+  sort_order: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveyQuestions">;
+const DriverSurveyQuestions = new Table(DriverSurveyQuestionsCols, {
+  indexes: { survey_uuid: ["survey_uuid"] },
+});
+
+// One row per question answered — there is no submission parent table, by
+// design (see the migration header in bleacher_rentals). `submission_uuid`
+// groups the rows written together, and everything about the submission lives
+// on the row, so one answer is one local write that crosses the sync boundary
+// alone: nothing to sequence, nothing to orphan.
+//
+// This table IS the app's memory of when it last asked: the gate compares
+// `max(submitted_at)` against the survey's interval. Nothing here is ever
+// pruned on the device, and the mobile sync rule deliberately carries no date
+// filter — a driver whose last answer fell outside a narrowed window would be
+// asked again every morning.
+const DriverSurveyResponsesCols = {
+  submission_uuid: column.text,
+  survey_uuid: column.text,
+  question_uuid: column.text,
+  driver_uuid: column.text,
+  user_uuid: column.text,
+  score: column.integer,
+  reason_text: column.text,
+  // The wording the driver was actually shown. Questions become editable in the
+  // web app next quarter; without this copy, every historical answer would be
+  // silently re-labelled with a question nobody was asked.
+  prompt_snapshot: column.text,
+  submitted_at: column.text,
+  app_version: column.text,
+  app_platform: column.text,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"DriverSurveyResponses">;
+const DriverSurveyResponses = new Table(DriverSurveyResponsesCols, {
+  indexes: { driver_uuid: ["driver_uuid", "survey_uuid"] },
+});
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
   DriverUnavailability,
+  DriverPayRanges,
   Bleachers,
   Addresses,
   AccountManagers,
@@ -415,9 +603,16 @@ export const AppSchema = new Schema({
   InspectionPhotos,
   DriverDocuments,
   WorkTrackers,
+  WorkTrackerLineItems,
+  Contacts,
   Vehicles,
   BlueBook,
   AppVersionPolicy,
+  RoadmapTasks,
+  RoadmapTaskMessages,
+  DriverSurveys,
+  DriverSurveyQuestions,
+  DriverSurveyResponses,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),
@@ -435,5 +630,12 @@ export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
+export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
+export type ContactRecord = PowerSyncDB["Contacts"];
+export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
+export type RoadmapTaskMessageRecord = PowerSyncDB["RoadmapTaskMessages"];
 export type AddressRecord = PowerSyncDB["Addresses"];
 export type AccountManagerRecord = PowerSyncDB["AccountManagers"];
+export type DriverSurveyRecord = PowerSyncDB["DriverSurveys"];
+export type DriverSurveyQuestionRecord = PowerSyncDB["DriverSurveyQuestions"];
+export type DriverSurveyResponseRecord = PowerSyncDB["DriverSurveyResponses"];

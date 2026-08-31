@@ -1,16 +1,17 @@
 import { ThemeColors, radius, typeScale } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import type { DocumentPhoto } from "../types";
 import {
   pickDamagePhotosFromCamera,
   pickDamagePhotosFromLibrary,
+  type PhotoImportOptions,
+  type PhotoImportProgress,
 } from "../utils/pickDamagePhotos";
 import {
   DAMAGE_REPORT_PHOTO_SUBJECT,
   MAX_PHOTOS,
-  admitPickedPhotos,
   describePhotoLimit,
   photoLimitReachedAlert,
 } from "@/utils/photoLimit";
@@ -52,16 +53,48 @@ export function DamageDetailsForm({ values, onChange }: Props) {
     [values.photos.length],
   );
 
+  // A large selection takes tens of seconds to copy off the picker, so photos
+  // are appended one at a time as they land and the count is shown in the grid.
+  // See `pickDamagePhotos.ts`.
+  const [importing, setImporting] = useState<PhotoImportProgress | null>(null);
+
+  // The append target, read at emission time rather than from the closure: a
+  // batch emits many photos before React has re-rendered with the first one, so
+  // `values.photos` would be stale from the second photo onwards and every
+  // append but the last would be lost.
+  const photosRef = useRef(values.photos);
+  photosRef.current = importing ? photosRef.current : values.photos;
+
+  const runImport = useCallback(
+    async (pick: (options: PhotoImportOptions) => Promise<DocumentPhoto[]>) => {
+      // On before the picker even opens: exporting 25 assets happens inside the
+      // picker, before it resolves, so an indicator turned on afterwards is
+      // seconds late — which is the whole complaint.
+      setImporting({ done: 0, total: null });
+      try {
+        await pick({
+          onProgress: setImporting,
+          onPhoto: (photo) => {
+            const next = [...photosRef.current, photo];
+            photosRef.current = next;
+            onChange({ photos: next });
+          },
+        });
+      } finally {
+        setImporting(null);
+      }
+    },
+    [onChange],
+  );
+
   const addFromCamera = useCallback(async () => {
     if (limit.remaining <= 0) {
       const { title, message } = photoLimitReachedAlert(limit);
       Alert.alert(title, message);
       return;
     }
-    const picked = await pickDamagePhotosFromCamera();
-    if (picked.length === 0) return;
-    onChange({ photos: [...values.photos, ...picked] });
-  }, [limit, onChange, values.photos]);
+    await runImport((options) => pickDamagePhotosFromCamera(options));
+  }, [limit, runImport]);
 
   const addFromLibrary = useCallback(async () => {
     if (limit.remaining <= 0) {
@@ -70,21 +103,13 @@ export function DamageDetailsForm({ values, onChange }: Props) {
       return;
     }
 
-    // The picker is capped at the headroom, so on iOS the driver simply cannot
-    // over-select. `selectionLimit` is not honoured everywhere though (some
-    // Android pickers ignore it), so the result is trimmed as well — and never
-    // silently: dropping picks without saying so would leave the driver
-    // believing photos were attached that were not.
-    const picked = await pickDamagePhotosFromLibrary({
-      selectionLimit: limit.remaining,
-    });
-    if (picked.length === 0) return;
-
-    const { kept, alert } = admitPickedPhotos(picked, limit);
-    if (alert) Alert.alert(alert.title, alert.message);
-
-    onChange({ photos: [...values.photos, ...kept] });
-  }, [limit, onChange, values.photos]);
+    // The picker is capped at the headroom and the result is trimmed against it
+    // as well, inside `pickDamagePhotosFromLibrary` — before the first tile
+    // appears, so nothing is ever shown and then taken away again.
+    await runImport((options) =>
+      pickDamagePhotosFromLibrary({ ...options, limit }),
+    );
+  }, [limit, runImport]);
 
   const removePhoto = useCallback(
     (index: number) => {
@@ -137,6 +162,7 @@ export function DamageDetailsForm({ values, onChange }: Props) {
           required
           maxPhotos={MAX_PHOTOS}
           limitSubject={DAMAGE_REPORT_PHOTO_SUBJECT}
+          importing={importing}
           onAddFromCamera={addFromCamera}
           onAddFromLibrary={addFromLibrary}
           onRemove={removePhoto}

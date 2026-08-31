@@ -1,7 +1,11 @@
 import { AndroidWheelDatePicker } from "@/features/profile/components/AndroidWheelDatePicker";
 import { typeScale } from "@/constants/theme";
 import { useFormTheme } from "@/hooks/useTheme";
-import { formatExpiryDate, todayISODate } from "@/utils/documentExpiry";
+import {
+  ExpiryTone,
+  formatExpiryDate,
+  todayISODate,
+} from "@/utils/documentExpiry";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -20,6 +24,8 @@ type ExpiryDateFieldProps = {
   label?: string;
   value: string | null;
   onChange: (date: string | null) => void;
+  /** Colours the field border when this date is the reason trips are blocked. */
+  tone?: ExpiryTone;
 };
 
 function parseISODate(value: string): Date {
@@ -38,6 +44,7 @@ export function ExpiryDateField({
   label = "Expiration date",
   value,
   onChange,
+  tone = "neutral",
 }: ExpiryDateFieldProps) {
   const { form: theme, theme: appTheme, scheme } = useFormTheme();
   const [open, setOpen] = useState(false);
@@ -60,18 +67,32 @@ export function ExpiryDateField({
     setOpen(false);
   };
 
+  const toneColor =
+    tone === "danger"
+      ? appTheme.danger
+      : tone === "warning"
+        ? appTheme.warning
+        : null;
+
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+      <Text style={[styles.label, { color: toneColor ?? theme.text }]}>
+        {label}
+      </Text>
       <TouchableOpacity
         style={[
           styles.field,
           { backgroundColor: theme.inputBg, borderColor: theme.border },
+          toneColor ? { borderColor: toneColor, borderWidth: 2 } : null,
         ]}
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="calendar-outline" size={18} color={theme.accent} />
+        <Ionicons
+          name="calendar-outline"
+          size={18}
+          color={toneColor ?? theme.accent}
+        />
         <Text
           style={[
             styles.fieldText,

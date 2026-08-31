@@ -470,6 +470,10 @@ export default function BillOfLading({
   const { address: dropoffAddress } = useAddress(
     workTracker.dropoff_address_uuid,
   );
+  // Deliberately the manager-ASSIGNED bleacher, not getEffectiveBleacherUuid():
+  // the Bill of Lading is the paperwork for the trip as dispatched. If a driver
+  // swapped units at the warehouse, the swap lives on the work tracker and the
+  // inspection — it does not rewrite the BOL. This is a decision, not an oversight.
   const { bleacher } = useBleacher(workTracker.bleacher_uuid);
   const [printing, setPrinting] = React.useState(false);
 

@@ -20,6 +20,7 @@ export default function DocExpiryWarningBanner() {
     hasDriver,
     hasExpiringSoonDocuments,
     expiringSoonDocumentNames,
+    problemDocSlug,
   } = useProfileCompletion();
 
   const [dismissed, setDismissed] = useState(false);
@@ -42,7 +43,12 @@ export default function DocExpiryWarningBanner() {
     <View style={styles.banner}>
       <TouchableOpacity
         style={styles.content}
-        onPress={() => router.push("/(tabs)/profile")}
+        onPress={() =>
+          router.push({
+            pathname: "/edit-documents",
+            params: problemDocSlug ? { focus: problemDocSlug } : {},
+          })
+        }
         activeOpacity={0.8}
       >
         <View style={styles.iconCircle}>

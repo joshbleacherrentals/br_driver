@@ -7,7 +7,7 @@ import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOver
 import TripItem from "@/components/widgets/trip_item";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
-import { useProfileCompletion } from "@/hooks/useProfileCompletion";
+import { useAcceptTrip } from "@/hooks/useAcceptTrip";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -52,37 +52,23 @@ export default function TripsScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("today");
   const [inspectionData, setInspectionData] = useState<{
     workTrackerId: string;
-    bleacherUuid: string | null;
     type: InspectionType;
   } | null>(null);
 
   const workTrackers = useWorkTrackers().workTrackers;
-  const { getAcceptBlockReason } = useProfileCompletion();
+  const { acceptTrip, blockFor, openFix } = useAcceptTrip();
 
   const today = useMemo(() => todayISODate(), []);
 
   // ── Handlers (stable refs so memoized TripItem can skip re-renders) ──────
 
-  const handleAccept = useCallback(async (workTrackerId: string) => {
-    const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
-    const blockReason = getAcceptBlockReason(trip?.date ?? today);
-    if (blockReason) {
-      Alert.alert("Cannot accept trip", blockReason);
-      return;
-    }
-    try {
-      const now = new Date().toISOString();
-      await executeTypedMutationVoid(
-        db
-          .updateTable("WorkTrackers")
-          .set({ status: "accepted", accepted_at: now, updated_at: now })
-          .where("id", "=", workTrackerId)
-          .compile(),
-      );
-    } catch {
-      Alert.alert("Error", "Failed to accept trip.");
-    }
-  }, [getAcceptBlockReason, today, workTrackers]);
+  const handleAccept = useCallback(
+    async (workTrackerId: string) => {
+      const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+      await acceptTrip(workTrackerId, trip?.date ?? today);
+    },
+    [acceptTrip, today, workTrackers],
+  );
 
   const handleStartTrip = useCallback(async (workTrackerId: string) => {
     Alert.alert("Start Trip", "Ready to start this trip?", [
@@ -151,10 +137,9 @@ export default function TripsScreen() {
 
   const handleStartInspection = useCallback((
     workTrackerId: string,
-    bleacherUuid: string | null,
     type: "pickup" | "dropoff",
   ) => {
-    setInspectionData({ workTrackerId, bleacherUuid, type });
+    setInspectionData({ workTrackerId, type });
   }, []);
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
@@ -217,7 +202,6 @@ export default function TripsScreen() {
       <InspectionScreen
         workTrackerId={inspectionData.workTrackerId}
         inspectionType={inspectionData.type}
-        bleacherUuid={inspectionData.bleacherUuid}
         onComplete={() => {
           void handleInspectionComplete(inspectionData.workTrackerId);
         }}
@@ -348,6 +332,8 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
+              acceptBlockReason={blockFor(item.date ?? today)?.shortReason ?? null}
+              onFixBlock={() => openFix(item.date ?? today)}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
@@ -391,6 +377,8 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
+              acceptBlockReason={blockFor(item.date ?? today)?.shortReason ?? null}
+              onFixBlock={() => openFix(item.date ?? today)}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}

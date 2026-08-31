@@ -5,6 +5,8 @@ import { Image } from "expo-image";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { DocumentPhoto } from "../types";
+import type { PhotoImportProgress } from "../utils/pickDamagePhotos";
+import { PhotoImportProgressRow } from "./PhotoImportProgressRow";
 import {
   DAMAGE_REPORT_PHOTO_SUBJECT,
   describePhotoLimit,
@@ -40,6 +42,11 @@ type Props = {
    * so. Ignored while `maxPhotos` is omitted, since there is then no notice.
    */
   limitSubject?: PhotoLimitSubject;
+  /**
+   * Set while a selection is still being copied off the picker, so the grid can
+   * account for the photos that are on their way. Null when nothing is running.
+   */
+  importing?: PhotoImportProgress | null;
   onAddFromCamera: () => void;
   onAddFromLibrary: () => void;
   onRemove: (index: number) => void;
@@ -51,6 +58,7 @@ export function EditablePhotoGrid({
   required = false,
   maxPhotos,
   limitSubject = DAMAGE_REPORT_PHOTO_SUBJECT,
+  importing = null,
   onAddFromCamera,
   onAddFromLibrary,
   onRemove,
@@ -65,7 +73,10 @@ export function EditablePhotoGrid({
     maxPhotos === undefined
       ? null
       : describePhotoLimit(photos.length, maxPhotos, limitSubject);
-  const addBlocked = limit?.atLimit ?? false;
+  // An import in flight blocks adding too: a second picker launched on top of a
+  // running import would race its appends, and the count the driver is watching
+  // would stop meaning anything.
+  const addBlocked = (limit?.atLimit ?? false) || importing !== null;
 
   // Windowing state. The window is anchored to the *end* of the array so a
   // just-taken photo (always appended) is always on screen; the hidden slice is
@@ -117,6 +128,8 @@ export function EditablePhotoGrid({
           <Text style={styles.photoButtonText}>Choose from Library</Text>
         </TouchableOpacity>
       </View>
+
+      {importing ? <PhotoImportProgressRow progress={importing} /> : null}
 
       {/* Informational, not an error: the driver has done nothing wrong, they
           have simply run out of room. Calm accent tokens, no red. */}

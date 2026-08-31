@@ -1,6 +1,8 @@
 import Badge from "@/components/ui/Badge";
 import BillOfLading, { BOLButton } from "@/components/widgets/billOfLading";
+import { PayAmount } from "@/components/widgets/payBreakdown";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
+import { getEffectiveBleacherUuid } from "@/utils/effectiveBleacher";
 import InspectionSummaryWidget from "@/components/widgets/inspectionSummaryWidget";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
@@ -9,6 +11,7 @@ import { useDamageReports } from "@/hooks/db/useDamageReport";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
+import { ContactButton } from "@/components/widgets/contactSheet";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
@@ -48,18 +51,17 @@ export default function CompletedTrips({
   const { address: dropoffAddress } = useAddress(
     workTracker.dropoff_address_uuid,
   );
-  const { bleacher } = useBleacher(workTracker.bleacher_uuid);
+  // The bleacher actually hauled, not the one originally assigned.
+  const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
+  const { bleacher } = useBleacher(effectiveBleacherUuid);
   const { inspection: preInspection } = useInspection(
     workTracker.pre_inspection_uuid ?? null,
   );
   const { inspection: postInspection } = useInspection(
     workTracker.post_inspection_uuid ?? null,
   );
-  const { damageReports } = useDamageReports(workTracker.bleacher_uuid);
+  const { damageReports } = useDamageReports(effectiveBleacherUuid);
   const [bolVisible, setBolVisible] = React.useState(false);
-
-  const formatPay = (cents: number | null) =>
-    cents === null ? "" : `$${(cents / 100).toFixed(2)}`;
 
   const formatTime = (time: string | null) => time ?? "";
 
@@ -163,9 +165,12 @@ export default function CompletedTrips({
               )}
             </View>
             <Text style={styles.heroDate}>{formatDate(workTracker.date)}</Text>
-            {workTracker.pay_cents ? (
-              <Text style={styles.heroPay}>{formatPay(workTracker.pay_cents)}</Text>
-            ) : null}
+            <View style={styles.heroPayRow}>
+              <PayAmount
+                workTrackerId={workTracker.id}
+                payCents={workTracker.pay_cents}
+              />
+            </View>
           </View>
           <View style={styles.heroActions}>
             <Badge
@@ -241,6 +246,11 @@ export default function CompletedTrips({
                 POC: {workTracker.pickup_poc}
               </Text>
             ) : null}
+            <ContactButton
+              contactId={workTracker.pickup_poc_contact_uuid}
+              status={workTracker.status}
+              acceptedAt={workTracker.accepted_at}
+            />
             {workTracker.teardown_required !== null &&
             workTracker.teardown_required !== undefined ? (
               <View style={styles.flagRow}>
@@ -318,6 +328,11 @@ export default function CompletedTrips({
                 POC: {workTracker.dropoff_poc}
               </Text>
             ) : null}
+            <ContactButton
+              contactId={workTracker.dropoff_poc_contact_uuid}
+              status={workTracker.status}
+              acceptedAt={workTracker.accepted_at}
+            />
             {workTracker.setup_required !== null &&
             workTracker.setup_required !== undefined ? (
               <View style={styles.flagRow}>
@@ -466,12 +481,7 @@ function makeStyles(theme: ThemeColors) {
       color: theme.textSecondary,
       marginTop: 4,
     },
-    heroPay: {
-      ...typeScale.subhead,
-      fontWeight: "600",
-      color: theme.textPrimary,
-      marginTop: 2,
-    },
+    heroPayRow: { alignSelf: "flex-start", marginTop: 4 },
     heroActions: {
       alignItems: "flex-end",
       gap: 8,

@@ -18,8 +18,14 @@ import {
   UserContactData,
 } from "@/hooks/db/useAccountManager";
 import { AddressData, useAddress } from "@/hooks/db/useAddress";
-import { useDriver, useVehicle } from "@/hooks/db/useDriver";
+import {
+  DriverPayRangeData,
+  useDriver,
+  useDriverPayRanges,
+  useVehicle,
+} from "@/hooks/db/useDriver";
 import { useTheme } from "@/hooks/useTheme";
+import { formatPhoneNumber } from "@/utils/phone";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -35,7 +41,6 @@ import {
   View,
 } from "react-native";
 import EditDriverInfo from "./components/EditDriverInfo";
-import EditProfileDocs from "./components/EditProfileDocs";
 import EditVehicleInfo from "./components/EditVehicleInfo";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -46,13 +51,13 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
-  const [showEditDocs, setShowEditDocs] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showEditDriver, setShowEditDriver] = useState(false);
   const [isRetryingDocs, setIsRetryingDocs] = useState(false);
 
   const { driver } = useDriver();
   const { vehicle } = useVehicle(driver?.vehicle_uuid ?? null);
+  const { payRanges } = useDriverPayRanges(driver?.id ?? null);
 
   const { address } = useAddress(driver?.address_uuid ?? null);
   const { accountManager } = useAccountManager(
@@ -119,19 +124,57 @@ export default function ProfileScreen() {
     );
   };
 
-  const formatPayRate = (cents: number | null) => {
-    if (cents === null) return "Not set";
-    return `$${(cents / 100).toFixed(2)}`;
+  const currencySymbol = (currency: string | null) => {
+    if (currency === "CAD") return "C$";
+    return "$";
   };
 
-  const formatPhoneNumber = (phone: string | null) => {
-    if (!phone) return "Not set";
-    // Format as (XXX) XXX-XXXX if 10 digits
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
+  const formatPayRate = (cents: number | null, currency: string | null) => {
+    if (cents === null) return "Not set";
+    return `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+  };
+
+  const formatDeadhead = (
+    cents: number | null,
+    currency: string | null,
+    unit: string | null,
+  ) => {
+    if (cents === null) return "Not set";
+    const value = `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+    return unit ? `${value} per ${unit}` : value;
+  };
+
+  const formatMoneyWithCurrency = (
+    cents: number | null,
+    currency: string | null,
+  ) => {
+    if (cents === null) return "Not set";
+    return `${currencySymbol(currency)}${(cents / 100).toFixed(2)}`;
+  };
+
+  const formatRateValue = (rate: number | null) => {
+    if (rate === null) return "0";
+    return parseFloat(rate.toFixed(2)).toString();
+  };
+
+  const formatPayRangeSpan = (
+    range: DriverPayRangeData,
+    unit: string | null,
+  ) => {
+    const span =
+      range.max_value !== null
+        ? `${range.min_value} - ${range.max_value}`
+        : `over ${range.min_value}`;
+    return [span, unit].filter(Boolean).join(" ");
+  };
+
+  const formatPayRangeRate = (
+    range: DriverPayRangeData,
+    currency: string | null,
+    unit: string | null,
+  ) => {
+    const rateText = `${currencySymbol(currency)}${formatRateValue(range.rate)}`;
+    return unit ? `${rateText} per ${unit}` : rateText;
   };
 
   const formatAM = (accountManager: UserContactData | null) => {
@@ -170,21 +213,6 @@ export default function ProfileScreen() {
             {user?.emailAddresses[0]?.emailAddress}
           </Text>
         </View>
-
-        {/* Edit Documents Modal */}
-        {showEditDocs && (
-          <EditProfileDocs
-            showMedCard={isUSA}
-            driverId={driver?.id ?? null}
-            licensePath={driver?.license_photo_path ?? null}
-            insurancePath={driver?.insurance_photo_path ?? null}
-            medicalCardPath={driver?.medical_card_photo_path ?? null}
-            licenseExpiresOn={driver?.license_expires_on ?? null}
-            insuranceExpiresOn={driver?.insurance_expires_on ?? null}
-            medicalCardExpiresOn={driver?.medical_card_expires_on ?? null}
-            onClose={() => setShowEditDocs(false)}
-          />
-        )}
 
         {/* Edit Vehicles Info Modal */}
         {showEditVehicle && (
@@ -232,7 +260,7 @@ export default function ProfileScreen() {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Phone Number</Text>
               <Text style={styles.infoValue}>
-                {formatPhoneNumber(driver.phone_number)}
+                {formatPhoneNumber(driver.phone_number) ?? "Not set"}
               </Text>
             </View>
 
@@ -250,13 +278,70 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Pay Rate</Text>
-              <Text style={styles.infoViewOnlyValue}>
-                {formatPayRate(driver.pay_rate_cents)}
-                {driver.pay_per_unit && ` per ${driver.pay_per_unit}`}
-              </Text>
-            </View>
+            {driver.deadhead_cents !== null && driver.deadhead_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Deadhead</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatDeadhead(
+                    driver.deadhead_cents,
+                    driver.pay_currency,
+                    driver.pay_per_unit,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {driver.setup_cents !== null && driver.setup_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Setup</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatMoneyWithCurrency(
+                    driver.setup_cents,
+                    driver.pay_currency,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {driver.teardown_cents !== null && driver.teardown_cents !== 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Teardown</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatMoneyWithCurrency(
+                    driver.teardown_cents,
+                    driver.pay_currency,
+                  )}
+                </Text>
+              </View>
+            )}
+
+            {payRanges.length === 0 ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Pay Rate</Text>
+                <Text style={styles.infoViewOnlyValue}>
+                  {formatPayRate(driver.pay_rate_cents, driver.pay_currency)}
+                  {driver.pay_per_unit && ` per ${driver.pay_per_unit}`}
+                </Text>
+              </View>
+            ) : (
+              payRanges.map((range) => (
+                <View style={styles.infoRow} key={range.id}>
+                  <Text style={styles.infoLabel}>Pay Rate</Text>
+                  <View style={styles.payRangeValue}>
+                    <Text style={styles.payRangeRate}>
+                      {formatPayRangeRate(
+                        range,
+                        driver.pay_currency,
+                        driver.pay_per_unit,
+                      )}
+                    </Text>
+                    <Text style={styles.payRangeSpan}>
+                      {formatPayRangeSpan(range, driver.pay_per_unit)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
 
             {driver.tax !== null && (
               <View style={styles.infoRow}>
@@ -343,7 +428,7 @@ export default function ProfileScreen() {
                   )}
                 <TouchableOpacity
                   style={styles.editButton}
-                  onPress={() => setShowEditDocs(true)}
+                  onPress={() => router.push("/edit-documents")}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
@@ -569,6 +654,20 @@ function makeStyles(theme: ThemeColors) {
       ...typeScale.footnote,
       color: theme.textSecondary,
       fontWeight: "600",
+    },
+    payRangeValue: {
+      alignItems: "flex-end",
+      gap: 2,
+    },
+    payRangeRate: {
+      ...typeScale.subhead,
+      color: theme.textPrimary,
+      fontWeight: "600",
+    },
+    payRangeSpan: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      fontWeight: "400",
     },
     documentRow: {
       flexDirection: "row",
