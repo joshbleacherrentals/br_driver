@@ -15,6 +15,7 @@ npm run bis              # Build iOS (staging)
 npm run bip              # Build iOS (production)
 npm run tc               # TypeScript type-check (tsc --noEmit)
 npm run lint             # ESLint
+npm run changelog:generate # Rebuild the bundled release notes from versions/
 ```
 
 ## Architecture Principles
@@ -67,7 +68,8 @@ app/                          # Expo Router — thin re-exports only
 │       ├── documents.tsx     → features/documents/DocumentsScreen.tsx
 │       ├── profile.tsx       → features/profile/ProfileScreen.tsx
 │       ├── damage-report-history.tsx → features/damage-report-history/DamageReportHistoryScreen.tsx
-│       └── trip-history.tsx  → features/trip-history/TripHistoryScreen.tsx
+│       ├── trip-history.tsx  → features/trip-history/TripHistoryScreen.tsx
+│       └── whats-new.tsx     → features/changelog/WhatsNewScreen.tsx
 ├── damage-report.tsx         → features/damage-report/DamageReportScreen.tsx (standalone stack screen)
 
 features/                     # Feature folders — each screen owns its code
@@ -102,6 +104,12 @@ features/                     # Feature folders — each screen owns its code
 │       └── CompletedTripItem.tsx
 ├── auth/
 │   └── SignInScreen.tsx
+├── changelog/                # "What's New" — release notes, bundled offline
+│   ├── WhatsNewScreen.tsx
+│   ├── ChangeLogProvider.tsx # Entries + unread dot, shared with the side nav
+│   ├── generated/versions.ts # GENERATED from versions/*.md — do not edit
+│   ├── components/
+│   └── util/
 
 components/                   # Shared across 2+ features
 ├── providers/
@@ -144,6 +152,8 @@ library/
 ├── storage/                  # Supabase storage adapter
 └── debug/                    # Debug logging
 
+versions/                     # Release notes, one <major.minor.patch>.md per release
+scripts/changelog/            # Generator + the PR gate CI runs
 constants/                    # App-wide constants and theme values
 services/                     # Push notifications, external services
 utils/                        # Pure utility functions
@@ -209,13 +219,14 @@ If a component in a feature folder starts being used by a second feature, move i
 
 Uses path-based git diff detection to automatically route JS-only vs native changes.
 
-| Trigger                              | What happens                                                       |
-| ------------------------------------ | ------------------------------------------------------------------ |
-| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check (`pr-check.yml`)             |
-| Push to `dev`                        | OTA update → `development` channel (`ota-dev.yml`)                 |
-| Push to `staging`                    | OTA update → `preview` channel (`ota-staging.yml`)                 |
-| Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)            |
-| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`) |
+| Trigger                              | What happens                                                           |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes (`pr-check.yml`) |
+| PR opened → any of the three         | Also: App Store version guard vs `main` (`pr-check.yml`)               |
+| Push to `dev`                        | OTA update → `development` channel (`ota-dev.yml`)                     |
+| Push to `staging`                    | OTA update → `preview` channel (`ota-staging.yml`)                     |
+| Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)                |
+| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)     |
 
 **How production deploy works (push to main):**
 
@@ -224,3 +235,74 @@ Uses path-based git diff detection to automatically route JS-only vs native chan
 3. JS/assets only → **OTA update** to production channel (Vercel-style instant deploy)
 4. Native files changed → **EAS Build** (iOS + Android) + OTA update
 5. Store submission is always manual — run the `Store Submit` workflow after verifying the build
+
+## Release Notes ("What's New")
+
+Every PR into `dev`, `staging` or `main` must add exactly one
+`versions/<major.minor.patch>.md`, newer than anything on the target branch —
+the same convention as the `bleacher_rentals` web app. Drivers read them under
+**menu → What's New**.
+
+Each file starts with the release date, which is what the page sorts and shows:
+
+```md
+---
+date: 2026-09-02
+---
+
+### 🚚 What changed
+```
+
+**Two rules that differ from the web app:**
+
+1. **The version is not `package.json`.** `app.json` sets
+   `runtimeVersion.policy: "appVersion"` and `app.config.ts` takes `version`
+   from `package.json`, so bumping it per release would change the runtime
+   version every time and strand every OTA update. The newest file in
+   `versions/` is the changelog's own line; the store version drivers see at the
+   bottom of the side navigation is unrelated.
+2. **The notes are compiled into the bundle.** React Native has no filesystem to
+   read them from and Metro cannot import `.md`, so
+   `npm run changelog:generate` bakes them into
+   `features/changelog/generated/versions.ts`, which is committed. That is what
+   makes the page work offline. **Run it after touching `versions/`** — CI fails
+   if the generated file is stale.
+
+`npx tsx scripts/changelog/checkChangelog.cli.ts <branch>` is the gate CI runs;
+its rules live in `features/changelog/util/checkChangelog.ts` and are unit
+tested. Writing an entry is `/changelog <PR number>`
+(`.claude/commands/changelog.md`).
+
+## App Store Version Guard
+
+`app.config.ts` takes `version` from `package.json`, which becomes
+CFBundleShortVersionString. `eas.json` auto-increments the _build_ number only —
+never this one — so forgetting to bump it is not caught until App Store Connect
+rejects the upload with **ITMS-90062** ("must contain a higher version than the
+previously approved version") and **ITMS-90186** ("train version is closed").
+
+A job in `pr-check.yml` catches it at PR time, on **every** target branch. The
+bar is always the same: **`package.json` version must be higher than main's**,
+because main is what was last shipped to the App Store.
+
+- main `1.7.0`, feature branch → dev at `1.7.0` → **fails**. The bump has to land
+  on the way in, so a release never reaches main still carrying an approved
+  version.
+- main `1.7.0`, dev already `1.8.0`, feature branch → dev at `1.8.0` → **passes**.
+  The bump happens once per release, not once per PR.
+
+**One exception:** a JS-only pull request straight into main may keep main's
+version. That merge ships as an OTA update, and `runtimeVersion.policy:
+"appVersion"` means a bumped version would strand it — offered only to binaries
+that do not exist yet. Production hotfixes have to be able to patch the version
+they are patching. A PR into main that touches a native-impacting path
+(`package.json`, `package-lock.json`, `app.json`, `app.config.*`, `eas.json`,
+`plugins/`, `patches/` — the same list `build-production.yml` greps) gets no
+exception.
+
+Rules live in `features/app-version/utils/checkAppVersionBump.ts` (unit tested);
+CI runs `scripts/release/checkAppVersion.cli.ts <branch>`. **The native-path list
+is duplicated in `build-production.yml` — change both together.**
+
+This is separate from the release notes in `versions/`, which are not tied to
+`package.json` for the reason above.

@@ -59,7 +59,10 @@ jobs:
           echo "$CHANGED"
           echo ""
 
-          # These paths indicate native runtime changes that require a new build
+          # These paths indicate native runtime changes that require a new build.
+          # Keep in step with NATIVE_PATHS in
+          # features/app-version/utils/checkAppVersionBump.ts, which uses the same
+          # list to require an App Store version bump on the PR.
           if echo "$CHANGED" | grep -qE '^(package\.json|package-lock\.json|app\.json|app\.config\.|eas\.json|plugins/|patches/)'; then
             echo "Native-impacting files changed → will trigger EAS Build"
             echo "native_changed=true" >> "$GITHUB_OUTPUT"

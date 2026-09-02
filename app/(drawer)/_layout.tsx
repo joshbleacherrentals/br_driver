@@ -1,3 +1,4 @@
+import { ChangeLogProvider } from "@/features/changelog/ChangeLogProvider";
 import SideNavigation from "@/features/side-navigation/SideNavigation";
 import { OTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -31,22 +32,28 @@ export default function DrawerLayout() {
 
   return (
     <OTAUpdateContext.Provider value={otaValue}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Drawer
-          drawerContent={(props) => <SideNavigation drawerNavigation={props.navigation} />}
-          screenOptions={{
-            headerShown: false,
-            drawerPosition: "right",
-            drawerType: "front",
-            drawerStyle: {
-              width: "78%",
-              backgroundColor: theme.background,
-            },
-            overlayColor: theme.overlay,
-            swipeEdgeWidth: 50,
-          }}
-        />
-      </GestureHandlerRootView>
+      {/* Above the drawer so the unread dot on the menu button, the menu row
+          and the page itself all read the same state. */}
+      <ChangeLogProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <Drawer
+            drawerContent={(props) => (
+              <SideNavigation drawerNavigation={props.navigation} />
+            )}
+            screenOptions={{
+              headerShown: false,
+              drawerPosition: "right",
+              drawerType: "front",
+              drawerStyle: {
+                width: "78%",
+                backgroundColor: theme.background,
+              },
+              overlayColor: theme.overlay,
+              swipeEdgeWidth: 50,
+            }}
+          />
+        </GestureHandlerRootView>
+      </ChangeLogProvider>
     </OTAUpdateContext.Provider>
   );
 }

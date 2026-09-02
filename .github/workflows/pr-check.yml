@@ -44,6 +44,56 @@ jobs:
             exit 1
           fi
 
+  # ── App Store version guard (all target branches) ──────────────────────────
+  # Runs on PRs into dev too: the bump has to land on the way in, so a release
+  # never reaches main still carrying the version Apple already approved.
+  app-version:
+    name: Check App Store version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      # main as well as the target: the version bar is always main's.
+      - name: Fetch target branch and main
+        run: git fetch origin ${{ github.base_ref }} main
+
+      - name: Check the version is ahead of the App Store release
+        run: npx tsx scripts/release/checkAppVersion.cli.ts ${{ github.base_ref }}
+
+  # ── Release notes gate (all target branches) ───────────────────────────────
+  changelog:
+    name: Check release notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Fetch target branch
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Check this PR adds release notes
+        run: npx tsx scripts/changelog/checkChangelog.cli.ts ${{ github.base_ref }}
+
+      - name: Check the bundled notes are up to date
+        run: npm run changelog:check
+
   # ── Code quality checks (all target branches) ──────────────────────────────
   check:
     name: Lint, Typecheck & Build

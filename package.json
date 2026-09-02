@@ -1,7 +1,7 @@
 {
   "name": "br_driver",
   "main": "expo-router/entry",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "engines": {
     "node": ">=20.19.4"
   },
@@ -28,7 +28,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
-    "tc": "npm run type-check"
+    "tc": "npm run type-check",
+    "changelog:generate": "tsx scripts/changelog/generateVersions.cli.ts",
+    "changelog:check": "tsx scripts/changelog/generateVersions.cli.ts --check"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
@@ -112,6 +114,7 @@
     "eslint-config-expo": "~10.0.0",
     "jest": "^29.7.0",
     "jest-expo": "^55.0.20",
+    "tsx": "^4.20.3",
     "typescript": "~5.9.2"
   },
   "private": true
