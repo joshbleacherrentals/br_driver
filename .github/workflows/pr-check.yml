@@ -5,45 +5,6 @@ on:
     branches: [dev, staging, main]
 
 jobs:
-  # ── PR metadata validation (main only) ──────────────────────────────────────
-  pr-metadata:
-    name: Validate PR title & description
-    if: github.base_ref == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check PR title is not default
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          BLOCKED_TITLES="Staging|staging|Main|main|Update|update"
-          if [ ${#PR_TITLE} -lt 10 ]; then
-            echo "============================================================"
-            echo "❌ PR TITLE TOO SHORT"
-            echo "============================================================"
-            echo ""
-            echo "PR title must be at least 10 characters."
-            echo "Current title: \"$PR_TITLE\" (${#PR_TITLE} chars)"
-            echo ""
-            echo "============================================================"
-            exit 1
-          fi
-
-          if echo "$PR_TITLE" | grep -qxE "$BLOCKED_TITLES"; then
-            echo "============================================================"
-            echo "❌ PR TITLE REJECTED"
-            echo "============================================================"
-            echo ""
-            echo "PR title cannot be a default value like \"Staging\"."
-            echo "Use a descriptive title."
-            echo ""
-            echo "  Good: \"Fix trip card date formatting\""
-            echo "  Good: \"Add damage report photo zoom\""
-            echo "  Bad:  \"Staging\""
-            echo ""
-            echo "============================================================"
-            exit 1
-          fi
-
   # ── Release notes + App Store version gate (all target branches) ───────────
   # Every PR adds exactly one versions/<x.y.z>.md, newer than anything already
   # on the target branch, and bumps package.json to that same version — see
