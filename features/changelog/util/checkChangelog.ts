@@ -28,11 +28,11 @@ const VERSION_FILE = /^versions\/(.+)\.md$/;
  * release-notes file, newer than anything already on that branch.
  *
  * Deliberately NOT keyed to `package.json` like the web app's equivalent.
- * `app.json` sets `runtimeVersion.policy: "appVersion"` and `app.config.ts`
- * takes `version` from `package.json`, so bumping it per release would change
- * the runtime version every time and strand every OTA update. The newest file
- * in `versions/` is the changelog's own version line, independent of the store
- * version drivers see in the side navigation.
+ * `package.json`'s version is gated by the separate App Store version guard
+ * (see `checkAppVersionBump`) and bumps once per App Store release; What's New
+ * entries land more often than that. The newest file in `versions/` is the
+ * changelog's own version line, independent of the store version drivers see
+ * in the side navigation.
  */
 export function checkChangelog(input: CheckInput): CheckResult {
   const { headFiles, baseVersions, addedFiles } = input;

@@ -138,8 +138,7 @@ hooks/
 │   ├── useAddress.ts
 │   └── ...
 ├── useColorScheme.ts
-├── useProfileCompletion.ts
-└── useOTAUpdate.ts
+└── useProfileCompletion.ts
 
 library/
 ├── powersync/
@@ -213,28 +212,23 @@ If a component in a feature folder starts being used by a second feature, move i
 - Three environments: `development`, `staging`, `production` (set via `APP_ENV`)
 - Config in `app.config.ts` — switches bundle IDs, icons, and env vars per environment
 - Supabase/PowerSync credentials come from env vars (`EXPO_PUBLIC_*`)
-- EAS Build for native builds, OTA updates via `expo-updates`
+- EAS Build for native builds. No OTA updates — every release ships as a new
+  build through the App Store / Play Store.
 
 ## CI/CD Pipeline
-
-Uses path-based git diff detection to automatically route JS-only vs native changes.
 
 | Trigger                              | What happens                                                           |
 | ------------------------------------ | ---------------------------------------------------------------------- |
 | PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes (`pr-check.yml`) |
 | PR opened → any of the three         | Also: App Store version guard vs `main` (`pr-check.yml`)               |
-| Push to `dev`                        | OTA update → `development` channel (`ota-dev.yml`)                     |
-| Push to `staging`                    | OTA update → `preview` channel (`ota-staging.yml`)                     |
-| Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)                |
+| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)          |
 | Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)     |
 
-**How production deploy works (push to main):**
+**How production build works (push to main):**
 
 1. Runs typecheck + lint
-2. `git diff` checks if native-impacting files changed (`package.json`, `app.json`, `eas.json`, `plugins/`, `patches/`)
-3. JS/assets only → **OTA update** to production channel (Vercel-style instant deploy)
-4. Native files changed → **EAS Build** (iOS + Android) + OTA update
-5. Store submission is always manual — run the `Store Submit` workflow after verifying the build
+2. Runs `eas build` for iOS + Android — always, every push, no diffing
+3. Store submission is always manual — run the `Store Submit` workflow after verifying the build
 
 ## Release Notes ("What's New")
 
@@ -255,12 +249,11 @@ date: 2026-09-02
 
 **Two rules that differ from the web app:**
 
-1. **The version is not `package.json`.** `app.json` sets
-   `runtimeVersion.policy: "appVersion"` and `app.config.ts` takes `version`
-   from `package.json`, so bumping it per release would change the runtime
-   version every time and strand every OTA update. The newest file in
-   `versions/` is the changelog's own line; the store version drivers see at the
-   bottom of the side navigation is unrelated.
+1. **The version is not `package.json`.** `package.json`'s version is gated by
+   the App Store version guard below and bumps once per App Store release; What's
+   New entries land more often than that (potentially every PR). The newest file
+   in `versions/` is the changelog's own line; the store version drivers see at
+   the bottom of the side navigation is unrelated.
 2. **The notes are compiled into the bundle.** React Native has no filesystem to
    read them from and Metro cannot import `.md`, so
    `npm run changelog:generate` bakes them into
@@ -291,18 +284,13 @@ because main is what was last shipped to the App Store.
 - main `1.7.0`, dev already `1.8.0`, feature branch → dev at `1.8.0` → **passes**.
   The bump happens once per release, not once per PR.
 
-**One exception:** a JS-only pull request straight into main may keep main's
-version. That merge ships as an OTA update, and `runtimeVersion.policy:
-"appVersion"` means a bumped version would strand it — offered only to binaries
-that do not exist yet. Production hotfixes have to be able to patch the version
-they are patching. A PR into main that touches a native-impacting path
-(`package.json`, `package-lock.json`, `app.json`, `app.config.*`, `eas.json`,
-`plugins/`, `patches/` — the same list `build-production.yml` greps) gets no
-exception.
+**No exceptions** — every PR into `dev`, `staging`, or `main` is held to the
+same bar, JS-only changes included. Since there's no OTA path, the only way
+anything ships is a new native build, and every native build needs a version
+higher than the last one Apple approved.
 
 Rules live in `features/app-version/utils/checkAppVersionBump.ts` (unit tested);
-CI runs `scripts/release/checkAppVersion.cli.ts <branch>`. **The native-path list
-is duplicated in `build-production.yml` — change both together.**
+CI runs `scripts/release/checkAppVersion.cli.ts <branch>`.
 
 This is separate from the release notes in `versions/`, which are not tied to
 `package.json` for the reason above.

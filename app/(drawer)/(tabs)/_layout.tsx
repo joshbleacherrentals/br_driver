@@ -17,12 +17,10 @@ import Animated, {
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
 import NotificationDot from "@/components/ui/NotificationDot";
 import TabBarBackground from "@/components/ui/TabBarBackground";
-import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import DriverGate from "@/components/widgets/DriverGate";
 import { useChangeLog } from "@/features/changelog/ChangeLogProvider";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useReleasedTripsCount } from "@/hooks/db/useWorkTrackers";
-import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useTheme } from "@/hooks/useTheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -51,18 +49,9 @@ function AnimatedHapticTab(props: any) {
 }
 
 export default function TabLayout() {
-  const { updateReady, restart, updateMessage, restarting } =
-    useOTAUpdateContext();
-
   return (
     <>
       <SignedIn>
-        <UpdateBanner
-          visible={updateReady}
-          onRestart={restart}
-          restarting={restarting}
-          message={updateMessage}
-        />
         <DriverGate>
           <TabsContent />
         </DriverGate>
@@ -80,7 +69,6 @@ export default function TabLayout() {
  * the app is still gating.
  */
 function TabsContent() {
-  const { updateReady } = useOTAUpdateContext();
   const { hasUnread: hasUnreadChangelog } = useChangeLog();
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
@@ -126,7 +114,7 @@ function TabsContent() {
             >
               <View>
                 <Menu size={28} color={theme.textPrimary} strokeWidth={1.75} />
-                {(updateReady || hasUnreadChangelog) && <NotificationDot />}
+                {hasUnreadChangelog && <NotificationDot />}
               </View>
             </TouchableOpacity>
           ),

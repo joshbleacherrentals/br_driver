@@ -9,8 +9,6 @@ function input(
   return {
     headVersion: "1.8.0",
     mainVersion: "1.7.0",
-    targetBranch: "dev",
-    changedFiles: ["features/trips/TripsScreen.tsx"],
     ...overrides,
   };
 }
@@ -45,77 +43,9 @@ describe("checkAppVersionBump", () => {
     expect(checkAppVersionBump(input({ headVersion: "1.6.0" })).ok).toBe(false);
   });
 
-  it("applies the same bar to staging and main", () => {
-    for (const targetBranch of ["staging", "main"]) {
-      const result = checkAppVersionBump(
-        input({
-          headVersion: "1.7.0",
-          targetBranch,
-          changedFiles: ["app.json"],
-        }),
-      );
-      expect(result.ok).toBe(false);
-    }
-  });
-
-  it("lets a JS-only hotfix into main keep the version it is patching", () => {
-    const result = checkAppVersionBump(
-      input({
-        headVersion: "1.7.0",
-        targetBranch: "main",
-        changedFiles: ["features/trips/TripsScreen.tsx"],
-      }),
-    );
-
-    expect(result).toEqual({
-      ok: true,
-      note: expect.stringContaining("OTA update"),
-    });
-  });
-
-  it("does not extend that exception to dev", () => {
-    const result = checkAppVersionBump(
-      input({
-        headVersion: "1.7.0",
-        targetBranch: "dev",
-        changedFiles: ["features/trips/TripsScreen.tsx"],
-      }),
-    );
-
+  it("holds every PR to the same bar, no exceptions for main or JS-only changes", () => {
+    const result = checkAppVersionBump(input({ headVersion: "1.7.0" }));
     expect(result.ok).toBe(false);
-  });
-
-  it("holds a native change into main to the bump even though it is a hotfix path", () => {
-    for (const path of [
-      "package.json",
-      "package-lock.json",
-      "app.json",
-      "app.config.ts",
-      "eas.json",
-      "plugins/withSomething.js",
-      "patches/react-native+0.83.6.patch",
-    ]) {
-      const result = checkAppVersionBump(
-        input({
-          headVersion: "1.7.0",
-          targetBranch: "main",
-          changedFiles: [path],
-        }),
-      );
-      expect(result.ok).toBe(false);
-    }
-  });
-
-  it("does not mistake a lookalike path for a native change", () => {
-    const result = checkAppVersionBump(
-      input({
-        headVersion: "1.7.0",
-        targetBranch: "main",
-        changedFiles: ["docs/plugins/notes.md", "my-app.json"],
-      }),
-    );
-
-    expect(result.ok).toBe(true);
   });
 
   it("rejects a malformed version", () => {

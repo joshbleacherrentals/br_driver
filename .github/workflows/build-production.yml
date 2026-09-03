@@ -1,11 +1,9 @@
-name: Production Deploy
+name: Production Build
 
 # Runs on every push to main (i.e. merged PRs).
-# Uses git diff to detect native vs JS-only changes:
-#   - JS/assets only → OTA update to production channel
-#   - Native files changed → EAS Build (iOS + Android)
+# Always runs a full native build (iOS + Android) via EAS.
 #
-# Store submission is intentionally manual. After a native build completes:
+# Store submission is intentionally manual. After a build completes:
 #   eas submit --profile production --platform ios
 #   eas submit --profile production --platform android
 
@@ -18,22 +16,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
-    name: Typecheck & Lint
+  build:
+    name: Typecheck, Lint & Build
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
-    outputs:
-      native_changed: ${{ steps.detect.outputs.native_changed }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
+
+      - uses: expo/expo-github-action@v8
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
       - run: npm ci --legacy-peer-deps
 
@@ -51,87 +52,8 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Detect native changes
-        id: detect
-        run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD)
-          echo "Changed files:"
-          echo "$CHANGED"
-          echo ""
-
-          # These paths indicate native runtime changes that require a new build.
-          # Keep in step with NATIVE_PATHS in
-          # features/app-version/utils/checkAppVersionBump.ts, which uses the same
-          # list to require an App Store version bump on the PR.
-          if echo "$CHANGED" | grep -qE '^(package\.json|package-lock\.json|app\.json|app\.config\.|eas\.json|plugins/|patches/)'; then
-            echo "Native-impacting files changed → will trigger EAS Build"
-            echo "native_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "JS/assets only → OTA update"
-            echo "native_changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  ota-update:
-    name: OTA Update (production)
-    needs: check
-    if: needs.check.outputs.native_changed == 'false'
-    runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: "--max-old-space-size=6144"
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: expo/expo-github-action@v8
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - run: npm ci --legacy-peer-deps
-
-      - name: Publish OTA update
-        run: |
-          eas update --channel production --platform all \
-            --message "${{ github.event.head_commit.message }}" \
-            --non-interactive
-
-  native-build:
-    name: Native Build (production)
-    needs: check
-    if: needs.check.outputs.native_changed == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: expo/expo-github-action@v8
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - run: npm ci --legacy-peer-deps
-
       - name: Build iOS
         run: eas build --profile production --platform ios --non-interactive
 
       - name: Build Android
         run: eas build --profile production --platform android --non-interactive
-
-      # Also publish OTA so the new build gets the latest JS bundle
-      - name: Publish OTA update
-        run: |
-          eas update --channel production --platform all \
-            --message "${{ github.event.head_commit.message }}" \
-            --non-interactive

@@ -13,8 +13,9 @@ description — then:
    file in proportion to what this PR actually contains (patch for fixes, minor
    for new features, major for breaking changes). This number is the
    changelog's own version line — it is deliberately **not** tied to
-   `package.json`, because `app.json` sets `runtimeVersion.policy: "appVersion"`
-   and bumping the app version would strand every OTA update.
+   `package.json`, because that version is gated by the App Store version guard
+   and only bumps once per App Store release, while What's New entries land
+   more often than that.
 2. **Create `versions/<new-version>.md`**, starting with the release date:
 
    ```

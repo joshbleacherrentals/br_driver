@@ -34,7 +34,7 @@ jobs:
             echo "============================================================"
             echo ""
             echo "PR title cannot be a default value like \"Staging\"."
-            echo "Use a descriptive title — it becomes the OTA update message."
+            echo "Use a descriptive title."
             echo ""
             echo "  Good: \"Fix trip card date formatting\""
             echo "  Good: \"Add damage report photo zoom\""
@@ -62,9 +62,9 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      # main as well as the target: the version bar is always main's.
-      - name: Fetch target branch and main
-        run: git fetch origin ${{ github.base_ref }} main
+      # The version bar is always main's, whatever this PR targets.
+      - name: Fetch main
+        run: git fetch origin main
 
       - name: Check the version is ahead of the App Store release
         run: npx tsx scripts/release/checkAppVersion.cli.ts ${{ github.base_ref }}

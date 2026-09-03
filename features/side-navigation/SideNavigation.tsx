@@ -2,9 +2,7 @@ import NotificationDot from "@/components/ui/NotificationDot";
 import { useChangeLog } from "@/features/changelog/ChangeLogProvider";
 import ThemeToggle from "@/features/side-navigation/components/ThemeToggle";
 import { ThemeColors, typeScale } from "@/constants/theme";
-import UpdateCard from "@/features/side-navigation/components/UpdateCard";
 import UserProfileCard from "@/features/side-navigation/components/UserProfileCard";
-import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { Ionicons } from "@expo/vector-icons";
@@ -69,7 +67,6 @@ export default function SideNavigation({
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const version = Constants.expoConfig?.version ?? "—";
-  const { updateReady, restart } = useOTAUpdateContext();
   const { hasUnread: hasUnreadChangelog } = useChangeLog();
 
   const handleNav = useCallback(
@@ -113,7 +110,6 @@ export default function SideNavigation({
             { paddingBottom: Math.max(insets.bottom, 20) },
           ]}
         >
-          {updateReady && <UpdateCard onRestart={restart} />}
           <View style={styles.appearance}>
             <Text style={styles.appearanceLabel}>Appearance</Text>
             <ThemeToggle />

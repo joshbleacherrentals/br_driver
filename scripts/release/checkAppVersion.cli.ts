@@ -4,8 +4,8 @@
  * Usage: npx tsx scripts/release/checkAppVersion.cli.ts <targetBranch>
  *
  * Runs on every pull request, whatever it targets, because the number that
- * matters is always main's — see `checkAppVersionBump`. Assumes both the target
- * branch and main have been fetched.
+ * matters is always main's — see `checkAppVersionBump`. Assumes main has been
+ * fetched. `targetBranch` is only used for the log message.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -38,20 +38,7 @@ try {
   process.exit(2);
 }
 
-const changedFiles = git([
-  "diff",
-  "--name-only",
-  `origin/${targetBranch}...HEAD`,
-])
-  .split("\n")
-  .filter(Boolean);
-
-const result = checkAppVersionBump({
-  headVersion,
-  mainVersion,
-  targetBranch,
-  changedFiles,
-});
+const result = checkAppVersionBump({ headVersion, mainVersion });
 
 if (!result.ok) {
   console.error(`\n✖ App Store version check failed\n\n  ${result.reason}\n`);
