@@ -6,10 +6,11 @@ on:
 
 jobs:
   # ── Release notes + App Store version gate (all target branches) ───────────
-  # Every PR adds exactly one versions/<x.y.z>.md, newer than anything already
-  # on the target branch, and bumps package.json to that same version — see
-  # checkChangelog.ts. Runs on PRs into dev too: the bump has to land on the
-  # way in, so a release never reaches main still carrying an approved version.
+  # Every PR adds exactly one entry to features/changelog/entries.json, newer
+  # than anything already on the target branch, and bumps package.json to that
+  # same version — see checkChangelog.ts. Runs on PRs into dev too: the bump
+  # has to land on the way in, so a release never reaches main still carrying
+  # an approved version.
   changelog:
     name: Check release notes & version
     runs-on: ubuntu-latest
@@ -30,9 +31,6 @@ jobs:
 
       - name: Check this PR adds release notes and bumps package.json to match
         run: npx tsx scripts/changelog/checkChangelog.cli.ts ${{ github.base_ref }}
-
-      - name: Check the bundled notes are up to date
-        run: npm run changelog:check
 
   # ── Code quality checks (all target branches) ──────────────────────────────
   check:

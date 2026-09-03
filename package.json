@@ -28,9 +28,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
-    "tc": "npm run type-check",
-    "changelog:generate": "tsx scripts/changelog/generateVersions.cli.ts",
-    "changelog:check": "tsx scripts/changelog/generateVersions.cli.ts --check"
+    "tc": "npm run type-check"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",

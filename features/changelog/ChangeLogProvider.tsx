@@ -6,13 +6,20 @@ import {
   useMemo,
   useState,
 } from "react";
-import { CHANGELOG_ENTRIES } from "./generated/versions";
+import rawEntries from "./entries.json";
 import {
   getLastSeenVersion,
   setLastSeenVersion,
 } from "./storage/lastSeenVersion";
 import type { ChangeLogEntry } from "./types";
 import { compareVersions } from "./util/compareVersions";
+
+// Sorted defensively at import time rather than trusting entries.json's own
+// order — it's hand-edited, and a release added out of order must not land
+// at the top of the list or lose its "Latest" badge.
+const CHANGELOG_ENTRIES: ChangeLogEntry[] = [...rawEntries].sort((a, b) =>
+  compareVersions(b.version, a.version),
+);
 
 interface ChangeLogContextValue {
   /** Every release, newest first. */

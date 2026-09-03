@@ -1,8 +1,8 @@
-/** One release, as authored in `versions/<version>.md`. */
+/** One release, as authored in `features/changelog/entries.json`. */
 export type ChangeLogEntry = {
   version: string;
-  /** `YYYY-MM-DD` from the file's frontmatter. */
+  /** `YYYY-MM-DD`. */
   date: string;
-  /** Markdown body, frontmatter stripped. */
+  /** Markdown body. */
   body_md: string;
 };

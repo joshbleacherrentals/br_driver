@@ -1,29 +1,35 @@
+import type { ChangeLogEntry } from "../types";
 import { checkChangelog, type CheckInput } from "./checkChangelog";
 
 const BODY =
-  "---\ndate: 2026-09-02\n---\n\n### A real heading\n\nEnough prose to clear the minimum.";
+  "### A real heading\n\nEnough prose to clear the minimum body length.";
+
+function entry(
+  version: string,
+  overrides: Partial<Omit<ChangeLogEntry, "version">> = {},
+): ChangeLogEntry {
+  return { version, date: "2026-09-02", body_md: BODY, ...overrides };
+}
 
 function input(overrides: Partial<CheckInput> = {}): CheckInput {
   return {
-    headFiles: { "1.0.0": BODY, "1.1.0": BODY },
-    baseVersions: ["1.0.0"],
-    addedFiles: ["versions/1.1.0.md"],
+    headEntries: [entry("1.0.0"), entry("1.1.0")],
+    baseEntries: [entry("1.0.0")],
     packageVersion: "1.1.0",
     ...overrides,
   };
 }
 
 describe("checkChangelog", () => {
-  it("passes when the PR adds one newer, well-formed file matching package.json", () => {
+  it("passes when the PR adds one newer, well-formed entry matching package.json", () => {
     expect(checkChangelog(input())).toEqual({ ok: true, version: "1.1.0" });
   });
 
   it("passes on the very first release, when the branch has none", () => {
     const result = checkChangelog(
       input({
-        headFiles: { "1.0.0": BODY },
-        baseVersions: [],
-        addedFiles: ["versions/1.0.0.md"],
+        headEntries: [entry("1.0.0")],
+        baseEntries: [],
         packageVersion: "1.0.0",
       }),
     );
@@ -31,36 +37,21 @@ describe("checkChangelog", () => {
     expect(result).toEqual({ ok: true, version: "1.0.0" });
   });
 
-  it("ignores non-version files the PR also added", () => {
+  it("fails when no new entry was added", () => {
     const result = checkChangelog(
-      input({
-        addedFiles: [
-          "features/changelog/types.ts",
-          "versions/1.1.0.md",
-          "README.md",
-        ],
-      }),
-    );
-
-    expect(result.ok).toBe(true);
-  });
-
-  it("fails when no release notes were added", () => {
-    const result = checkChangelog(
-      input({ addedFiles: ["features/trips/TripsScreen.tsx"] }),
+      input({ headEntries: [entry("1.0.0")], packageVersion: "1.0.0" }),
     );
 
     expect(result).toEqual({
       ok: false,
-      reason: expect.stringContaining("versions/1.1.0.md"),
+      reason: expect.stringContaining("No new release"),
     });
   });
 
-  it("fails when the PR adds more than one release", () => {
+  it("fails when the PR adds more than one entry", () => {
     const result = checkChangelog(
       input({
-        headFiles: { "1.0.0": BODY, "1.1.0": BODY, "1.2.0": BODY },
-        addedFiles: ["versions/1.1.0.md", "versions/1.2.0.md"],
+        headEntries: [entry("1.0.0"), entry("1.1.0"), entry("1.2.0")],
       }),
     );
 
@@ -70,9 +61,12 @@ describe("checkChangelog", () => {
     });
   });
 
-  it("fails when the file name is not major.minor.patch", () => {
+  it("fails when the version is not major.minor.patch", () => {
     const result = checkChangelog(
-      input({ headFiles: { "1.0.0": BODY }, addedFiles: ["versions/next.md"] }),
+      input({
+        headEntries: [entry("1.0.0"), entry("next")],
+        packageVersion: "next",
+      }),
     );
 
     expect(result).toEqual({
@@ -84,9 +78,8 @@ describe("checkChangelog", () => {
   it("fails when the new version is not newer than the branch", () => {
     const result = checkChangelog(
       input({
-        headFiles: { "1.0.0": BODY, "1.9.0": BODY, "1.10.0": BODY },
-        baseVersions: ["1.0.0", "1.10.0"],
-        addedFiles: ["versions/1.9.0.md"],
+        headEntries: [entry("1.0.0"), entry("1.10.0"), entry("1.9.0")],
+        baseEntries: [entry("1.0.0"), entry("1.10.0")],
         packageVersion: "1.9.0",
       }),
     );
@@ -97,7 +90,7 @@ describe("checkChangelog", () => {
     });
   });
 
-  it("fails when package.json does not match the new version file", () => {
+  it("fails when package.json does not match the new entry", () => {
     const result = checkChangelog(input({ packageVersion: "1.0.5" }));
 
     expect(result).toEqual({
@@ -109,7 +102,7 @@ describe("checkChangelog", () => {
   it("fails when the body is a stub", () => {
     const result = checkChangelog(
       input({
-        headFiles: { "1.1.0": "---\ndate: 2026-09-02\n---\n\n### TODO" },
+        headEntries: [entry("1.0.0"), entry("1.1.0", { body_md: "### TODO" })],
       }),
     );
 
@@ -119,18 +112,29 @@ describe("checkChangelog", () => {
     });
   });
 
-  it("fails when the release date is missing", () => {
+  it("fails when the release date is missing or malformed", () => {
     const result = checkChangelog(
       input({
-        headFiles: {
-          "1.1.0": "### A real heading\n\nEnough prose to clear the minimum.",
-        },
+        headEntries: [entry("1.0.0"), entry("1.1.0", { date: "not-a-date" })],
       }),
     );
 
     expect(result).toEqual({
       ok: false,
-      reason: expect.stringContaining("no valid release date"),
+      reason: expect.stringContaining("not a valid YYYY-MM-DD date"),
+    });
+  });
+
+  it("rejects a date shaped right but not a real day", () => {
+    const result = checkChangelog(
+      input({
+        headEntries: [entry("1.0.0"), entry("1.1.0", { date: "2026-13-40" })],
+      }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: expect.stringContaining("not a valid YYYY-MM-DD date"),
     });
   });
 });

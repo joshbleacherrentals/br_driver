@@ -3,9 +3,9 @@
  *
  * The web changelog leans on react-markdown; pulling a markdown library plus a
  * renderer into the app bundle to display a handful of headings and bullets is
- * not worth the weight, so this parses the shapes `versions/*.md` actually use
- * and nothing else. Anything unrecognised falls through as a paragraph rather
- * than disappearing.
+ * not worth the weight, so this parses the shapes release-note `body_md`
+ * actually uses and nothing else. Anything unrecognised falls through as a
+ * paragraph rather than disappearing.
  *
  * Raw HTML is not supported, by design — there is no HTML renderer downstream,
  * so anything HTML-shaped shows up as literal text.

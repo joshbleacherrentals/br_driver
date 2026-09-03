@@ -15,7 +15,6 @@ npm run bis              # Build iOS (staging)
 npm run bip              # Build iOS (production)
 npm run tc               # TypeScript type-check (tsc --noEmit)
 npm run lint             # ESLint
-npm run changelog:generate # Rebuild the bundled release notes from versions/
 ```
 
 ## Architecture Principles
@@ -107,7 +106,7 @@ features/                     # Feature folders — each screen owns its code
 ├── changelog/                # "What's New" — release notes, bundled offline
 │   ├── WhatsNewScreen.tsx
 │   ├── ChangeLogProvider.tsx # Entries + unread dot, shared with the side nav
-│   ├── generated/versions.ts # GENERATED from versions/*.md — do not edit
+│   ├── entries.json          # SOURCE OF TRUTH — one entry per release
 │   ├── components/
 │   └── util/
 
@@ -151,8 +150,7 @@ library/
 ├── storage/                  # Supabase storage adapter
 └── debug/                    # Debug logging
 
-versions/                     # Release notes, one <major.minor.patch>.md per release
-scripts/changelog/            # Generator + the PR gate CI runs
+scripts/changelog/            # The release-notes + version PR gate CI runs
 constants/                    # App-wide constants and theme values
 services/                     # Push notifications, external services
 utils/                        # Pure utility functions
@@ -217,11 +215,11 @@ If a component in a feature folder starts being used by a second feature, move i
 
 ## CI/CD Pipeline
 
-| Trigger                              | What happens                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------------ |
+| Trigger                              | What happens                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
 | PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes & version (`pr-check.yml`) |
-| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)                |
-| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)           |
+| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)                    |
+| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)               |
 
 **How production build works (push to main):**
 
@@ -231,25 +229,34 @@ If a component in a feature folder starts being used by a second feature, move i
 
 ## Release Notes ("What's New") & App Store Version
 
-Every PR into `dev`, `staging` or `main` must add exactly one
-`versions/<major.minor.patch>.md`, newer than anything already on the target
+Every PR into `dev`, `staging` or `main` must add exactly one new entry to
+`features/changelog/entries.json`, newer than anything already on the target
 branch, **and** bump `"version"` in `package.json` to that exact same number.
-`versions/` is the single source of truth for version history — append-only,
-one file per shipped release — and `package.json` always has to match its
-newest entry. There's no separate "is this higher than production" check
-needed: since every PR bumps both together, on every target branch, the
-version can only ever move forward and the two numbers can never drift apart.
+`entries.json` is the single source of truth for version history — hand-
+edited, append-only, one entry per shipped release — and `package.json`
+always has to match its newest entry. There's no separate "is this higher
+than production" check needed: since every PR bumps both together, on every
+target branch, the version can only ever move forward and the two numbers
+can never drift apart.
 
-Drivers read the notes under **menu → What's New**. Each file starts with the
-release date, which is what the page sorts and shows:
+Drivers read the notes under **menu → What's New**. Each entry is:
 
-```md
----
-date: 2026-09-02
----
-
-### 🚚 What changed
+```json
+{
+  "version": "1.8.0",
+  "date": "2026-09-02",
+  "body_md": "### 🚚 What changed\n\n..."
+}
 ```
+
+`date` is what the page sorts and shows.
+
+**`entries.json` ships directly in the bundle** — Metro imports `.json`
+natively, so unlike Markdown there's no separate generate step and nothing
+that can go stale. That's also what makes the What's New page work offline:
+no filesystem read, no network call, just the array baked into the JS bundle.
+`ChangeLogProvider` re-sorts it newest-first at import time regardless of the
+order entries were added in.
 
 Why this matters beyond the changelog: `app.config.ts` takes `version` from
 `package.json`, which becomes CFBundleShortVersionString. `eas.json`
@@ -262,13 +269,6 @@ carrying a version Apple already approved. There are no exceptions — every
 PR is held to the same bar, because there's no OTA path: the only way
 anything ships is a new native build, and every native build needs a new
 version.
-
-**The notes are compiled into the bundle**, separately from the version check
-above. React Native has no filesystem to read them from and Metro cannot
-import `.md`, so `npm run changelog:generate` bakes them into
-`features/changelog/generated/versions.ts`, which is committed. That is what
-makes the What's New page work offline. **Run it after touching `versions/`**
-— CI fails if the generated file is stale.
 
 `npx tsx scripts/changelog/checkChangelog.cli.ts <branch>` is the gate CI runs;
 its rules live in `features/changelog/util/checkChangelog.ts` and are unit

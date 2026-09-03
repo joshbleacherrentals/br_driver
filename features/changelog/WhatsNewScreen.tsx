@@ -9,8 +9,8 @@ import ReleaseCard from "./components/ReleaseCard";
 /**
  * Every release, newest first.
  *
- * The notes are compiled into the bundle (`generated/versions.ts`), so this
- * screen reads nothing from the network or the local database — it renders
+ * The notes ship directly in the bundle (`entries.json`), so this screen
+ * reads nothing from the network or the local database — it renders
  * identically with the phone offline.
  */
 export default function WhatsNewScreen() {
