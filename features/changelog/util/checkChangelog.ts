@@ -13,6 +13,8 @@ export type CheckInput = {
   baseVersions: string[];
   /** paths added by this PR relative to the target branch. */
   addedFiles: string[];
+  /** `version` from package.json on the PR head. */
+  packageVersion: string;
 };
 
 export type CheckResult =
@@ -25,17 +27,19 @@ const VERSION_FILE = /^versions\/(.+)\.md$/;
 
 /**
  * The PR gate: every promotion into a deployable branch adds exactly one new
- * release-notes file, newer than anything already on that branch.
+ * release-notes file, newer than anything already on that branch, and bumps
+ * `package.json` to that exact version.
  *
- * Deliberately NOT keyed to `package.json` like the web app's equivalent.
- * `package.json`'s version is gated by the separate App Store version guard
- * (see `checkAppVersionBump`) and bumps once per App Store release; What's New
- * entries land more often than that. The newest file in `versions/` is the
- * changelog's own version line, independent of the store version drivers see
- * in the side navigation.
+ * `versions/` is the single source of truth for version history — append-only,
+ * one file per shipped release. `package.json`'s version (which becomes
+ * CFBundleShortVersionString, and is what App Store Connect compares a new
+ * upload against) has to match the newest entry exactly, so the two numbers
+ * can never drift apart. Since every PR bumps both together, this also
+ * guarantees the version only ever moves forward, on every target branch —
+ * no separate "is this higher than production" check needed.
  */
 export function checkChangelog(input: CheckInput): CheckResult {
-  const { headFiles, baseVersions, addedFiles } = input;
+  const { headFiles, baseVersions, addedFiles, packageVersion } = input;
 
   const previous = latestVersion(baseVersions);
   const suggested = nextMinorVersion(previous);
@@ -75,6 +79,16 @@ export function checkChangelog(input: CheckInput): CheckResult {
       reason:
         `versions/${version}.md is not newer than ${previous}, which the target branch already has. ` +
         `Use versions/${suggested}.md or higher.`,
+    };
+  }
+
+  if (packageVersion !== version) {
+    return {
+      ok: false,
+      reason:
+        `package.json version is "${packageVersion}" but versions/${version}.md was added — ` +
+        `they must match. Bump "version" in package.json to "${version}" (or rename the file ` +
+        `to versions/${packageVersion}.md if that's the version you meant to ship).`,
     };
   }
 

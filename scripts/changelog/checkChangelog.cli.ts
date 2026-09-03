@@ -1,5 +1,5 @@
 /**
- * CI entry point for the changelog PR gate.
+ * CI entry point for the changelog + App Store version PR gate.
  *
  * Usage: npx tsx scripts/changelog/checkChangelog.cli.ts <targetBranch>
  *
@@ -7,6 +7,7 @@
  * fetch-depth: 0, plus an explicit `git fetch origin <target>`).
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkChangelog } from "../../features/changelog/util/checkChangelog";
 import {
@@ -56,18 +57,30 @@ const addedFiles = git([
   .split("\n")
   .filter(Boolean);
 
-const result = checkChangelog({ headFiles, baseVersions, addedFiles });
+const packageVersion = JSON.parse(
+  readFileSync(join(__dirname, "..", "..", "package.json"), "utf8"),
+).version as string;
+
+const result = checkChangelog({
+  headFiles,
+  baseVersions,
+  addedFiles,
+  packageVersion,
+});
 
 if (!result.ok) {
   const previous = latestVersion(baseVersions);
+  const next = nextMinorVersion(previous);
   console.error(`\n✖ Changelog check failed\n\n  ${result.reason}\n`);
   console.error(
     `  Target branch ${target} is at ${previous ?? "no releases yet"}. ` +
-      `Add versions/${nextMinorVersion(previous)}.md and run \`npm run changelog:generate\`.\n`,
+      `Add versions/${next}.md, bump "version" in package.json to "${next}", ` +
+      `and run \`npm run changelog:generate\`.\n`,
   );
   process.exit(1);
 }
 
 console.log(
-  `✔ Changelog check passed — ${result.version} documented in versions/${result.version}.md`,
+  `✔ Changelog check passed — ${result.version} documented in versions/${result.version}.md, ` +
+    `package.json matches.`,
 );

@@ -8,12 +8,13 @@ function input(overrides: Partial<CheckInput> = {}): CheckInput {
     headFiles: { "1.0.0": BODY, "1.1.0": BODY },
     baseVersions: ["1.0.0"],
     addedFiles: ["versions/1.1.0.md"],
+    packageVersion: "1.1.0",
     ...overrides,
   };
 }
 
 describe("checkChangelog", () => {
-  it("passes when the PR adds one newer, well-formed file", () => {
+  it("passes when the PR adds one newer, well-formed file matching package.json", () => {
     expect(checkChangelog(input())).toEqual({ ok: true, version: "1.1.0" });
   });
 
@@ -23,6 +24,7 @@ describe("checkChangelog", () => {
         headFiles: { "1.0.0": BODY },
         baseVersions: [],
         addedFiles: ["versions/1.0.0.md"],
+        packageVersion: "1.0.0",
       }),
     );
 
@@ -85,12 +87,22 @@ describe("checkChangelog", () => {
         headFiles: { "1.0.0": BODY, "1.9.0": BODY, "1.10.0": BODY },
         baseVersions: ["1.0.0", "1.10.0"],
         addedFiles: ["versions/1.9.0.md"],
+        packageVersion: "1.9.0",
       }),
     );
 
     expect(result).toEqual({
       ok: false,
       reason: expect.stringContaining("not newer than 1.10.0"),
+    });
+  });
+
+  it("fails when package.json does not match the new version file", () => {
+    const result = checkChangelog(input({ packageVersion: "1.0.5" }));
+
+    expect(result).toEqual({
+      ok: false,
+      reason: expect.stringContaining('package.json version is "1.0.5"'),
     });
   });
 

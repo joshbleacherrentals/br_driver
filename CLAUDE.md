@@ -217,12 +217,11 @@ If a component in a feature folder starts being used by a second feature, move i
 
 ## CI/CD Pipeline
 
-| Trigger                              | What happens                                                           |
-| ------------------------------------ | ---------------------------------------------------------------------- |
-| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes (`pr-check.yml`) |
-| PR opened → any of the three         | Also: App Store version guard vs `main` (`pr-check.yml`)               |
-| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)          |
-| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)     |
+| Trigger                              | What happens                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes & version (`pr-check.yml`) |
+| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)                |
+| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)           |
 
 **How production build works (push to main):**
 
@@ -230,14 +229,19 @@ If a component in a feature folder starts being used by a second feature, move i
 2. Runs `eas build` for iOS + Android — always, every push, no diffing
 3. Store submission is always manual — run the `Store Submit` workflow after verifying the build
 
-## Release Notes ("What's New")
+## Release Notes ("What's New") & App Store Version
 
 Every PR into `dev`, `staging` or `main` must add exactly one
-`versions/<major.minor.patch>.md`, newer than anything on the target branch —
-the same convention as the `bleacher_rentals` web app. Drivers read them under
-**menu → What's New**.
+`versions/<major.minor.patch>.md`, newer than anything already on the target
+branch, **and** bump `"version"` in `package.json` to that exact same number.
+`versions/` is the single source of truth for version history — append-only,
+one file per shipped release — and `package.json` always has to match its
+newest entry. There's no separate "is this higher than production" check
+needed: since every PR bumps both together, on every target branch, the
+version can only ever move forward and the two numbers can never drift apart.
 
-Each file starts with the release date, which is what the page sorts and shows:
+Drivers read the notes under **menu → What's New**. Each file starts with the
+release date, which is what the page sorts and shows:
 
 ```md
 ---
@@ -247,50 +251,26 @@ date: 2026-09-02
 ### 🚚 What changed
 ```
 
-**Two rules that differ from the web app:**
+Why this matters beyond the changelog: `app.config.ts` takes `version` from
+`package.json`, which becomes CFBundleShortVersionString. `eas.json`
+auto-increments the _build_ number only — never this one — so forgetting to
+bump it is not caught until App Store Connect rejects the upload with
+**ITMS-90062** ("must contain a higher version than the previously approved
+version") and **ITMS-90186** ("train version is closed"). Catching it at PR
+time, on every target branch, means a release never reaches main still
+carrying a version Apple already approved. There are no exceptions — every
+PR is held to the same bar, because there's no OTA path: the only way
+anything ships is a new native build, and every native build needs a new
+version.
 
-1. **The version is not `package.json`.** `package.json`'s version is gated by
-   the App Store version guard below and bumps once per App Store release; What's
-   New entries land more often than that (potentially every PR). The newest file
-   in `versions/` is the changelog's own line; the store version drivers see at
-   the bottom of the side navigation is unrelated.
-2. **The notes are compiled into the bundle.** React Native has no filesystem to
-   read them from and Metro cannot import `.md`, so
-   `npm run changelog:generate` bakes them into
-   `features/changelog/generated/versions.ts`, which is committed. That is what
-   makes the page work offline. **Run it after touching `versions/`** — CI fails
-   if the generated file is stale.
+**The notes are compiled into the bundle**, separately from the version check
+above. React Native has no filesystem to read them from and Metro cannot
+import `.md`, so `npm run changelog:generate` bakes them into
+`features/changelog/generated/versions.ts`, which is committed. That is what
+makes the What's New page work offline. **Run it after touching `versions/`**
+— CI fails if the generated file is stale.
 
 `npx tsx scripts/changelog/checkChangelog.cli.ts <branch>` is the gate CI runs;
 its rules live in `features/changelog/util/checkChangelog.ts` and are unit
-tested. Writing an entry is `/changelog <PR number>`
-(`.claude/commands/changelog.md`).
-
-## App Store Version Guard
-
-`app.config.ts` takes `version` from `package.json`, which becomes
-CFBundleShortVersionString. `eas.json` auto-increments the _build_ number only —
-never this one — so forgetting to bump it is not caught until App Store Connect
-rejects the upload with **ITMS-90062** ("must contain a higher version than the
-previously approved version") and **ITMS-90186** ("train version is closed").
-
-A job in `pr-check.yml` catches it at PR time, on **every** target branch. The
-bar is always the same: **`package.json` version must be higher than main's**,
-because main is what was last shipped to the App Store.
-
-- main `1.7.0`, feature branch → dev at `1.7.0` → **fails**. The bump has to land
-  on the way in, so a release never reaches main still carrying an approved
-  version.
-- main `1.7.0`, dev already `1.8.0`, feature branch → dev at `1.8.0` → **passes**.
-  The bump happens once per release, not once per PR.
-
-**No exceptions** — every PR into `dev`, `staging`, or `main` is held to the
-same bar, JS-only changes included. Since there's no OTA path, the only way
-anything ships is a new native build, and every native build needs a version
-higher than the last one Apple approved.
-
-Rules live in `features/app-version/utils/checkAppVersionBump.ts` (unit tested);
-CI runs `scripts/release/checkAppVersion.cli.ts <branch>`.
-
-This is separate from the release notes in `versions/`, which are not tied to
-`package.json` for the reason above.
+tested. Writing an entry (and bumping `package.json` to match) is
+`/changelog <PR number>` (`.claude/commands/changelog.md`).

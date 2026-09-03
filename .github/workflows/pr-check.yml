@@ -44,34 +44,13 @@ jobs:
             exit 1
           fi
 
-  # ── App Store version guard (all target branches) ──────────────────────────
-  # Runs on PRs into dev too: the bump has to land on the way in, so a release
-  # never reaches main still carrying the version Apple already approved.
-  app-version:
-    name: Check App Store version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
-
-      # The version bar is always main's, whatever this PR targets.
-      - name: Fetch main
-        run: git fetch origin main
-
-      - name: Check the version is ahead of the App Store release
-        run: npx tsx scripts/release/checkAppVersion.cli.ts ${{ github.base_ref }}
-
-  # ── Release notes gate (all target branches) ───────────────────────────────
+  # ── Release notes + App Store version gate (all target branches) ───────────
+  # Every PR adds exactly one versions/<x.y.z>.md, newer than anything already
+  # on the target branch, and bumps package.json to that same version — see
+  # checkChangelog.ts. Runs on PRs into dev too: the bump has to land on the
+  # way in, so a release never reaches main still carrying an approved version.
   changelog:
-    name: Check release notes
+    name: Check release notes & version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -88,7 +67,7 @@ jobs:
       - name: Fetch target branch
         run: git fetch origin ${{ github.base_ref }}
 
-      - name: Check this PR adds release notes
+      - name: Check this PR adds release notes and bumps package.json to match
         run: npx tsx scripts/changelog/checkChangelog.cli.ts ${{ github.base_ref }}
 
       - name: Check the bundled notes are up to date

@@ -11,11 +11,9 @@ description — then:
 
 1. **Pick the new version.** Look at `versions/` and increment from the newest
    file in proportion to what this PR actually contains (patch for fixes, minor
-   for new features, major for breaking changes). This number is the
-   changelog's own version line — it is deliberately **not** tied to
-   `package.json`, because that version is gated by the App Store version guard
-   and only bumps once per App Store release, while What's New entries land
-   more often than that.
+   for new features, major for breaking changes). This is also the App Store
+   version — `versions/` is the single source of truth for version history, and
+   `package.json` must match its newest entry exactly.
 2. **Create `versions/<new-version>.md`**, starting with the release date:
 
    ```
@@ -26,11 +24,13 @@ description — then:
    ### 🚚 What changed
    ```
 
-   CI (`scripts/changelog/checkChangelog.cli.ts`) requires exactly one new
-   version file per PR, newer than anything on the target branch, with a valid
-   date and a real body.
+3. **Bump `"version"` in `package.json` to the same `<new-version>`.** CI
+   (`scripts/changelog/checkChangelog.cli.ts`) requires exactly one new version
+   file per PR, newer than anything on the target branch, with a valid date and
+   a real body — *and* rejects the PR if `package.json` doesn't match it
+   exactly.
 
-3. **Run `npm run changelog:generate`** and commit
+4. **Run `npm run changelog:generate`** and commit
    `features/changelog/generated/versions.ts`. That file is what ships in the
    bundle — the `.md` alone never reaches the phone, and CI fails if it is stale.
 
