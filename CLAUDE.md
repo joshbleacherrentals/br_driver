@@ -67,7 +67,8 @@ app/                          # Expo Router — thin re-exports only
 │       ├── documents.tsx     → features/documents/DocumentsScreen.tsx
 │       ├── profile.tsx       → features/profile/ProfileScreen.tsx
 │       ├── damage-report-history.tsx → features/damage-report-history/DamageReportHistoryScreen.tsx
-│       └── trip-history.tsx  → features/trip-history/TripHistoryScreen.tsx
+│       ├── trip-history.tsx  → features/trip-history/TripHistoryScreen.tsx
+│       └── whats-new.tsx     → features/changelog/WhatsNewScreen.tsx
 ├── damage-report.tsx         → features/damage-report/DamageReportScreen.tsx (standalone stack screen)
 
 features/                     # Feature folders — each screen owns its code
@@ -102,6 +103,12 @@ features/                     # Feature folders — each screen owns its code
 │       └── CompletedTripItem.tsx
 ├── auth/
 │   └── SignInScreen.tsx
+├── changelog/                # "What's New" — release notes, bundled offline
+│   ├── WhatsNewScreen.tsx
+│   ├── ChangeLogProvider.tsx # Entries + unread dot, shared with the side nav
+│   ├── entries.json          # SOURCE OF TRUTH — one entry per release
+│   ├── components/
+│   └── util/
 
 components/                   # Shared across 2+ features
 ├── providers/
@@ -130,8 +137,7 @@ hooks/
 │   ├── useAddress.ts
 │   └── ...
 ├── useColorScheme.ts
-├── useProfileCompletion.ts
-└── useOTAUpdate.ts
+└── useProfileCompletion.ts
 
 library/
 ├── powersync/
@@ -144,6 +150,7 @@ library/
 ├── storage/                  # Supabase storage adapter
 └── debug/                    # Debug logging
 
+scripts/changelog/            # The release-notes + version PR gate CI runs
 constants/                    # App-wide constants and theme values
 services/                     # Push notifications, external services
 utils/                        # Pure utility functions
@@ -203,24 +210,76 @@ If a component in a feature folder starts being used by a second feature, move i
 - Three environments: `development`, `staging`, `production` (set via `APP_ENV`)
 - Config in `app.config.ts` — switches bundle IDs, icons, and env vars per environment
 - Supabase/PowerSync credentials come from env vars (`EXPO_PUBLIC_*`)
-- EAS Build for native builds, OTA updates via `expo-updates`
+- EAS Build for native builds. No OTA updates — every release ships as a new
+  build through the App Store / Play Store.
 
 ## CI/CD Pipeline
 
-Uses path-based git diff detection to automatically route JS-only vs native changes.
+| Trigger                              | What happens                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes & version (`pr-check.yml`)             |
+| Push to `main`                       | Typecheck + lint + full native build + store submit, both platforms (`build-production.yml`) |
+| Manual dispatch                      | Resubmit an existing build by hand (`store-submit.yml`)                                      |
 
-| Trigger                              | What happens                                                       |
-| ------------------------------------ | ------------------------------------------------------------------ |
-| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check (`pr-check.yml`)             |
-| Push to `dev`                        | OTA update → `development` channel (`ota-dev.yml`)                 |
-| Push to `staging`                    | OTA update → `preview` channel (`ota-staging.yml`)                 |
-| Push to `main`                       | Fingerprint-based smart deploy (`build-production.yml`)            |
-| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`) |
-
-**How production deploy works (push to main):**
+**How production build works (push to main) — fully automatic, no manual step:**
 
 1. Runs typecheck + lint
-2. `git diff` checks if native-impacting files changed (`package.json`, `app.json`, `eas.json`, `plugins/`, `patches/`)
-3. JS/assets only → **OTA update** to production channel (Vercel-style instant deploy)
-4. Native files changed → **EAS Build** (iOS + Android) + OTA update
-5. Store submission is always manual — run the `Store Submit` workflow after verifying the build
+2. Runs `eas build` for iOS + Android — always, every push, no diffing
+3. Runs `eas submit --latest` for both platforms immediately after:
+   - **iOS** lands in App Store Connect. Apple review still has to be started
+     by hand there — this does not publish to the public App Store on its own.
+   - **Android** is pushed straight to the Play Console **production track at
+     100% rollout** (`eas.json` → `submit.production.android`) — this ships to
+     real users with no human step. Every merge to main goes live on Android.
+
+`store-submit.yml` (manual `workflow_dispatch`) still exists as a fallback —
+use it to resubmit a build by hand if this job fails partway, or to push a
+specific already-built binary again.
+
+## Release Notes ("What's New") & App Store Version
+
+Every PR into `dev`, `staging` or `main` must add exactly one new entry to
+`features/changelog/entries.json`, newer than anything already on the target
+branch, **and** bump `"version"` in `package.json` to that exact same number.
+`entries.json` is the single source of truth for version history — hand-
+edited, append-only, one entry per shipped release — and `package.json`
+always has to match its newest entry. There's no separate "is this higher
+than production" check needed: since every PR bumps both together, on every
+target branch, the version can only ever move forward and the two numbers
+can never drift apart.
+
+Drivers read the notes under **menu → What's New**. Each entry is:
+
+```json
+{
+  "version": "1.8.0",
+  "date": "2026-09-02",
+  "body_md": "### 🚚 What changed\n\n..."
+}
+```
+
+`date` is what the page sorts and shows.
+
+**`entries.json` ships directly in the bundle** — Metro imports `.json`
+natively, so unlike Markdown there's no separate generate step and nothing
+that can go stale. That's also what makes the What's New page work offline:
+no filesystem read, no network call, just the array baked into the JS bundle.
+`ChangeLogProvider` re-sorts it newest-first at import time regardless of the
+order entries were added in.
+
+Why this matters beyond the changelog: `app.config.ts` takes `version` from
+`package.json`, which becomes CFBundleShortVersionString. `eas.json`
+auto-increments the _build_ number only — never this one — so forgetting to
+bump it is not caught until App Store Connect rejects the upload with
+**ITMS-90062** ("must contain a higher version than the previously approved
+version") and **ITMS-90186** ("train version is closed"). Catching it at PR
+time, on every target branch, means a release never reaches main still
+carrying a version Apple already approved. There are no exceptions — every
+PR is held to the same bar, because there's no OTA path: the only way
+anything ships is a new native build, and every native build needs a new
+version.
+
+`npx tsx scripts/changelog/checkChangelog.cli.ts <branch>` is the gate CI runs;
+its rules live in `features/changelog/util/checkChangelog.ts` and are unit
+tested. Writing an entry (and bumping `package.json` to match) is
+`/changelog <PR number>` (`.claude/commands/changelog.md`).

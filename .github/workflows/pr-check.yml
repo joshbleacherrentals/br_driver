@@ -5,44 +5,32 @@ on:
     branches: [dev, staging, main]
 
 jobs:
-  # ── PR metadata validation (main only) ──────────────────────────────────────
-  pr-metadata:
-    name: Validate PR title & description
-    if: github.base_ref == 'main'
+  # ── Release notes + App Store version gate (all target branches) ───────────
+  # Every PR adds exactly one entry to features/changelog/entries.json, newer
+  # than anything already on the target branch, and bumps package.json to that
+  # same version — see checkChangelog.ts. Runs on PRs into dev too: the bump
+  # has to land on the way in, so a release never reaches main still carrying
+  # an approved version.
+  changelog:
+    name: Check release notes & version
     runs-on: ubuntu-latest
     steps:
-      - name: Check PR title is not default
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          BLOCKED_TITLES="Staging|staging|Main|main|Update|update"
-          if [ ${#PR_TITLE} -lt 10 ]; then
-            echo "============================================================"
-            echo "❌ PR TITLE TOO SHORT"
-            echo "============================================================"
-            echo ""
-            echo "PR title must be at least 10 characters."
-            echo "Current title: \"$PR_TITLE\" (${#PR_TITLE} chars)"
-            echo ""
-            echo "============================================================"
-            exit 1
-          fi
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-          if echo "$PR_TITLE" | grep -qxE "$BLOCKED_TITLES"; then
-            echo "============================================================"
-            echo "❌ PR TITLE REJECTED"
-            echo "============================================================"
-            echo ""
-            echo "PR title cannot be a default value like \"Staging\"."
-            echo "Use a descriptive title — it becomes the OTA update message."
-            echo ""
-            echo "  Good: \"Fix trip card date formatting\""
-            echo "  Good: \"Add damage report photo zoom\""
-            echo "  Bad:  \"Staging\""
-            echo ""
-            echo "============================================================"
-            exit 1
-          fi
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Fetch target branch
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Check this PR adds release notes and bumps package.json to match
+        run: npx tsx scripts/changelog/checkChangelog.cli.ts ${{ github.base_ref }}
 
   # ── Code quality checks (all target branches) ──────────────────────────────
   check:

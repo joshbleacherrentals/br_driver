@@ -3,7 +3,6 @@
     "name": "Bleacher Rentals Driver",
     "owner": "bleacher-rentals",
     "slug": "br_driver",
-    "version": "1.4.3",
     "orientation": "portrait",
     "scheme": "brdriver",
     "userInterfaceStyle": "automatic",

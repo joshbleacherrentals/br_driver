@@ -1,8 +1,8 @@
+import NotificationDot from "@/components/ui/NotificationDot";
+import { useChangeLog } from "@/features/changelog/ChangeLogProvider";
 import ThemeToggle from "@/features/side-navigation/components/ThemeToggle";
 import { ThemeColors, typeScale } from "@/constants/theme";
-import UpdateCard from "@/features/side-navigation/components/UpdateCard";
 import UserProfileCard from "@/features/side-navigation/components/UserProfileCard";
-import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,8 @@ interface MenuItem {
   label: string;
   icon: string;
   route: string;
+  /** Rows that can carry an unread dot name the flag that drives it. */
+  badge?: "changelog";
 }
 
 const MENU_ITEMS: MenuItem[] = [
@@ -45,19 +47,27 @@ const MENU_ITEMS: MenuItem[] = [
     icon: "chatbubble-ellipses-outline",
     route: "/(drawer)/(tabs)/backlog-tickets",
   },
+  {
+    label: "What's New",
+    icon: "sparkles-outline",
+    route: "/(drawer)/(tabs)/whats-new",
+    badge: "changelog",
+  },
 ];
 
 interface SideNavigationProps {
   drawerNavigation: DrawerContentComponentProps["navigation"];
 }
 
-export default function SideNavigation({ drawerNavigation }: SideNavigationProps) {
+export default function SideNavigation({
+  drawerNavigation,
+}: SideNavigationProps) {
   const router = useRouter();
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const version = Constants.expoConfig?.version ?? "—";
-  const { updateReady, restart } = useOTAUpdateContext();
+  const { hasUnread: hasUnreadChangelog } = useChangeLog();
 
   const handleNav = useCallback(
     (route: string) => {
@@ -85,6 +95,11 @@ export default function SideNavigation({ drawerNavigation }: SideNavigationProps
                 color={theme.accent}
               />
               <Text style={styles.menuItemLabel}>{item.label}</Text>
+              {item.badge === "changelog" && hasUnreadChangelog && (
+                <View style={styles.badgeAnchor}>
+                  <NotificationDot top={-9} right={-9} />
+                </View>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -95,7 +110,6 @@ export default function SideNavigation({ drawerNavigation }: SideNavigationProps
             { paddingBottom: Math.max(insets.bottom, 20) },
           ]}
         >
-          {updateReady && <UpdateCard onRestart={restart} />}
           <View style={styles.appearance}>
             <Text style={styles.appearanceLabel}>Appearance</Text>
             <ThemeToggle />
@@ -121,6 +135,8 @@ const makeStyles = (theme: ThemeColors) =>
       borderBottomColor: theme.separator,
     },
     menuItemLabel: { ...typeScale.callout, color: theme.textPrimary },
+    // The dot floats off this zero-size anchor, so it never shifts the label.
+    badgeAnchor: { width: 0, height: 0 },
     footer: {
       marginTop: "auto",
       alignItems: "center",

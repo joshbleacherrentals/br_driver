@@ -17,11 +17,10 @@ import Animated, {
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
 import NotificationDot from "@/components/ui/NotificationDot";
 import TabBarBackground from "@/components/ui/TabBarBackground";
-import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import DriverGate from "@/components/widgets/DriverGate";
+import { useChangeLog } from "@/features/changelog/ChangeLogProvider";
 import PendingTripsList from "@/features/pending-trips/components/PendingTripsList";
 import { useReleasedTripsCount } from "@/hooks/db/useWorkTrackers";
-import { useOTAUpdateContext } from "@/hooks/OTAUpdateContext";
 import { useTheme } from "@/hooks/useTheme";
 import { SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { DrawerActions, useNavigation } from "@react-navigation/native";
@@ -50,18 +49,9 @@ function AnimatedHapticTab(props: any) {
 }
 
 export default function TabLayout() {
-  const { updateReady, restart, updateMessage, restarting } =
-    useOTAUpdateContext();
-
   return (
     <>
       <SignedIn>
-        <UpdateBanner
-          visible={updateReady}
-          onRestart={restart}
-          restarting={restarting}
-          message={updateMessage}
-        />
         <DriverGate>
           <TabsContent />
         </DriverGate>
@@ -79,7 +69,7 @@ export default function TabLayout() {
  * the app is still gating.
  */
 function TabsContent() {
-  const { updateReady } = useOTAUpdateContext();
+  const { hasUnread: hasUnreadChangelog } = useChangeLog();
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
   const { count: pendingCount } = useReleasedTripsCount();
@@ -123,12 +113,8 @@ function TabsContent() {
               activeOpacity={0.7}
             >
               <View>
-                <Menu
-                  size={28}
-                  color={theme.textPrimary}
-                  strokeWidth={1.75}
-                />
-                {updateReady && <NotificationDot />}
+                <Menu size={28} color={theme.textPrimary} strokeWidth={1.75} />
+                {hasUnreadChangelog && <NotificationDot />}
               </View>
             </TouchableOpacity>
           ),
@@ -168,9 +154,7 @@ function TabsContent() {
                       { backgroundColor: theme.danger },
                     ]}
                   >
-                    <Text
-                      style={[badgeStyles.text, { color: theme.onAccent }]}
-                    >
+                    <Text style={[badgeStyles.text, { color: theme.onAccent }]}>
                       {pendingCount > 99 ? "99+" : pendingCount}
                     </Text>
                   </View>
@@ -216,6 +200,13 @@ function TabsContent() {
           name="damage-report-history"
           options={{
             title: "Damage Reports",
+            tabBarItemStyle: { display: "none" },
+          }}
+        />
+        <Tabs.Screen
+          name="whats-new"
+          options={{
+            title: "What's New",
             tabBarItemStyle: { display: "none" },
           }}
         />
