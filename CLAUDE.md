@@ -215,17 +215,26 @@ If a component in a feature folder starts being used by a second feature, move i
 
 ## CI/CD Pipeline
 
-| Trigger                              | What happens                                                                     |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes & version (`pr-check.yml`) |
-| Push to `main`                       | Typecheck + lint + full native build (`build-production.yml`)                    |
-| Manual dispatch                      | Submit latest build to App Store / Play Store (`store-submit.yml`)               |
+| Trigger                              | What happens                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| PR opened → `dev`, `staging`, `main` | Lint + typecheck + export build check + release notes & version (`pr-check.yml`)             |
+| Push to `main`                       | Typecheck + lint + full native build + store submit, both platforms (`build-production.yml`) |
+| Manual dispatch                      | Resubmit an existing build by hand (`store-submit.yml`)                                      |
 
-**How production build works (push to main):**
+**How production build works (push to main) — fully automatic, no manual step:**
 
 1. Runs typecheck + lint
 2. Runs `eas build` for iOS + Android — always, every push, no diffing
-3. Store submission is always manual — run the `Store Submit` workflow after verifying the build
+3. Runs `eas submit --latest` for both platforms immediately after:
+   - **iOS** lands in App Store Connect. Apple review still has to be started
+     by hand there — this does not publish to the public App Store on its own.
+   - **Android** is pushed straight to the Play Console **production track at
+     100% rollout** (`eas.json` → `submit.production.android`) — this ships to
+     real users with no human step. Every merge to main goes live on Android.
+
+`store-submit.yml` (manual `workflow_dispatch`) still exists as a fallback —
+use it to resubmit a build by hand if this job fails partway, or to push a
+specific already-built binary again.
 
 ## Release Notes ("What's New") & App Store Version
 

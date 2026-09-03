@@ -1,11 +1,16 @@
 name: Production Build
 
 # Runs on every push to main (i.e. merged PRs).
-# Always runs a full native build (iOS + Android) via EAS.
+# Always runs a full native build (iOS + Android) via EAS, then submits both
+# straight to the stores — no manual step:
+#   - iOS lands in App Store Connect. Apple review still has to be kicked off
+#     there by hand; this does not publish to the public App Store on its own.
+#   - Android is pushed to the Play Console "production" track at 100% rollout
+#     (eas.json submit.production.android) — this DOES go live to real users
+#     with no human step. Every merge to main ships to Android users directly.
 #
-# Store submission is intentionally manual. After a build completes:
-#   eas submit --profile production --platform ios
-#   eas submit --profile production --platform android
+# To resubmit an existing build by hand instead (e.g. this job failed after
+# building but before submitting), use the separate Store Submit workflow.
 
 on:
   push:
@@ -17,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    name: Typecheck, Lint & Build
+    name: Typecheck, Lint, Build & Submit
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: "--max-old-space-size=6144"
@@ -57,3 +62,11 @@ jobs:
 
       - name: Build Android
         run: eas build --profile production --platform android --non-interactive
+
+      # `eas build` above blocks until each build finishes, so `--latest` here
+      # is unambiguously the build this run just produced.
+      - name: Submit iOS to App Store Connect
+        run: eas submit --profile production --platform ios --latest --non-interactive
+
+      - name: Submit Android to Google Play (production track, live)
+        run: eas submit --profile production --platform android --latest --non-interactive

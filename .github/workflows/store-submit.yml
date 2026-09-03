@@ -1,10 +1,13 @@
 name: Store Submit
 
-# Manual workflow to submit the latest production build to app stores.
-# Run this after a native build completes and you've verified it on TestFlight.
+# Manual fallback/resubmit workflow — build-production.yml already submits
+# automatically after every push to main. Use this to resubmit by hand: e.g.
+# that job built successfully but failed before/during submit, or you want to
+# push a specific already-built binary to a store again.
 #
-# Goes to: App Store Connect (iOS) / Google Play Console (Android)
-# iOS still requires App Review before public release.
+# Goes to: App Store Connect (iOS) / Google Play Console (Android, production
+# track, live rollout — see eas.json). iOS still requires App Review before
+# public release; Android does not, it ships to real users on submit.
 
 on:
   workflow_dispatch:
