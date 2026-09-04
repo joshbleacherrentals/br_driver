@@ -75,7 +75,10 @@ const DriversCols = {
   pay_rate_cents: column.integer,
   phone_number: column.text,
   setup_cents: column.integer,
+  /** @deprecated Whole-percent mirror of `tax_dec`, kept for older builds of this app. */
   tax: column.integer,
+  /** Tax rate in percent with 3 decimals (Quebec is 14.975). Postgres `numeric` -> SQLite real. */
+  tax_dec: column.real,
   teardown_cents: column.integer,
   user_uuid: column.text,
   vehicle_uuid: column.text,

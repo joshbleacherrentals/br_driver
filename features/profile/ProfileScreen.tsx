@@ -343,10 +343,10 @@ export default function ProfileScreen() {
               ))
             )}
 
-            {driver.tax !== null && (
+            {driver.tax_dec !== null && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Tax Rate</Text>
-                <Text style={styles.infoViewOnlyValue}>{driver.tax}%</Text>
+                <Text style={styles.infoViewOnlyValue}>{driver.tax_dec}%</Text>
               </View>
             )}
           </Card>

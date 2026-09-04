@@ -1074,6 +1074,7 @@ export type Database = {
           phone_number: string | null;
           setup_cents: number;
           tax: number;
+          tax_dec: number;
           teardown_cents: number;
           user_uuid: string | null;
           vehicle_uuid: string | null;
@@ -1101,6 +1102,7 @@ export type Database = {
           phone_number?: string | null;
           setup_cents?: number;
           tax?: number;
+          tax_dec?: number;
           teardown_cents?: number;
           user_uuid?: string | null;
           vehicle_uuid?: string | null;
@@ -1128,6 +1130,7 @@ export type Database = {
           phone_number?: string | null;
           setup_cents?: number;
           tax?: number;
+          tax_dec?: number;
           teardown_cents?: number;
           user_uuid?: string | null;
           vehicle_uuid?: string | null;
