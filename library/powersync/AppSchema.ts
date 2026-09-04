@@ -409,11 +409,14 @@ const Contacts = new Table(ContactsCols);
 
 // WorkTracker line items — the pay breakdown behind WorkTrackers.pay_cents.
 // One row per billable line (hauling, deadhead, setup, …); `unit_amt_cents`
-// times `quantity` is that line's total.
+// times `qty_decimal` is that line's total.
 const WorkTrackerLineItemsCols = {
   work_tracker_uuid: column.text,
   type: column.text,
+  /** DEPRECATED - whole-unit mirror of qty_decimal, maintained by a Postgres trigger. */
   quantity: column.integer,
+  /** SQLite has no DECIMAL; PowerSync casts the Postgres numeric(10,1) into a real. */
+  qty_decimal: column.real,
   unit_amt_cents: column.integer,
   description: column.text,
   is_automatically_managed: column.integer,

@@ -15,7 +15,13 @@ import { rollForQuack } from "@/utils/quack";
 import { QuackButton } from "@/components/widgets/quackButton";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 /**
  * The trip's pay, as a tappable pill that opens its line-item breakdown.
@@ -109,9 +115,7 @@ export function PayBreakdownSheet({
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {lineItems.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No line items on this trip yet.
-          </Text>
+          <Text style={styles.emptyText}>No line items on this trip yet.</Text>
         ) : (
           lineItems.map((item, index) => (
             <LineItemRow
@@ -136,7 +140,9 @@ function LineItemRow({
   isLast: boolean;
 }) {
   const styles = useThemedStyles(makeSheetStyles);
-  const quantity = item.quantity ?? 0;
+  // `qty_decimal` can be fractional. Number's own formatting is what we want
+  // here: 2 renders as "2", 2.5 as "2.5" — no trailing ".0" on whole units.
+  const quantity = item.qty_decimal ?? 0;
 
   // No rule under the last row: with the total gone it would be a separator
   // separating nothing.

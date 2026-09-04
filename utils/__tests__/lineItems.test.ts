@@ -41,11 +41,30 @@ describe("formatCents", () => {
 
 describe("lineItemTotalCents", () => {
   it("multiplies unit price by quantity", () => {
-    expect(lineItemTotalCents({ quantity: 3, unit_amt_cents: 1500 })).toBe(4500);
+    expect(lineItemTotalCents({ qty_decimal: 3, unit_amt_cents: 1500 })).toBe(
+      4500,
+    );
+  });
+
+  it("bills a fractional quantity — 2.5 hours at $19.99 is $49.98", () => {
+    expect(lineItemTotalCents({ qty_decimal: 2.5, unit_amt_cents: 1999 })).toBe(
+      4998,
+    );
+  });
+
+  it("rounds float dust out of the cents total", () => {
+    // 0.3 * 1000 is 299.99999999999994 in IEEE 754.
+    expect(lineItemTotalCents({ qty_decimal: 0.3, unit_amt_cents: 1000 })).toBe(
+      300,
+    );
   });
 
   it("is zero when either side is missing", () => {
-    expect(lineItemTotalCents({ quantity: null, unit_amt_cents: 1500 })).toBe(0);
-    expect(lineItemTotalCents({ quantity: 3, unit_amt_cents: null })).toBe(0);
+    expect(
+      lineItemTotalCents({ qty_decimal: null, unit_amt_cents: 1500 }),
+    ).toBe(0);
+    expect(lineItemTotalCents({ qty_decimal: 3, unit_amt_cents: null })).toBe(
+      0,
+    );
   });
 });
