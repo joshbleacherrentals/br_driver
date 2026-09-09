@@ -261,6 +261,40 @@ const DamageReportPhotos = new Table(DamageReportPhotosCols, {
   indexes: { damage_report_uuid: ["damage_report_uuid"] },
 });
 
+// damage report acknowledgements — "select all that apply"
+//
+// A driver confirming that an existing report describes what they are looking
+// at, written INSTEAD of a duplicate report. Light by design: no photos, no
+// severity, no note — the report it points at already carries all of that.
+//
+// Cross-driver, like the reports themselves: the count a driver sees
+// ("confirmed by 3 drivers") is what stops them filing a fourth report, so
+// acks on every open report reach every phone.
+//
+// `report_resolved_at` is a mirror of the parent's `resolved_at`, maintained
+// by Postgres triggers, and it is the column the mobile sync rule filters on.
+// Not an optimisation: reaching the parent through a JOIN there compiles into
+// a parameter query capped at 1000 rows, which is how first sync broke once
+// already (see the comment in `br_powersync/config/sync_rules.yaml`).
+const DamageReportAcknowledgementsCols = {
+  damage_report_uuid: column.text,
+  inspection_uuid: column.text,
+  work_tracker_uuid: column.text,
+  acknowledged_by_user_uuid: column.text,
+  created_at: column.text,
+  deleted: column.integer,
+  report_resolved_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"DamageReportAcknowledgements">>;
+const DamageReportAcknowledgements = new Table(
+  DamageReportAcknowledgementsCols,
+  {
+    indexes: {
+      damage_report_uuid: ["damage_report_uuid"],
+      acknowledged_by_user_uuid: ["acknowledged_by_user_uuid"],
+    },
+  },
+);
+
 /**
  * §3 upload bookkeeping, keyed by the photo row's own `id` — LOCAL ONLY.
  *
@@ -614,6 +648,7 @@ export const AppSchema = new Schema({
   InspectionQuestions,
   DamageReports,
   DamageReportPhotos,
+  DamageReportAcknowledgements,
   PhotoUploadStatus,
   InspectionPhotos,
   DriverDocuments,

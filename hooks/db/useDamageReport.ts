@@ -29,7 +29,8 @@ export type DamageReportData = {
   fixed_by_user_uuid: string | null;
 };
 
-const DAMAGE_REPORT_COLUMNS = [
+/** Exported so list screens select exactly what `DamageReportData` promises. */
+export const DAMAGE_REPORT_COLUMNS = [
   "id",
   "inspection_uuid",
   "bleacher_uuid",
@@ -195,6 +196,57 @@ export function buildDamageReportByIdQuery(
 }
 
 /**
+ * The same lookup, unscoped — for the read-only viewer.
+ *
+ * §15: a driver reaches another driver's report from the checklist that
+ * replaces filing a duplicate, and from the trips screen. Both are read-only
+ * views of damage on a bleacher they are hauling, which is the same shared
+ * fact `useDamageReports` already exposes.
+ *
+ * It is a separate function rather than a flag on
+ * {@link buildDamageReportByIdQuery} on purpose. That one decides which rows
+ * `usePhotoRepair` may Retry/Replace, so the two answer different questions —
+ * "may I look at this" and "may I write to this" — and a shared parameter is
+ * how those quietly become one question with the wrong answer.
+ */
+export function buildAnyDamageReportByIdQuery(damageReportId: string) {
+  return crossDriverRead(
+    BLEACHER_DAMAGE_IS_SHARED,
+    db
+      .selectFrom("DamageReports")
+      .select([...DAMAGE_REPORT_COLUMNS])
+      .where("id", "=", damageReportId)
+      .limit(1),
+  );
+}
+
+/**
+ * Any driver's damage report by id, read-only.
+ *
+ * `null` means "no such report on this device" and nothing else — unlike
+ * {@link useDamageReportById}, it never means "someone else's".
+ */
+export function useAnyDamageReportById(damageReportId: string | null | undefined): {
+  damageReport: DamageReportData | null;
+  isLoading: boolean;
+} {
+  const compiled = useMemo(
+    () =>
+      damageReportId
+        ? buildAnyDamageReportByIdQuery(damageReportId).compile()
+        : null,
+    [damageReportId],
+  );
+
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<DamageReportData>(),
+  );
+
+  return { damageReport: data?.[0] ?? null, isLoading };
+}
+
+/**
  * Returns a single damage report by its ID, if the signed-in driver created it.
  *
  * `null` covers three cases the caller must not distinguish by guessing: no
@@ -279,6 +331,68 @@ export function useDamageReportPhotoPaths(
   );
 
   return { photoPaths, isLoading };
+}
+
+/**
+ * Base64 thumbnails for a set of reports, grouped by report.
+ *
+ * §15 cross-driver, and display-only. The thumbnail lives on the photo row
+ * itself, so it syncs with every open report and renders with no connection —
+ * which is what makes "is this the same damage?" answerable in a field. The
+ * full-size file is not: the queue only downloads photos this driver owns, so
+ * anything larger than this needs the bucket and a signal.
+ *
+ * `null` for an empty list rather than a query matching nothing: a list screen
+ * renders before its rows arrive, and there is no question to ask yet.
+ */
+export function buildDamageReportThumbnailsQuery(damageReportIds: string[]) {
+  if (damageReportIds.length === 0) return null;
+
+  return crossDriverRead(
+    BLEACHER_DAMAGE_IS_SHARED,
+    db
+      // The sanctioned unscoped read of this table, for the same reason as
+      // `useDamageReportPhotoPaths` below: nothing here can be written, and
+      // scoping it would blank the photo strip on other drivers' reports —
+      // the strip the checklist exists to show.
+      // eslint-disable-next-line no-restricted-syntax -- §15 cross-driver by design
+      .selectFrom("DamageReportPhotos")
+      .select(["damage_report_uuid", "thumbnail"])
+      .where("damage_report_uuid", "in", damageReportIds)
+      .where("thumbnail", "is not", null)
+      .orderBy("created_at", "asc"),
+  );
+}
+
+export function useDamageReportThumbnails(damageReportIds: string[]): {
+  thumbnails: Record<string, string[]>;
+  isLoading: boolean;
+} {
+  // Ids come from a list render, so a fresh array every frame is the norm.
+  const key = damageReportIds.join(",");
+
+  const compiled = useMemo(
+    () =>
+      buildDamageReportThumbnailsQuery(key ? key.split(",") : [])?.compile() ??
+      null,
+    [key],
+  );
+
+  const { data, isLoading } = useTypedQuery(
+    compiled,
+    expect<{ damage_report_uuid: string | null; thumbnail: string | null }>(),
+  );
+
+  const thumbnails = useMemo(() => {
+    const grouped: Record<string, string[]> = {};
+    for (const row of data ?? []) {
+      if (!row.damage_report_uuid || !row.thumbnail) continue;
+      (grouped[row.damage_report_uuid] ??= []).push(row.thumbnail);
+    }
+    return grouped;
+  }, [data]);
+
+  return { thumbnails, isLoading };
 }
 
 /**

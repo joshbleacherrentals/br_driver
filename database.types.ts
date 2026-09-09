@@ -741,6 +741,68 @@ export type Database = {
           },
         ];
       };
+      DamageReportAcknowledgements: {
+        Row: {
+          acknowledged_by_user_uuid: string;
+          created_at: string;
+          damage_report_uuid: string;
+          deleted: boolean;
+          id: string;
+          inspection_uuid: string | null;
+          report_resolved_at: string | null;
+          work_tracker_uuid: string | null;
+        };
+        Insert: {
+          acknowledged_by_user_uuid?: string;
+          created_at?: string;
+          damage_report_uuid: string;
+          deleted?: boolean;
+          id?: string;
+          inspection_uuid?: string | null;
+          report_resolved_at?: string | null;
+          work_tracker_uuid?: string | null;
+        };
+        Update: {
+          acknowledged_by_user_uuid?: string;
+          created_at?: string;
+          damage_report_uuid?: string;
+          deleted?: boolean;
+          id?: string;
+          inspection_uuid?: string | null;
+          report_resolved_at?: string | null;
+          work_tracker_uuid?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "damage_report_acks_report_fkey";
+            columns: ["damage_report_uuid"];
+            isOneToOne: false;
+            referencedRelation: "DamageReports";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "damage_report_acks_inspection_fkey";
+            columns: ["inspection_uuid"];
+            isOneToOne: false;
+            referencedRelation: "WorkTrackerInspections";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "damage_report_acks_work_tracker_fkey";
+            columns: ["work_tracker_uuid"];
+            isOneToOne: false;
+            referencedRelation: "WorkTrackers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "damage_report_acks_user_fkey";
+            columns: ["acknowledged_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       DamageReportPhotos: {
         Row: {
           created_at: string;
