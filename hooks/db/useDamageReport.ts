@@ -23,6 +23,10 @@ export type DamageReportData = {
   resolved_at: string | null;
   maintenance_event_uuid: string | null;
   created_by_user_uuid: string | null;
+  /** 1 when a driver reported this fixed — see `setDamageReportFixed.ts`. */
+  fixed_by_driver: number | null;
+  fixed_at: string | null;
+  fixed_by_user_uuid: string | null;
 };
 
 const DAMAGE_REPORT_COLUMNS = [
@@ -38,6 +42,9 @@ const DAMAGE_REPORT_COLUMNS = [
   "resolved_at",
   "maintenance_event_uuid",
   "created_by_user_uuid",
+  "fixed_by_driver",
+  "fixed_at",
+  "fixed_by_user_uuid",
 ] as const;
 
 /**

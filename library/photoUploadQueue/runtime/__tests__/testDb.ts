@@ -114,6 +114,12 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("resolved_at", "text")
     .addColumn("maintenance_event_uuid", "text")
     .addColumn("created_by_user_uuid", "text")
+    // "Fixed by driver" — a driver's claim that the damage is gone, which is
+    // not a resolve (a manager still closes the report on the web). Three
+    // columns because "fixed" without "who" and "when" answers nothing.
+    .addColumn("fixed_by_driver", "integer")
+    .addColumn("fixed_at", "text")
+    .addColumn("fixed_by_user_uuid", "text")
     .execute();
 
   await db.schema
@@ -221,6 +227,38 @@ export async function seedDriver(name: string): Promise<SeededDriver> {
   return { userUuid, driverUuid };
 }
 
+/**
+ * One damage report, with no photos on it.
+ *
+ * `seedDamageReportPhoto` creates a parent report as a side effect of seeding a
+ * photo; this is for the suites whose subject is the report row itself.
+ */
+export async function seedDamageReport(args: {
+  reportId: string;
+  createdByUserUuid: string | null;
+  note?: string;
+  resolvedAt?: string | null;
+  fixed?: { at: string; byUserUuid: string };
+}): Promise<string> {
+  const { reportId, createdByUserUuid, note = null, resolvedAt = null, fixed } = args;
+
+  await mockDb
+    .insertInto("DamageReports")
+    .values({
+      id: reportId,
+      created_by_user_uuid: createdByUserUuid,
+      created_at: "2026-08-01T00:00:00.000Z",
+      note,
+      resolved_at: resolvedAt,
+      fixed_by_driver: fixed ? 1 : 0,
+      fixed_at: fixed?.at ?? null,
+      fixed_by_user_uuid: fixed?.byUserUuid ?? null,
+    })
+    .execute();
+
+  return reportId;
+}
+
 /** Queue columns a test may vary; the defaults describe a fresh pending photo. */
 export type QueueColumns = {
   upload_status?: string;
@@ -300,6 +338,7 @@ export async function seedDamageReportPhoto(args: {
         created_by_user_uuid: createdByUserUuid,
         created_at: "2026-08-01T00:00:00.000Z",
         resolved_at: resolvedAt,
+        fixed_by_driver: 0,
       })
       .execute();
   }

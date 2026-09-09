@@ -24,6 +24,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { useUserDisplayName } from "@/hooks/db/useCurrentUser";
+import { FixedMarkControl } from "@/features/damage-report/components/FixedMarkControl";
+import {
+  markDamageReportFixed,
+  unmarkDamageReportFixed,
+} from "@/features/damage-report/utils/setDamageReportFixed";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -343,6 +350,40 @@ export default function DamageReportScreen() {
   // and the queue's job there is only to finish delivering what is already on
   // it. Retry stays available; replacement does not.
   const isReportEditable = !damageReport?.resolved_at;
+
+  // ── "Fixed by driver" ─────────────────────────────────────────────────────
+  // A claim that the damage is gone, not a resolve: the report stays open, on
+  // every phone, until a manager closes it on the web. Offered while the report
+  // is still open, and to any driver who can see it — whoever was on site is
+  // the one who fixed it (§15 cross-driver write, see `setDamageReportFixed`).
+  const isFixedByDriver = damageReport?.fixed_by_driver === 1;
+  const fixedByName = useUserDisplayName(damageReport?.fixed_by_user_uuid);
+  const fixedByLabel =
+    damageReport?.fixed_by_user_uuid && scope
+      ? damageReport.fixed_by_user_uuid === scope.userUuid
+        ? "you"
+        : fixedByName
+      : fixedByName;
+
+  const handleMarkFixed = useCallback(async () => {
+    if (!viewOnlyId || !scope) return;
+    try {
+      await markDamageReportFixed(viewOnlyId, scope);
+    } catch (error) {
+      console.error("[DamageReport] mark fixed failed:", error);
+      Alert.alert("Error", "Could not mark this report as fixed.");
+    }
+  }, [viewOnlyId, scope]);
+
+  const handleUnmarkFixed = useCallback(async () => {
+    if (!viewOnlyId) return;
+    try {
+      await unmarkDamageReportFixed(viewOnlyId);
+    } catch (error) {
+      console.error("[DamageReport] unmark fixed failed:", error);
+      Alert.alert("Error", "Could not remove the fixed mark.");
+    }
+  }, [viewOnlyId]);
 
   const repairablePhotos: RepairablePhoto[] = useMemo(
     () =>
@@ -685,6 +726,21 @@ export default function DamageReportScreen() {
               <Text style={[styles.metaText, { color: theme.success }]}>
                 Resolved: {new Date(damageReport.resolved_at).toLocaleString()}
               </Text>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            {/* A resolved report is closed history — there is nothing left for
+                a driver to claim about it. */}
+            {isReportEditable && (
+              <FixedMarkControl
+                isFixed={isFixedByDriver}
+                fixedAt={damageReport?.fixed_at ?? null}
+                fixedByLabel={fixedByLabel}
+                onMark={handleMarkFixed}
+                onUnmark={handleUnmarkFixed}
+                disabled={!scope}
+              />
             )}
           </View>
 

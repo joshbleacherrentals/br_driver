@@ -782,6 +782,9 @@ export type Database = {
           created_at: string;
           created_by_user_uuid: string | null;
           deleted: boolean;
+          fixed_at: string | null;
+          fixed_by_driver: boolean;
+          fixed_by_user_uuid: string | null;
           haul_damage: Database["public"]["Enums"]["damage_severity"];
           id: string;
           inspection_uuid: string | null;
@@ -798,6 +801,9 @@ export type Database = {
           created_at?: string;
           created_by_user_uuid?: string | null;
           deleted?: boolean;
+          fixed_at?: string | null;
+          fixed_by_driver?: boolean;
+          fixed_by_user_uuid?: string | null;
           haul_damage?: Database["public"]["Enums"]["damage_severity"];
           id?: string;
           inspection_uuid?: string | null;
@@ -814,6 +820,9 @@ export type Database = {
           created_at?: string;
           created_by_user_uuid?: string | null;
           deleted?: boolean;
+          fixed_at?: string | null;
+          fixed_by_driver?: boolean;
+          fixed_by_user_uuid?: string | null;
           haul_damage?: Database["public"]["Enums"]["damage_severity"];
           id?: string;
           inspection_uuid?: string | null;

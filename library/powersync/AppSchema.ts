@@ -200,6 +200,15 @@ const DamageReportsCols = {
   maintenance_event_uuid: column.text,
   created_by_user_uuid: column.text,
   deleted: column.integer,
+  // "Fixed by driver" — a driver's claim that the damage is gone. Not a
+  // resolve: a manager still closes the report on the web, which is what drops
+  // it off every phone. Three columns because "fixed" without "who" and "when"
+  // is a question a manager asks immediately, and Postgres refuses the
+  // half-filled state outright (CHECK constraint in
+  // 20260909120000_damage_reports_fixed_by_driver.sql).
+  fixed_by_driver: column.integer,
+  fixed_at: column.text,
+  fixed_by_user_uuid: column.text,
 } satisfies Partial<PowerSyncColsFor<"DamageReports">>;
 const DamageReports = new Table(DamageReportsCols, {
   // `created_by_user_uuid` backs the photo queue's ownership subquery (§15) and

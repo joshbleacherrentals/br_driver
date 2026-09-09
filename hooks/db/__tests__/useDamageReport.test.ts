@@ -28,6 +28,7 @@ import {
   mockDb,
   resetTestDb,
   scopeFor,
+  seedDamageReport,
   seedDamageReportPhoto,
   seedDriver,
   type SeededDriver,
@@ -136,4 +137,44 @@ describe("the bleacher-damage reads stay cross-driver (§15)", () => {
       expect(hook.length).toBe(1);
     },
   );
+});
+
+/**
+ * The "fixed by driver" mark has to survive the trip from the row to the
+ * screen. It is read on every damage report the app renders — the badge in the
+ * lists and the button on the report itself both branch on it — so a column
+ * missing from the SELECT would not fail loudly; it would quietly render every
+ * report as "not fixed", which is exactly the state the driver was trying to
+ * change.
+ */
+describe("the fixed-by-driver mark is selected, not just stored", () => {
+  it("comes back with who set it and when", async () => {
+    await seedDamageReport({
+      reportId: "report-fixed",
+      createdByUserUuid: driverA.userUuid,
+      fixed: { at: "2026-09-09T10:00:00.000Z", byUserUuid: driverB.userUuid },
+    });
+
+    const { rows } = await mockDb.executeQuery(
+      buildDamageReportByIdQuery(scopeFor(driverA), "report-fixed").compile(),
+    );
+
+    expect(rows[0]).toMatchObject({
+      fixed_by_driver: 1,
+      fixed_at: "2026-09-09T10:00:00.000Z",
+      fixed_by_user_uuid: driverB.userUuid,
+    });
+  });
+
+  it("comes back unset on a report nobody has marked", async () => {
+    const { rows } = await mockDb.executeQuery(
+      buildDamageReportByIdQuery(scopeFor(driverA), "report-mine").compile(),
+    );
+
+    expect(rows[0]).toMatchObject({
+      fixed_by_driver: 0,
+      fixed_at: null,
+      fixed_by_user_uuid: null,
+    });
+  });
 });

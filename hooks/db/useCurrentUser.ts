@@ -60,3 +60,40 @@ export function useCurrentUser(): { identity: CurrentUserIdentity | null } {
     };
   }, [data]);
 }
+
+/**
+ * Any user's display name, by id — for showing *who* did something the current
+ * driver is looking at (today: who marked a damage report fixed).
+ *
+ * `Users` syncs whole to every phone, so this normally resolves offline. It
+ * still returns `null` when it cannot — an id that is not on the device yet, or
+ * a row with no name on it — and callers must render something sensible in that
+ * case rather than printing an empty string.
+ */
+export function useUserDisplayName(
+  userUuid: string | null | undefined,
+): string | null {
+  const compiled = useMemo(() => {
+    if (!userUuid) return null;
+
+    return db
+      .selectFrom("Users")
+      .select(["id", "first_name", "last_name"])
+      .where("id", "=", userUuid)
+      .limit(1)
+      .compile();
+  }, [userUuid]);
+
+  const { data } = useTypedQuery(
+    compiled,
+    expect<Pick<UserRow, "id" | "first_name" | "last_name">>(),
+  );
+
+  return useMemo(() => {
+    const row = data?.[0];
+    if (!row) return null;
+
+    const name = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+    return name || null;
+  }, [data]);
+}

@@ -1,4 +1,5 @@
 import Badge from "@/components/ui/Badge";
+import FixedBadge from "@/components/widgets/FixedBadge";
 import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
@@ -118,10 +119,15 @@ function DamageReportCard({
             </Text>
           </View>
         </View>
-        <Badge
-          label={isResolved ? "Resolved" : "Open"}
-          color={isResolved ? theme.success : theme.danger}
-        />
+        <View style={styles.cardHeaderRight}>
+          {/* A report a driver says is already fixed is still open — the badge
+              tells the reader why it is worth a manager's attention first. */}
+          <FixedBadge fixedByDriver={report.fixed_by_driver} />
+          <Badge
+            label={isResolved ? "Resolved" : "Open"}
+            color={isResolved ? theme.success : theme.danger}
+          />
+        </View>
       </View>
 
       <View style={styles.cardBody}>
@@ -266,6 +272,11 @@ function makeStyles(theme: ThemeColors) {
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 8,
+    },
+    cardHeaderRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
     },
     cardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
     bleacherNumber: {

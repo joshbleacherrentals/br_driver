@@ -92,6 +92,10 @@ export async function commitDamageReport(
           resolved_at: null,
           maintenance_event_uuid: null,
           created_by_user_uuid: fields.scope.userUuid,
+          // Postgres defaults this to false; writing it here keeps a locally
+          // created report from reading as NULL — "unknown" — for the minutes
+          // or hours before its first sync round-trip.
+          fixed_by_driver: 0,
         })
         .compile(),
     );
