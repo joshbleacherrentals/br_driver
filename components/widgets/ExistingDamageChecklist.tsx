@@ -19,10 +19,7 @@ import DamageReportCard from "@/components/widgets/DamageReportCard";
 import { typeScale } from "@/constants/theme";
 import type { ThemeColors } from "@/constants/theme";
 import { useUserDisplayNames } from "@/hooks/db/useCurrentUser";
-import {
-  useDamageReports,
-  useDamageReportThumbnails,
-} from "@/hooks/db/useDamageReport";
+import { useDamageReports } from "@/hooks/db/useDamageReport";
 import { useAckCounts } from "@/hooks/db/useDamageReportAcknowledgements";
 import { useTheme } from "@/hooks/useTheme";
 import React, { useCallback, useMemo } from "react";
@@ -67,7 +64,6 @@ export default function ExistingDamageChecklist({
   );
 
   const { counts } = useAckCounts(reportIds);
-  const { thumbnails } = useDamageReportThumbnails(reportIds);
   const names = useUserDisplayNames(authorIds);
 
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -115,7 +111,6 @@ export default function ExistingDamageChecklist({
               ? (names[report.created_by_user_uuid] ?? null)
               : null
           }
-          thumbnails={thumbnails[report.id] ?? []}
           ackCount={counts[report.id] ?? 0}
           selectable={mode === "select"}
           selected={selected.has(report.id)}

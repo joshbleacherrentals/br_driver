@@ -387,7 +387,13 @@ export function useDamageReportThumbnails(damageReportIds: string[]): {
     const grouped: Record<string, string[]> = {};
     for (const row of data ?? []) {
       if (!row.damage_report_uuid || !row.thumbnail) continue;
-      (grouped[row.damage_report_uuid] ??= []).push(row.thumbnail);
+      // The column holds RAW base64 with no `data:` prefix (see
+      // `utils/generateThumbnail.ts`), which no image component can load as a
+      // URI. Wrapping it here rather than at each call site is what stops the
+      // next consumer rendering four empty boxes and not knowing why.
+      (grouped[row.damage_report_uuid] ??= []).push(
+        `data:image/jpeg;base64,${row.thumbnail}`,
+      );
     }
     return grouped;
   }, [data]);

@@ -209,16 +209,16 @@ describe("ticking versus looking", () => {
     const onToggle = jest.fn();
     const tree = render({ onToggle });
 
-    pressWithin(cardFor(tree, "r2"), "damage-report-card-checkbox");
+    pressWithin(cardFor(tree, "r2"), "damage-report-card");
 
     expect(onToggle).toHaveBeenCalledWith("r2");
   });
 
-  it("opens the one that was tapped", () => {
+  it("opens the one whose Open control was used", () => {
     const onOpenReport = jest.fn();
     const tree = render({ onOpenReport });
 
-    pressWithin(cardFor(tree, "r1"), "damage-report-card");
+    pressWithin(cardFor(tree, "r1"), "damage-report-card-open");
 
     expect(onOpenReport).toHaveBeenCalledWith("r1");
   });

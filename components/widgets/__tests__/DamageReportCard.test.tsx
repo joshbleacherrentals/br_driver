@@ -177,27 +177,15 @@ describe("the fixed mark", () => {
   });
 });
 
+/**
+ * Photos deliberately do NOT appear on the card: a strip of thumbnails made
+ * every row tall and ragged, and the question the card answers ("is this the
+ * same damage?") is carried by the note. The photos live one tap away, on the
+ * report itself.
+ */
 describe("photos", () => {
-  it("shows the thumbnails it is given", () => {
-    const tree = render({ thumbnails: ["data:image/jpeg;base64,a", "data:image/jpeg;base64,b"] });
-
-    expect(tree.root.findAllByType("PhotoTile")).toHaveLength(2);
-  });
-
-  it("caps the strip and says how many more there are", () => {
-    const tree = render({
-      thumbnails: ["a", "b", "c", "d", "e", "f"].map((c) => `data:image/jpeg;base64,${c}`),
-    });
-
-    expect(tree.root.findAllByType("PhotoTile").length).toBeLessThan(6);
-    expect(allText(tree)).toContain("+");
-  });
-
-  it("renders fine with no photos on the device yet", () => {
-    const tree = render({ thumbnails: [] });
-
-    expect(tree.root.findAllByType("PhotoTile")).toHaveLength(0);
-    expect(allText(tree)).toContain("Third row plank is split end to end");
+  it("shows none — they belong on the opened report", () => {
+    expect(render().root.findAllByType("PhotoTile")).toHaveLength(0);
   });
 });
 
@@ -208,25 +196,45 @@ describe("selecting versus opening", () => {
     ).toHaveLength(0);
   });
 
-  it("toggles without opening the report", () => {
-    const onPress = jest.fn();
-    const onToggleSelected = jest.fn();
-    const tree = render({ selectable: true, onPress, onToggleSelected });
-
-    press(tree, "damage-report-card-checkbox");
-
-    expect(onToggleSelected).toHaveBeenCalledTimes(1);
-    expect(onPress).not.toHaveBeenCalled();
-  });
-
-  it("opens the report when the card itself is tapped", () => {
+  it("ticks when the card is tapped — that is the frequent gesture", () => {
+    // In a selection list, tapping a row means "this one", not "show me more".
+    // Ticking is what the driver does to most of the list; opening is the
+    // occasional check, so it gets a control rather than the whole surface.
     const onPress = jest.fn();
     const onToggleSelected = jest.fn();
     const tree = render({ selectable: true, onPress, onToggleSelected });
 
     press(tree, "damage-report-card");
 
+    expect(onToggleSelected).toHaveBeenCalledTimes(1);
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("opens the report from its own control", () => {
+    const onPress = jest.fn();
+    const onToggleSelected = jest.fn();
+    const tree = render({ selectable: true, onPress, onToggleSelected });
+
+    press(tree, "damage-report-card-open");
+
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(onToggleSelected).not.toHaveBeenCalled();
+  });
+
+  it("opens on tap when there is nothing to select", () => {
+    // The trips screen and the reports list: no checkbox, so the card is a
+    // link again.
+    const onPress = jest.fn();
+    const tree = render({ onPress });
+
+    press(tree, "damage-report-card");
+
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no open control when the whole card already opens", () => {
+    expect(
+      render().root.findAll((n) => n.props?.testID === "damage-report-card-open"),
+    ).toHaveLength(0);
   });
 });

@@ -20,12 +20,8 @@ import type { DamageReportData } from "@/hooks/db/useDamageReport";
 import { useTheme } from "@/hooks/useTheme";
 import { severityColors, severityLabel, worstSeverity } from "@/utils/damageSeverity";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
-/** Enough to recognise the damage; beyond that the strip stops being scannable. */
-const MAX_THUMBNAILS = 4;
 
 export type DamageReportCardProps = {
   report: DamageReportData;
@@ -33,8 +29,6 @@ export type DamageReportCardProps = {
   bleacherNumber?: string | number | null;
   /** Who filed it, when this device knows them. */
   authorLabel?: string | null;
-  /** Base64 thumbnails — they sync with the row, so these work offline. */
-  thumbnails?: string[];
   /** How many drivers have confirmed this report. */
   ackCount?: number;
   selectable?: boolean;
@@ -58,7 +52,6 @@ export default function DamageReportCard({
   report,
   bleacherNumber,
   authorLabel,
-  thumbnails = [],
   ackCount = 0,
   selectable = false,
   selected = false,
@@ -70,33 +63,33 @@ export default function DamageReportCard({
 
   const severity = worstSeverity(report.seat_damage, report.haul_damage);
   const colors = severityColors(theme, severity);
-  const shown = thumbnails.slice(0, MAX_THUMBNAILS);
-  const overflow = thumbnails.length - shown.length;
 
+  // Tapping the card is the frequent gesture — in a selection list that is
+  // ticking, not opening. Opening is the deliberate one, so it gets its own
+  // control rather than stealing the whole surface; without a checkbox there is
+  // nothing to tick and the card opens instead.
   return (
     <TouchableOpacity
       testID="damage-report-card"
+      accessibilityRole={selectable ? "checkbox" : "button"}
+      accessibilityState={selectable ? { checked: selected } : undefined}
       style={[styles.card, selected && { borderColor: theme.accent }]}
       activeOpacity={0.7}
-      onPress={onPress}
+      onPress={selectable ? onToggleSelected : onPress}
     >
       <View style={styles.headerRow}>
         {selectable && (
-          <TouchableOpacity
+          <View
             testID="damage-report-card-checkbox"
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: selected }}
-            hitSlop={8}
             style={[
               styles.checkbox,
               selected && { backgroundColor: theme.accent, borderColor: theme.accent },
             ]}
-            onPress={onToggleSelected}
           >
             {selected && (
               <Ionicons name="checkmark" size={14} color={theme.onAccent} />
             )}
-          </TouchableOpacity>
+          </View>
         )}
 
         <View style={styles.headerText}>
@@ -111,6 +104,7 @@ export default function DamageReportCard({
 
         <View style={styles.headerBadges}>
           <FixedBadge fixedByDriver={report.fixed_by_driver} />
+
           <View
             style={[
               styles.severityPill,
@@ -131,22 +125,18 @@ export default function DamageReportCard({
         </Text>
       )}
 
-      {shown.length > 0 && (
-        <View style={styles.photoStrip}>
-          {shown.map((uri, index) => (
-            <Image
-              key={`${report.id}-thumb-${index}`}
-              source={{ uri }}
-              style={styles.thumbnail}
-              contentFit="cover"
-            />
-          ))}
-          {overflow > 0 && (
-            <View style={styles.overflowTile}>
-              <Text style={styles.overflowText}>+{overflow}</Text>
-            </View>
-          )}
-        </View>
+      {selectable && (
+        <TouchableOpacity
+          testID="damage-report-card-open"
+          accessibilityRole="button"
+          accessibilityLabel="Open damage report"
+          hitSlop={10}
+          style={styles.openButton}
+          onPress={onPress}
+        >
+          <Ionicons name="eye-outline" size={16} color={theme.accent} />
+          <Text style={styles.openText}>Open report</Text>
+        </TouchableOpacity>
       )}
 
       {ackCount > 0 && (
@@ -195,18 +185,20 @@ function makeStyles(theme: ThemeColors) {
       borderWidth: 1,
     },
     severityText: { ...typeScale.caption2, fontWeight: "700" },
-    note: { ...typeScale.footnote, color: theme.textPrimary },
-    photoStrip: { flexDirection: "row", gap: 6 },
-    thumbnail: { width: 52, height: 52, borderRadius: radius.control },
-    overflowTile: {
-      width: 52,
-      height: 52,
-      borderRadius: radius.control,
-      backgroundColor: theme.secondaryAccentSoft,
+    // Full width and a real tap target: beside the badges it was both hard to
+    // see and hard to hit.
+    openButton: {
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
+      gap: 6,
+      paddingVertical: 12,
+      borderRadius: radius.control,
+      borderWidth: 1,
+      borderColor: theme.accent,
     },
-    overflowText: { ...typeScale.footnote, fontWeight: "700", color: theme.textPrimary },
+    openText: { ...typeScale.footnote, fontWeight: "700", color: theme.accent },
+    note: { ...typeScale.footnote, color: theme.textPrimary },
     ackBadge: { alignSelf: "flex-start" },
   });
 }

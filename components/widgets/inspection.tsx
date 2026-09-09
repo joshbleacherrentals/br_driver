@@ -39,6 +39,7 @@ import {
 } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAllBleachers } from "@/hooks/db/useBleacher";
 import { useWorkTracker } from "@/hooks/db/useWorkTrackers";
@@ -286,6 +287,20 @@ export default function InspectionScreen({
     }
     if (!hasOpenDamageReports) setFilingNewReport(true);
   }, [damageFound, hasOpenDamageReports]);
+
+  const router = useRouter();
+
+  // The inspection stays mounted underneath, so the driver comes back to the
+  // answers and photos they had already entered.
+  const openDamageReport = useCallback(
+    (damageReportId: string) => {
+      router.push({
+        pathname: "/damage-report-view",
+        params: { damageReportId },
+      });
+    },
+    [router],
+  );
 
   const toggleAcknowledged = useCallback((damageReportId: string) => {
     setAcknowledgedIds((prev) =>
@@ -891,6 +906,7 @@ export default function InspectionScreen({
                     bleacherUuid={bleacherUuid}
                     selectedIds={acknowledgedIds}
                     onToggle={toggleAcknowledged}
+                    onOpenReport={openDamageReport}
                     mode="select"
                   />
                 </View>

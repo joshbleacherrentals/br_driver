@@ -102,10 +102,10 @@ export default function DamageReportViewScreen() {
       photoPaths.map((path, index) => ({
         id: `${path}-${index}`,
         uri: fullSizeUrl(path),
-        // The synced thumbnail is what the viewer falls back to when the file
-        // cannot be fetched — which offline, on another driver's report, is
-        // every time.
-        thumbnail: tiles[index],
+        // The viewer's fallback when the file cannot be fetched — which,
+        // offline on another driver's report, is every time. It wants the raw
+        // base64 the row carries, not the data URI the grid renders.
+        thumbnail: tiles[index]?.replace(/^data:image\/jpeg;base64,/, ""),
         storagePath: path,
       })),
     [photoPaths, tiles],
