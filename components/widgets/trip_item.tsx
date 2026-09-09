@@ -1,6 +1,10 @@
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
+import { useRouter } from "expo-router";
+import BottomSheetModal from "@/components/ui/BottomSheetModal";
+import ExistingDamageChecklist from "@/components/widgets/ExistingDamageChecklist";
+import ViewDamageReportsButton from "@/components/widgets/ViewDamageReportsButton";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
 import { InspectionPhotoRepair } from "@/components/widgets/InspectionPhotoRepair";
 import { ContactButton } from "@/components/widgets/contactSheet";
@@ -17,11 +21,12 @@ import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeColors, typeScale } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Linking,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -69,6 +74,9 @@ interface TripItemProps {
     inspectionType: "pickup" | "dropoff",
   ) => void;
 }
+
+/** Stable identity: the read-only sheet selects nothing, ever. */
+const EMPTY_SELECTION: string[] = [];
 
 function TripItem({
   workTracker,
@@ -134,6 +142,24 @@ function TripItem({
 
   // ── Damage report for the bleacher actually being hauled ────────────────
   const { damageReports } = useDamageReports(effectiveBleacherUuid);
+
+  const router = useRouter();
+
+  // The read-only list behind "View Damage Reports": what is already known
+  // about this bleacher, so a driver has the paper trail before a dropoff
+  // dispute — and does not file the fourth report about the same plank.
+  const [damageListVisible, setDamageListVisible] = useState(false);
+
+  const openDamageReport = useCallback(
+    (damageReportId: string) => {
+      setDamageListVisible(false);
+      router.push({
+        pathname: "/damage-report-view",
+        params: { damageReportId },
+      });
+    },
+    [router],
+  );
 
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
@@ -440,6 +466,11 @@ function TripItem({
               onClose={() => setPreInspectionVisible(false)}
             />
           ) : null}
+          <ViewDamageReportsButton
+            count={damageReports.length}
+            onPress={() => setDamageListVisible(true)}
+            style={styles.viewDamageReportsButton}
+          />
         </>
       )}
 
@@ -654,8 +685,32 @@ function TripItem({
               onClose={() => setPostInspectionVisible(false)}
             />
           ) : null}
+          <ViewDamageReportsButton
+            count={damageReports.length}
+            onPress={() => setDamageListVisible(true)}
+            style={styles.viewDamageReportsButton}
+          />
         </>
       )}
+
+      {/* Read-only: nothing here is being selected, the driver is finding out
+          what is already known about the bleacher they are hauling. */}
+      <BottomSheetModal
+        visible={damageListVisible}
+        onClose={() => setDamageListVisible(false)}
+      >
+        <ScrollView contentContainerStyle={styles.damageSheetContent}>
+          <Text style={[styles.damageSheetTitle, { color: theme.header }]}>
+            Damage on this bleacher
+          </Text>
+          <ExistingDamageChecklist
+            bleacherUuid={effectiveBleacherUuid}
+            selectedIds={EMPTY_SELECTION}
+            mode="view"
+            onOpenReport={openDamageReport}
+          />
+        </ScrollView>
+      </BottomSheetModal>
 
       <BillOfLading
         visible={bolVisible}
@@ -783,6 +838,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   inspectionButtonText: { ...typeScale.subhead, fontWeight: "600" },
+  viewDamageReportsButton: { alignSelf: "flex-start", marginTop: 8 },
+  damageSheetContent: { padding: 16, gap: 12 },
+  damageSheetTitle: { fontSize: 17, lineHeight: 22, fontWeight: "700" },
   viewInspectionButton: {
     flexDirection: "row",
     alignItems: "center",

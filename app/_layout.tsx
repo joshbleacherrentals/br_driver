@@ -98,6 +98,15 @@ function RootLayoutContent() {
           }}
         />
         <Stack.Screen
+          name="damage-report-view"
+          options={{
+            headerShown: false,
+            presentation: "card",
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
           name="edit-documents"
           options={{
             headerShown: false,

@@ -97,3 +97,44 @@ export function useUserDisplayName(
     return name || null;
   }, [data]);
 }
+
+/**
+ * Display names for several users at once, keyed by id.
+ *
+ * The single-id hook in a list would be one reactive query per row; this is the
+ * shape a list of damage reports actually needs — every card names whoever
+ * filed it, and the same few drivers recur.
+ */
+export function useUserDisplayNames(
+  userUuids: string[],
+): Record<string, string> {
+  // A fresh array identity every render is the norm for a list-derived list.
+  const key = userUuids.filter(Boolean).sort().join(",");
+
+  const compiled = useMemo(() => {
+    if (!key) return null;
+
+    return db
+      .selectFrom("Users")
+      .select(["id", "first_name", "last_name"])
+      .where("id", "in", key.split(","))
+      .compile();
+  }, [key]);
+
+  const { data } = useTypedQuery(
+    compiled,
+    expect<Pick<UserRow, "id" | "first_name" | "last_name">>(),
+  );
+
+  return useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const row of data ?? []) {
+      const name = [row.first_name, row.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (name) names[row.id] = name;
+    }
+    return names;
+  }, [data]);
+}
