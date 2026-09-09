@@ -326,7 +326,11 @@ export default function DamageReportScreen() {
   const headerScrollInset =
     FLOATING_HEADER_GAP + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP;
   const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
-  const params = useLocalSearchParams<{ damageReportId?: string }>();
+  const params = useLocalSearchParams<{
+    damageReportId?: string;
+    /** Prefilled when the driver came from a bleacher-filtered list. */
+    bleacherUuid?: string;
+  }>();
   const { bleachers } = useAllBleachers();
   // §15 — the signed-in driver's scope. Needed twice here: to attribute a new
   // report, and (inside the hooks below) to scope what this screen may read.
@@ -428,7 +432,12 @@ export default function DamageReportScreen() {
     );
   }, [damageReport, bleacherOptions]);
 
-  const [selectedBleacher, setSelectedBleacher] = useState<string | null>(null);
+  // Seeded from the route: arriving from a bleacher-filtered list, the driver
+  // has already answered "which bleacher" once, and asking again is a chance to
+  // file the report against the wrong one.
+  const [selectedBleacher, setSelectedBleacher] = useState<string | null>(
+    params.bleacherUuid ?? null,
+  );
   const [details, setDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
   const [isSubmitting, setIsSubmitting] = useState(false);
