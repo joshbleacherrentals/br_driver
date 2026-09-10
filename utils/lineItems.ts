@@ -45,10 +45,16 @@ export function formatCents(cents: number | null | undefined): string {
   return `${sign}$${(Math.abs(value) / 100).toFixed(2)}`;
 }
 
-/** A line's own total: unit price × quantity, in cents. */
+/**
+ * A line's own total: unit price × quantity, in cents.
+ *
+ * Reads `qty_decimal`, not the deprecated integer `quantity`. Because the
+ * quantity can now be fractional, the product is rounded: 0.3 × 1000 is
+ * 299.99999999999994 in IEEE 754, and a total in cents has no room for that.
+ */
 export function lineItemTotalCents(item: {
-  quantity: number | null;
+  qty_decimal: number | null;
   unit_amt_cents: number | null;
 }): number {
-  return (item.unit_amt_cents ?? 0) * (item.quantity ?? 0);
+  return Math.round((item.unit_amt_cents ?? 0) * (item.qty_decimal ?? 0));
 }

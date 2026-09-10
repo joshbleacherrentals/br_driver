@@ -24,7 +24,17 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+
+import ExistingDamageChecklist from "@/components/widgets/ExistingDamageChecklist";
+import { acknowledgeDamageReports } from "@/features/damage-report/utils/acknowledgeDamageReports";
+import { useUserDisplayName } from "@/hooks/db/useCurrentUser";
+import { useDamageReports } from "@/hooks/db/useDamageReport";
+import { FixedMarkControl } from "@/features/damage-report/components/FixedMarkControl";
+import {
+  markDamageReportFixed,
+  unmarkDamageReportFixed,
+} from "@/features/damage-report/utils/setDamageReportFixed";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -319,7 +329,11 @@ export default function DamageReportScreen() {
   const headerScrollInset =
     FLOATING_HEADER_GAP + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP;
   const debugStyles = useMemo(() => makeDebugStyles(debugTheme), []);
-  const params = useLocalSearchParams<{ damageReportId?: string }>();
+  const params = useLocalSearchParams<{
+    damageReportId?: string;
+    /** Prefilled when the driver came from a bleacher-filtered list. */
+    bleacherUuid?: string;
+  }>();
   const { bleachers } = useAllBleachers();
   // §15 — the signed-in driver's scope. Needed twice here: to attribute a new
   // report, and (inside the hooks below) to scope what this screen may read.
@@ -343,6 +357,40 @@ export default function DamageReportScreen() {
   // and the queue's job there is only to finish delivering what is already on
   // it. Retry stays available; replacement does not.
   const isReportEditable = !damageReport?.resolved_at;
+
+  // ── "Fixed by driver" ─────────────────────────────────────────────────────
+  // A claim that the damage is gone, not a resolve: the report stays open, on
+  // every phone, until a manager closes it on the web. Offered while the report
+  // is still open, and to any driver who can see it — whoever was on site is
+  // the one who fixed it (§15 cross-driver write, see `setDamageReportFixed`).
+  const isFixedByDriver = damageReport?.fixed_by_driver === 1;
+  const fixedByName = useUserDisplayName(damageReport?.fixed_by_user_uuid);
+  const fixedByLabel =
+    damageReport?.fixed_by_user_uuid && scope
+      ? damageReport.fixed_by_user_uuid === scope.userUuid
+        ? "you"
+        : fixedByName
+      : fixedByName;
+
+  const handleMarkFixed = useCallback(async () => {
+    if (!viewOnlyId || !scope) return;
+    try {
+      await markDamageReportFixed(viewOnlyId, scope);
+    } catch (error) {
+      console.error("[DamageReport] mark fixed failed:", error);
+      Alert.alert("Error", "Could not mark this report as fixed.");
+    }
+  }, [viewOnlyId, scope]);
+
+  const handleUnmarkFixed = useCallback(async () => {
+    if (!viewOnlyId) return;
+    try {
+      await unmarkDamageReportFixed(viewOnlyId);
+    } catch (error) {
+      console.error("[DamageReport] unmark fixed failed:", error);
+      Alert.alert("Error", "Could not remove the fixed mark.");
+    }
+  }, [viewOnlyId]);
 
   const repairablePhotos: RepairablePhoto[] = useMemo(
     () =>
@@ -387,7 +435,73 @@ export default function DamageReportScreen() {
     );
   }, [damageReport, bleacherOptions]);
 
-  const [selectedBleacher, setSelectedBleacher] = useState<string | null>(null);
+  // Seeded from the route: arriving from a bleacher-filtered list, the driver
+  // has already answered "which bleacher" once, and asking again is a chance to
+  // file the report against the wrong one.
+  const [selectedBleacher, setSelectedBleacher] = useState<string | null>(
+    params.bleacherUuid ?? null,
+  );
+
+  // ── "Is it one of these?" ────────────────────────────────────────────────
+  // The same dedupe the inspection does, at the other entry point: once the
+  // driver has said which bleacher, show what is already open on it. It sits
+  // here rather than in front of the screen so that filing a report for a
+  // bleacher nobody has reported on stays a straight line — pick it, describe
+  // it, submit.
+  const { damageReports: openOnBleacher } = useDamageReports(selectedBleacher);
+  const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [filingNewReport, setFilingNewReport] = useState(false);
+
+  // The form appears one step at a time: bleacher first, then either what is
+  // already open on it or — when nothing is — the report form itself. Showing
+  // severity, notes and a camera before the bleacher is chosen asks the driver
+  // to describe damage the app cannot yet place, and buries the one thing that
+  // could have saved them the whole exercise.
+  const hasOpenReportsOnBleacher = openOnBleacher.length > 0;
+  const showNewReportForm =
+    !!selectedBleacher && (!hasOpenReportsOnBleacher || filingNewReport);
+
+  // A different bleacher is a different question: what was ticked on the last
+  // one means nothing here, and a half-open form would hide its checklist.
+  useEffect(() => {
+    setAcknowledgedIds([]);
+    setFilingNewReport(false);
+  }, [selectedBleacher]);
+
+  const toggleAcknowledged = useCallback((damageReportId: string) => {
+    setAcknowledgedIds((prev) =>
+      prev.includes(damageReportId)
+        ? prev.filter((id) => id !== damageReportId)
+        : [...prev, damageReportId],
+    );
+  }, []);
+
+  const handleConfirmExisting = useCallback(async () => {
+    if (!scope || acknowledgedIds.length === 0) return;
+
+    setIsConfirming(true);
+    try {
+      await acknowledgeDamageReports({
+        reportIds: acknowledgedIds,
+        // Not an inspection: a driver looking at a bleacher and recognising
+        // damage that is already on file.
+        inspectionUuid: null,
+        workTrackerUuid: null,
+        scope,
+      });
+      Alert.alert(
+        "Confirmed",
+        "Thanks — no new report was created. The existing reports now show that you saw this too.",
+        [{ text: "OK", onPress: () => router.back() }],
+      );
+    } catch (error) {
+      console.error("[DamageReport] confirming existing reports failed:", error);
+      Alert.alert("Error", "Could not record that. Please try again.");
+    } finally {
+      setIsConfirming(false);
+    }
+  }, [scope, acknowledgedIds, router]);
   const [details, setDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DETAILS);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -688,6 +802,21 @@ export default function DamageReportScreen() {
             )}
           </View>
 
+          <View style={styles.section}>
+            {/* A resolved report is closed history — there is nothing left for
+                a driver to claim about it. */}
+            {isReportEditable && (
+              <FixedMarkControl
+                isFixed={isFixedByDriver}
+                fixedAt={damageReport?.fixed_at ?? null}
+                fixedByLabel={fixedByLabel}
+                onMark={handleMarkFixed}
+                onUnmark={handleUnmarkFixed}
+                disabled={!scope}
+              />
+            )}
+          </View>
+
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={[styles.submitButton, { backgroundColor: theme.accent }]}
@@ -751,12 +880,68 @@ export default function DamageReportScreen() {
           </View>
         </View>
 
-        <DamageDetailsForm
-          values={details}
-          onChange={(patch) =>
-            setDetails((prev) => ({ ...prev, ...patch }))
-          }
-        />
+        {hasOpenReportsOnBleacher && !filingNewReport && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Is it one of these? Select all that apply
+            </Text>
+            <Text style={styles.existingHelpText}>
+              These reports are already open on this bleacher. Tick the ones
+              that describe what you see — confirming them files no new report.
+            </Text>
+
+            <View style={{ marginTop: 12 }}>
+              <ExistingDamageChecklist
+                bleacherUuid={selectedBleacher}
+                selectedIds={acknowledgedIds}
+                onToggle={toggleAcknowledged}
+                onOpenReport={(id) =>
+                  router.push({
+                    pathname: "/damage-report-view",
+                    params: { damageReportId: id },
+                  })
+                }
+                mode="select"
+              />
+            </View>
+
+            <TouchableOpacity
+              testID="confirm-existing"
+              style={[
+                styles.confirmExistingButton,
+                (acknowledgedIds.length === 0 || isConfirming) &&
+                  styles.submitButtonDisabled,
+              ]}
+              disabled={acknowledgedIds.length === 0 || isConfirming}
+              onPress={handleConfirmExisting}
+            >
+              <Text style={styles.confirmExistingText}>
+                {isConfirming
+                  ? "Saving…"
+                  : `Confirm selected (${acknowledgedIds.length})`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              testID="file-new-report"
+              style={styles.fileNewButton}
+              onPress={() => setFilingNewReport(true)}
+            >
+              <Text style={styles.fileNewText}>
+                None of these — file a new report
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {showNewReportForm && (
+          <DamageDetailsForm
+            values={details}
+            onChange={(patch) =>
+              setDetails((prev) => ({ ...prev, ...patch }))
+            }
+          />
+        )}
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -765,18 +950,20 @@ export default function DamageReportScreen() {
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              !canSubmit && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-          >
-            <Text style={styles.submitButtonText}>
-              {isSubmitting ? "Submitting..." : "Submit Report"}
-            </Text>
-          </TouchableOpacity>
+          {showNewReportForm && (
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                !canSubmit && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!canSubmit}
+            >
+              <Text style={styles.submitButtonText}>
+                {isSubmitting ? "Submitting..." : "Submit Report"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {DEBUG_PHOTO_UPLOAD && debugLogs.length > 0 && (
@@ -908,6 +1095,36 @@ function makeStyles(theme: ThemeColors) {
       alignItems: "center",
     },
     submitButtonDisabled: { opacity: 0.5 },
+    existingHelpText: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      marginTop: 6,
+    },
+    confirmExistingButton: {
+      marginTop: 12,
+      padding: 14,
+      borderRadius: 8,
+      alignItems: "center",
+      backgroundColor: theme.accent,
+    },
+    confirmExistingText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.onAccent,
+    },
+    fileNewButton: {
+      marginTop: 10,
+      padding: 14,
+      borderRadius: 8,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    fileNewText: {
+      ...typeScale.callout,
+      fontWeight: "600",
+      color: theme.header,
+    },
     submitButtonText: {
       ...typeScale.callout,
       fontWeight: "600",

@@ -8,6 +8,7 @@ import {
   type DamageReportData,
 } from '@/hooks/db/useDamageReport';
 import { InspectionData, parseInspectionAnswers } from '@/hooks/db/useInspection';
+import FixedBadge from "@/components/widgets/FixedBadge";
 import { useTheme } from '@/hooks/useTheme';
 import { shareImage, supabasePublicObjectUrl } from '@/utils/shareImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -214,6 +215,9 @@ function DamageCard({
       <View style={damageCard.titleRow}>
         <Ionicons name="warning" size={15} color={theme.danger} />
         <Text style={damageCard.title}>Damage Found</Text>
+        {/* Someone has since reported this fixed. Still open, still shown —
+            what changed is that it may no longer need a repair. */}
+        <FixedBadge fixedByDriver={damage.fixed_by_driver} />
       </View>
 
       <View style={damageCard.row}>
