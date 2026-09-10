@@ -26,6 +26,7 @@ const UsersCols = {
   created_at: column.text,
   expo_push_token: column.text,
   changelog_last_read_at: column.text,
+  inspection_queue_last_seen_at: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
   // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
@@ -116,6 +117,10 @@ const AddressCols = {
   city: column.text,
   state_province: column.text,
   zip_postal: column.text,
+  country: column.text,
+  latitude: column.integer,
+  longitude: column.integer,
+  place_id: column.text,
 } satisfies PowerSyncColsFor<"Addresses">;
 const Addresses = new Table(AddressCols, { indexes: { id: ["id"] } });
 
@@ -383,8 +388,14 @@ const WorkTrackersCols = {
   updated_at: column.text,
   date: column.text,
   pickup_time: column.text,
+  pickup_time_start: column.text,
+  pickup_time_end: column.text,
+  pickup_time_mode: column.text,
   pickup_poc: column.text,
   dropoff_time: column.text,
+  dropoff_time_start: column.text,
+  dropoff_time_end: column.text,
+  dropoff_time_mode: column.text,
   dropoff_poc: column.text,
   pay_cents: column.integer,
   notes: column.text,
