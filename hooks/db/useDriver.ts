@@ -7,7 +7,8 @@ import { useMemo } from "react";
 export type DriverData = {
     id: string;
     created_at: string | null;
-    tax: number | null;
+    /** Tax rate in percent, 3 decimals — `Drivers.tax_dec`. */
+    tax_dec: number | null;
     pay_rate_cents: number | null;
     pay_currency: string | null;
     pay_per_unit: string | null;
@@ -66,7 +67,7 @@ export function useDriver(): { driver: DriverData | null } {
     .select([
         "id",
         "created_at",
-        "tax",
+        "tax_dec",
         "pay_rate_cents",
         "pay_currency",
         "pay_per_unit",

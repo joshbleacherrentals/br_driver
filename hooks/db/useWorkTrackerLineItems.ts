@@ -7,7 +7,7 @@ export type WorkTrackerLineItem = {
   id: string;
   work_tracker_uuid: string | null;
   type: string | null;
-  quantity: number | null;
+  qty_decimal: number | null;
   unit_amt_cents: number | null;
   description: string | null;
   is_automatically_managed: number | null;
@@ -38,7 +38,7 @@ export function useWorkTrackerLineItems(
         "id",
         "work_tracker_uuid",
         "type",
-        "quantity",
+        "qty_decimal",
         "unit_amt_cents",
         "description",
         "is_automatically_managed",

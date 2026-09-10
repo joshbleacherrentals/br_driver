@@ -94,3 +94,23 @@ export function crossDriverRead<Q>(reason: string, query: Q): Q {
   void reason;
   return query;
 }
+
+/**
+ * The same opt-out for WRITES that are cross-driver *by design*.
+ *
+ * Identity at runtime, exactly like {@link crossDriverRead}, and separate from
+ * it for one reason: an unscoped read shows a driver something extra, while an
+ * unscoped write changes a row that belongs to someone else. Those deserve to
+ * be counted separately, so `grep crossDriverWrite` answers "what can one
+ * driver change on another driver's record" on its own.
+ *
+ * The legitimate case today is the "fixed by driver" mark on a damage report:
+ * whoever was on site is the one who fixed the damage, which is rarely whoever
+ * filed the report. The blast radius of that write is fenced server-side too —
+ * a Postgres trigger rejects a driver changing any column but the three
+ * `fixed_*` ones (see `20260909120000_damage_reports_fixed_by_driver.sql`).
+ */
+export function crossDriverWrite<Q>(reason: string, query: Q): Q {
+  void reason;
+  return query;
+}

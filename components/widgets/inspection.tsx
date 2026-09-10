@@ -10,7 +10,10 @@ import {
 } from "@/features/damage-report/components/DamageDetailsForm";
 import { EditablePhotoGrid } from "@/features/damage-report/components/EditablePhotoGrid";
 import type { DocumentPhoto } from "@/features/damage-report/types";
-import { commitDamageReport } from "@/features/damage-report/utils/createDamageReport";
+import ExistingDamageChecklist from "@/components/widgets/ExistingDamageChecklist";
+import { commitInspectionDamage } from "@/features/damage-report/utils/commitInspectionDamage";
+import { validateDamageStep } from "@/features/damage-report/utils/validateDamageStep";
+import { useDamageReports } from "@/hooks/db/useDamageReport";
 import {
   describeAllPhotosFailed,
   describePartialPhotoFailure,
@@ -36,7 +39,8 @@ import {
 } from "@/library/powersync/typedMutation";
 import { Ionicons } from "@expo/vector-icons";
 import { randomUUID } from "expo-crypto";
-import React, { useMemo, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAllBleachers } from "@/hooks/db/useBleacher";
 import { useWorkTracker } from "@/hooks/db/useWorkTrackers";
 import { orderBleacherOptions } from "@/utils/orderBleacherOptions";
@@ -254,6 +258,58 @@ export default function InspectionScreen({
   const [damageDetails, setDamageDetails] =
     useState<DamageDetailsFormValues>(INITIAL_DAMAGE_DETAILS);
 
+  // ── "Select all that apply" ───────────────────────────────────────────────
+  // Damage a driver finds is usually damage somebody already reported: the
+  // report is open for weeks, and every inspection over that bleacher used to
+  // demand a fresh description of the same split plank. Ticking the reports
+  // that already describe it writes an acknowledgement instead — the manager
+  // learns that three drivers have now confirmed it, and gets one report to
+  // act on rather than three to reconcile.
+  const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
+  const [filingNewReport, setFilingNewReport] = useState(false);
+
+  // Cross-driver by design (§15) — the reports worth ticking are other
+  // drivers'. Read here as well as inside the checklist because the toggle
+  // below has to know whether there was anything to tick at all.
+  const { damageReports: openDamageReports } = useDamageReports(bleacherUuid);
+  const hasOpenDamageReports = openDamageReports.length > 0;
+
+  // A bleacher with nothing reported on it has nothing to tick, so "file a new
+  // report" is the only answer there — asking the driver to say so is a tap
+  // that can only go one way. Answering "no damage" clears the whole step: a
+  // stale selection would otherwise be submitted for damage the driver just
+  // said they did not find.
+  useEffect(() => {
+    if (damageFound !== true) {
+      setAcknowledgedIds([]);
+      setFilingNewReport(false);
+      return;
+    }
+    if (!hasOpenDamageReports) setFilingNewReport(true);
+  }, [damageFound, hasOpenDamageReports]);
+
+  const router = useRouter();
+
+  // The inspection stays mounted underneath, so the driver comes back to the
+  // answers and photos they had already entered.
+  const openDamageReport = useCallback(
+    (damageReportId: string) => {
+      router.push({
+        pathname: "/damage-report-view",
+        params: { damageReportId },
+      });
+    },
+    [router],
+  );
+
+  const toggleAcknowledged = useCallback((damageReportId: string) => {
+    setAcknowledgedIds((prev) =>
+      prev.includes(damageReportId)
+        ? prev.filter((id) => id !== damageReportId)
+        : [...prev, damageReportId],
+    );
+  }, []);
+
   const handleCheckAll = () => {
     const shouldCheckAll = !allChecked;
     setWalkAroundComplete(shouldCheckAll);
@@ -403,15 +459,13 @@ export default function InspectionScreen({
       }
     }
 
-    if (damageFound === null) return "Please indicate if damage was found";
-
-    if (damageFound === true) {
-      if (!damageDetails.note.trim()) return "Damage notes are required";
-      if (!damageDetails.photos.length)
-        return "At least one damage photo is required";
-    }
-
-    return null;
+    return validateDamageStep({
+      damageFound,
+      acknowledgedIds,
+      filingNewReport,
+      note: damageDetails.note,
+      photoCount: damageDetails.photos.length,
+    });
   };
 
   const saveInspectionPhoto = async (
@@ -492,7 +546,9 @@ export default function InspectionScreen({
       // evidence-free report and an inspection that was saved but never linked.
       // Asking the filesystem first removes the choice: either everything is
       // written or nothing is.
-      const damagePrep = damageFound
+      // Only when a new report is being filed. A driver who ticked existing
+      // reports has no photos to copy — that is the point of ticking them.
+      const damagePrep = filingNewReport
         ? await prepareDamageReportPhotos({ photos: damageDetails.photos })
         : null;
 
@@ -604,8 +660,15 @@ export default function InspectionScreen({
 
       let damageFailureAlert: { title: string; message: string } | null = null;
 
-      if (damagePrep?.ok) {
-        const damageResult = await commitDamageReport(damagePrep.draft, {
+      // The damage the driver reported: a new report for anything nobody has
+      // described yet, acknowledgements for the open reports they ticked, or
+      // both. Runs after the inspection is committed — the acknowledgements
+      // need its id — and each acknowledgement also withdraws any "fixed by
+      // driver" claim on the report it points at, because the driver is
+      // looking at that damage right now.
+      const damageResult = await commitInspectionDamage({
+        draft: damagePrep?.ok ? damagePrep.draft : null,
+        fields: {
           bleacherUuid: submission.damageBleacherUuid,
           inspectionUuid: inspectionId,
           seatDamage: damageDetails.seatDamage,
@@ -616,17 +679,21 @@ export default function InspectionScreen({
           // left unattributed here would own photos no driver's queue can ever
           // claim — they would sit on the phone and never reach the bucket.
           scope,
-        });
+        },
+        acknowledgedIds,
+        inspectionUuid: inspectionId,
+        workTrackerUuid: workTrackerId,
+        scope,
+      });
 
-        // Partial save (§2): the report and its saved photos stand, and the
-        // driver is told what is missing — after the success alert, so the two
-        // don't compete.
-        if (damageResult.ok && damageResult.failures.length > 0) {
-          damageFailureAlert = describePartialPhotoFailure(
-            damageResult.savedPhotoCount,
-            damageResult.failures,
-          );
-        }
+      // Partial save (§2): the report and its saved photos stand, and the
+      // driver is told what is missing — after the success alert, so the two
+      // don't compete.
+      if (damageResult?.ok && damageResult.failures.length > 0) {
+        damageFailureAlert = describePartialPhotoFailure(
+          damageResult.savedPhotoCount,
+          damageResult.failures,
+        );
       }
 
       // Kick the queue for the inspection (and damage) photos just recorded.
@@ -824,12 +891,98 @@ export default function InspectionScreen({
         </View>
 
         {damageFound === true && (
-          <DamageDetailsForm
-            values={damageDetails}
-            onChange={(patch) =>
-              setDamageDetails((prev) => ({ ...prev, ...patch }))
-            }
-          />
+          <>
+            {hasOpenDamageReports && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  Is it one of these? Select all that apply
+                </Text>
+                <Text style={styles.damageHelpText}>
+                  These reports are already open on this bleacher. Tick the ones
+                  that describe what you see — no new report is filed for those.
+                </Text>
+                <View style={styles.damageChecklist}>
+                  <ExistingDamageChecklist
+                    bleacherUuid={bleacherUuid}
+                    selectedIds={acknowledgedIds}
+                    onToggle={toggleAcknowledged}
+                    onOpenReport={openDamageReport}
+                    mode="select"
+                  />
+                </View>
+              </View>
+            )}
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {hasOpenDamageReports
+                  ? "Found something not listed above?"
+                  : "Nothing is reported on this bleacher yet"}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.damageToggle,
+                    filingNewReport && {
+                      borderColor: theme.danger,
+                      backgroundColor: theme.danger + "18",
+                    },
+                  ]}
+                  onPress={() => setFilingNewReport(true)}
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={18}
+                    color={filingNewReport ? theme.danger : theme.textTertiary}
+                  />
+                  <Text
+                    style={[
+                      styles.damageToggleText,
+                      filingNewReport && { color: theme.danger },
+                    ]}
+                  >
+                    File a new report
+                  </Text>
+                </TouchableOpacity>
+
+                {hasOpenDamageReports && (
+                  <TouchableOpacity
+                    style={[
+                      styles.damageToggle,
+                      !filingNewReport && {
+                        borderColor: theme.success,
+                        backgroundColor: theme.secondaryAccentSoft,
+                      },
+                    ]}
+                    onPress={() => setFilingNewReport(false)}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={!filingNewReport ? theme.success : theme.textTertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.damageToggleText,
+                        !filingNewReport && { color: theme.success },
+                      ]}
+                    >
+                      No, it&apos;s listed
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {filingNewReport && (
+              <DamageDetailsForm
+                values={damageDetails}
+                onChange={(patch) =>
+                  setDamageDetails((prev) => ({ ...prev, ...patch }))
+                }
+              />
+            )}
+          </>
         )}
 
         <View style={styles.buttonContainer}>
@@ -857,6 +1010,12 @@ export default function InspectionScreen({
 function makeStyles(theme: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
+    damageHelpText: {
+      ...typeScale.footnote,
+      color: theme.textSecondary,
+      marginTop: 6,
+    },
+    damageChecklist: { marginTop: 12 },
     scrollContent: { padding: 16 },
     header: { marginBottom: 24 },
     title: {

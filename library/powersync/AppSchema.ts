@@ -26,6 +26,7 @@ const UsersCols = {
   created_at: column.text,
   expo_push_token: column.text,
   changelog_last_read_at: column.text,
+  inspection_queue_last_seen_at: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
   // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
@@ -75,7 +76,10 @@ const DriversCols = {
   pay_rate_cents: column.integer,
   phone_number: column.text,
   setup_cents: column.integer,
+  /** @deprecated Whole-percent mirror of `tax_dec`, kept for older builds of this app. */
   tax: column.integer,
+  /** Tax rate in percent with 3 decimals (Quebec is 14.975). Postgres `numeric` -> SQLite real. */
+  tax_dec: column.real,
   teardown_cents: column.integer,
   user_uuid: column.text,
   vehicle_uuid: column.text,
@@ -113,6 +117,10 @@ const AddressCols = {
   city: column.text,
   state_province: column.text,
   zip_postal: column.text,
+  country: column.text,
+  latitude: column.integer,
+  longitude: column.integer,
+  place_id: column.text,
 } satisfies PowerSyncColsFor<"Addresses">;
 const Addresses = new Table(AddressCols, { indexes: { id: ["id"] } });
 
@@ -197,6 +205,15 @@ const DamageReportsCols = {
   maintenance_event_uuid: column.text,
   created_by_user_uuid: column.text,
   deleted: column.integer,
+  // "Fixed by driver" — a driver's claim that the damage is gone. Not a
+  // resolve: a manager still closes the report on the web, which is what drops
+  // it off every phone. Three columns because "fixed" without "who" and "when"
+  // is a question a manager asks immediately, and Postgres refuses the
+  // half-filled state outright (CHECK constraint in
+  // 20260909120000_damage_reports_fixed_by_driver.sql).
+  fixed_by_driver: column.integer,
+  fixed_at: column.text,
+  fixed_by_user_uuid: column.text,
 } satisfies Partial<PowerSyncColsFor<"DamageReports">>;
 const DamageReports = new Table(DamageReportsCols, {
   // `created_by_user_uuid` backs the photo queue's ownership subquery (§15) and
@@ -248,6 +265,40 @@ const DamageReportPhotosCols = {
 const DamageReportPhotos = new Table(DamageReportPhotosCols, {
   indexes: { damage_report_uuid: ["damage_report_uuid"] },
 });
+
+// damage report acknowledgements — "select all that apply"
+//
+// A driver confirming that an existing report describes what they are looking
+// at, written INSTEAD of a duplicate report. Light by design: no photos, no
+// severity, no note — the report it points at already carries all of that.
+//
+// Cross-driver, like the reports themselves: the count a driver sees
+// ("confirmed by 3 drivers") is what stops them filing a fourth report, so
+// acks on every open report reach every phone.
+//
+// `report_resolved_at` is a mirror of the parent's `resolved_at`, maintained
+// by Postgres triggers, and it is the column the mobile sync rule filters on.
+// Not an optimisation: reaching the parent through a JOIN there compiles into
+// a parameter query capped at 1000 rows, which is how first sync broke once
+// already (see the comment in `br_powersync/config/sync_rules.yaml`).
+const DamageReportAcknowledgementsCols = {
+  damage_report_uuid: column.text,
+  inspection_uuid: column.text,
+  work_tracker_uuid: column.text,
+  acknowledged_by_user_uuid: column.text,
+  created_at: column.text,
+  deleted: column.integer,
+  report_resolved_at: column.text,
+} satisfies Partial<PowerSyncColsFor<"DamageReportAcknowledgements">>;
+const DamageReportAcknowledgements = new Table(
+  DamageReportAcknowledgementsCols,
+  {
+    indexes: {
+      damage_report_uuid: ["damage_report_uuid"],
+      acknowledged_by_user_uuid: ["acknowledged_by_user_uuid"],
+    },
+  },
+);
 
 /**
  * §3 upload bookkeeping, keyed by the photo row's own `id` — LOCAL ONLY.
@@ -337,8 +388,14 @@ const WorkTrackersCols = {
   updated_at: column.text,
   date: column.text,
   pickup_time: column.text,
+  pickup_time_start: column.text,
+  pickup_time_end: column.text,
+  pickup_time_mode: column.text,
   pickup_poc: column.text,
   dropoff_time: column.text,
+  dropoff_time_start: column.text,
+  dropoff_time_end: column.text,
+  dropoff_time_mode: column.text,
   dropoff_poc: column.text,
   pay_cents: column.integer,
   notes: column.text,
@@ -406,11 +463,14 @@ const Contacts = new Table(ContactsCols);
 
 // WorkTracker line items — the pay breakdown behind WorkTrackers.pay_cents.
 // One row per billable line (hauling, deadhead, setup, …); `unit_amt_cents`
-// times `quantity` is that line's total.
+// times `qty_decimal` is that line's total.
 const WorkTrackerLineItemsCols = {
   work_tracker_uuid: column.text,
   type: column.text,
+  /** DEPRECATED - whole-unit mirror of qty_decimal, maintained by a Postgres trigger. */
   quantity: column.integer,
+  /** SQLite has no DECIMAL; PowerSync casts the Postgres numeric(10,1) into a real. */
+  qty_decimal: column.real,
   unit_amt_cents: column.integer,
   description: column.text,
   is_automatically_managed: column.integer,
@@ -599,6 +659,7 @@ export const AppSchema = new Schema({
   InspectionQuestions,
   DamageReports,
   DamageReportPhotos,
+  DamageReportAcknowledgements,
   PhotoUploadStatus,
   InspectionPhotos,
   DriverDocuments,

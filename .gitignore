@@ -42,3 +42,8 @@ app-example
 
 # local shell config (should not be in the repo)
 .zshrc
+
+# eas build --local output
+*.ipa
+*.apk
+*.aab
