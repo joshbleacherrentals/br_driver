@@ -1,5 +1,6 @@
 import { useFormTheme } from "@/hooks/useTheme";
 import { typeScale } from "@/constants/theme";
+import { parseGoogleAddressComponents } from "@/utils/parseGoogleAddress";
 import React, { useRef, useState } from "react";
 import {
   LayoutRectangle,
@@ -14,10 +15,15 @@ import {
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY!;
 
 export interface AddressData {
+  /** The street line only — what `Addresses.street` holds. */
   address: string;
+  /** Google's full one-line address, for the text field to show. */
+  formatted?: string;
   city?: string;
   state?: string;
   postalCode?: string;
+  /** ISO-2 country code — `Addresses.country`. */
+  country?: string;
   lat?: number;
   lng?: number;
   placeId?: string;
@@ -87,20 +93,24 @@ export default function AddressAutocomplete({
       const json = await res.json();
       const result = json.result;
 
-      const get = (type: string) =>
-        result.address_components.find((c: any) => c.types.includes(type))
-          ?.long_name;
-
       const englishAddress = result.formatted_address || prediction.description;
       onChangeText(englishAddress);
 
+      // The street line, city, state, zip and ISO-2 country, each into its own
+      // column — see utils/parseGoogleAddress.ts for why the full suggestion
+      // is no longer what lands in `street`.
+      const parsed = parseGoogleAddressComponents(
+        result.address_components ?? [],
+        englishAddress,
+      );
+
       onAddressSelect({
-        address: englishAddress,
-        city: get("locality"),
-        state: get("administrative_area_level_1"),
-        postalCode: get("postal_code"),
-        lat: result.geometry.location.lat,
-        lng: result.geometry.location.lng,
+        ...parsed,
+        formatted: englishAddress,
+        // Google hands us the geocode at selection time; persisting it is what
+        // lets a maps app be opened on coordinates instead of on text.
+        lat: result.geometry?.location?.lat,
+        lng: result.geometry?.location?.lng,
         placeId: prediction.place_id,
       });
     } catch (error) {

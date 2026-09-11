@@ -6,6 +6,7 @@ import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBlueBook } from "@/hooks/db/useBlueBook";
 import { useDriver } from "@/hooks/db/useDriver";
+import { addressRegion } from "@/utils/addressCountry";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -26,9 +27,7 @@ export default function BlueBookScreen() {
   const { driver } = useDriver();
   const { address } = useAddress(driver?.address_uuid ?? null);
 
-  const country = address?.street?.split(",").pop()?.trim();
-  const driverRegion: "CAN" | "US" | null =
-    country === "USA" ? "US" : country === "Canada" ? "CAN" : null;
+  const driverRegion = addressRegion(address);
 
   const visibleEntries =
     blueBookEntries?.filter((e) => {
