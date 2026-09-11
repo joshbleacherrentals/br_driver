@@ -2,6 +2,9 @@ import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import { ThemeColors, typeScale } from "@/constants/theme";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
+import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
+import { buildTripStops } from "@/utils/tripStops";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,6 +61,16 @@ export default function UpcomingTripCard({ trip, conflictDate }: Props) {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const accentColor = conflictDate ? theme.danger : theme.warning;
+  const kind = useWorkTrackerKind(trip.work_tracker_type_uuid);
+  // Addresses are not on this card — only the times, which is all
+  // `buildTripStops` is being asked for here: two for a trip, one otherwise.
+  const stops = buildTripStops({
+    kind,
+    workTracker: trip,
+    pickupAddress: null,
+    dropoffAddress: null,
+  });
+  const timeLine = stops.map((stop) => stop.time).join(" → ");
 
   return (
     <Card style={styles.card}>
@@ -69,10 +82,10 @@ export default function UpcomingTripCard({ trip, conflictDate }: Props) {
         </View>
         <View style={styles.row}>
           <Ionicons name="time-outline" size={12} color={theme.textSecondary} />
-          <Text style={styles.meta}>
-            {trip.pickup_time ?? "TBD"}
-            {trip.dropoff_time ? ` → ${trip.dropoff_time}` : ""}
-          </Text>
+          <Text style={styles.meta}>{timeLine}</Text>
+        </View>
+        <View style={styles.kindRow}>
+          <WorkTrackerKindBadge kind={kind} theme={theme} />
         </View>
       </View>
       <Badge
@@ -86,6 +99,7 @@ export default function UpcomingTripCard({ trip, conflictDate }: Props) {
 
 const makeStyles = (theme: ThemeColors) =>
   StyleSheet.create({
+    kindRow: { marginTop: 6, alignSelf: "flex-start" },
     card: {
       flexDirection: "row",
       alignItems: "center",

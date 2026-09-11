@@ -26,6 +26,7 @@ const UsersCols = {
   created_at: column.text,
   expo_push_token: column.text,
   changelog_last_read_at: column.text,
+  inspection_queue_last_seen_at: column.text,
 } satisfies PowerSyncColsFor<"Users">;
 const Users = new Table(UsersCols, {
   // `clerk_user_id` is the entry point of the Clerk → Users → Drivers lookup
@@ -116,6 +117,12 @@ const AddressCols = {
   city: column.text,
   state_province: column.text,
   zip_postal: column.text,
+  // The rest of a full postal address plus its geocode. `street` alone stopped
+  // being the whole address — every display goes through formatAddress().
+  country: column.text,
+  latitude: column.real,
+  longitude: column.real,
+  place_id: column.text,
 } satisfies PowerSyncColsFor<"Addresses">;
 const Addresses = new Table(AddressCols, { indexes: { id: ["id"] } });
 
@@ -419,6 +426,16 @@ const WorkTrackersCols = {
   // which is written explicitly. Read through getEffectiveBleacherUuid().
   actual_bleacher_uuid: column.text,
   bleacher_change_reason: column.text,
+  // Structured time — the source of truth behind the free-text `pickup_time` /
+  // `dropoff_time` mirrors a Postgres trigger keeps in step. Read these and
+  // format in the app (utils/workTrackerTime.ts); the text columns are only a
+  // fallback for rows saved before the migration.
+  pickup_time_mode: column.text,
+  pickup_time_start: column.text,
+  pickup_time_end: column.text,
+  dropoff_time_mode: column.text,
+  dropoff_time_start: column.text,
+  dropoff_time_end: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide
@@ -465,6 +482,21 @@ const WorkTrackerLineItemsCols = {
   is_automatically_managed: column.integer,
   created_at: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackerLineItems">;
+// What kind of work a tracker is: a Trip, a Repair / Maintenance visit, or a
+// Site Visit / Cleaning / Other. A tiny reference table (single digits of
+// rows) that ships whole to every phone — read it through `code`, never the
+// row's uuid or its `display_name`, both of which office users can change.
+const WorkTrackerTypesCols = {
+  display_name: column.text,
+  code: column.text,
+  sort_order: column.integer,
+  is_deleted: column.integer,
+  created_at: column.text,
+} satisfies PowerSyncColsFor<"WorkTrackerTypes">;
+const WorkTrackerTypes = new Table(WorkTrackerTypesCols, {
+  indexes: { id: ["id"] },
+});
+
 const WorkTrackerLineItems = new Table(WorkTrackerLineItemsCols, {
   indexes: { work_tracker_uuid: ["work_tracker_uuid"] },
 });
@@ -654,6 +686,7 @@ export const AppSchema = new Schema({
   DriverDocuments,
   WorkTrackers,
   WorkTrackerLineItems,
+  WorkTrackerTypes,
   Contacts,
   Vehicles,
   BlueBook,
@@ -681,6 +714,7 @@ export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
+export type WorkTrackerTypeRecord = PowerSyncDB["WorkTrackerTypes"];
 export type ContactRecord = PowerSyncDB["Contacts"];
 export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
 export type RoadmapTaskMessageRecord = PowerSyncDB["RoadmapTaskMessages"];

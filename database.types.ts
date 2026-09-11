@@ -80,24 +80,36 @@ export type Database = {
       Addresses: {
         Row: {
           city: string;
+          country: string | null;
           created_at: string;
           id: string;
+          latitude: number | null;
+          longitude: number | null;
+          place_id: string | null;
           state_province: string;
           street: string;
           zip_postal: string | null;
         };
         Insert: {
           city: string;
+          country?: string | null;
           created_at?: string;
           id?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          place_id?: string | null;
           state_province: string;
           street: string;
           zip_postal?: string | null;
         };
         Update: {
           city?: string;
+          country?: string | null;
           created_at?: string;
           id?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          place_id?: string | null;
           state_province?: string;
           street?: string;
           zip_postal?: string | null;
@@ -169,6 +181,54 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      BleacherAnnualInspections: {
+        Row: {
+          bleacher_uuid: string;
+          created_at: string;
+          created_by: string | null;
+          document_path: string | null;
+          id: string;
+          inspected_on: string | null;
+          next_due_on: string;
+          notes: string | null;
+        };
+        Insert: {
+          bleacher_uuid: string;
+          created_at?: string;
+          created_by?: string | null;
+          document_path?: string | null;
+          id?: string;
+          inspected_on?: string | null;
+          next_due_on: string;
+          notes?: string | null;
+        };
+        Update: {
+          bleacher_uuid?: string;
+          created_at?: string;
+          created_by?: string | null;
+          document_path?: string | null;
+          id?: string;
+          inspected_on?: string | null;
+          next_due_on?: string;
+          notes?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "bleacher_annual_inspections_bleacher_uuid_fkey";
+            columns: ["bleacher_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Bleachers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bleacher_annual_inspections_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       BleacherEvents: {
         Row: {
@@ -774,13 +834,6 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "damage_report_acks_report_fkey";
-            columns: ["damage_report_uuid"];
-            isOneToOne: false;
-            referencedRelation: "DamageReports";
-            referencedColumns: ["id"];
-          },
-          {
             foreignKeyName: "damage_report_acks_inspection_fkey";
             columns: ["inspection_uuid"];
             isOneToOne: false;
@@ -788,10 +841,10 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "damage_report_acks_work_tracker_fkey";
-            columns: ["work_tracker_uuid"];
+            foreignKeyName: "damage_report_acks_report_fkey";
+            columns: ["damage_report_uuid"];
             isOneToOne: false;
-            referencedRelation: "WorkTrackers";
+            referencedRelation: "DamageReports";
             referencedColumns: ["id"];
           },
           {
@@ -799,6 +852,13 @@ export type Database = {
             columns: ["acknowledged_by_user_uuid"];
             isOneToOne: false;
             referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "damage_report_acks_work_tracker_fkey";
+            columns: ["work_tracker_uuid"];
+            isOneToOne: false;
+            referencedRelation: "WorkTrackers";
             referencedColumns: ["id"];
           },
         ];
@@ -897,6 +957,13 @@ export type Database = {
           seat_damage?: Database["public"]["Enums"]["damage_severity"];
         };
         Relationships: [
+          {
+            foreignKeyName: "damage_reports_fixed_by_user_uuid_fkey";
+            columns: ["fixed_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "DamageReports_bleacher_uuid_fkey";
             columns: ["bleacher_uuid"];
@@ -2076,6 +2143,7 @@ export type Database = {
           id: string;
           internal_notes: string | null;
           invoice_number: number | null;
+          is_qbo: boolean;
           lenient: boolean;
           must_be_clean: boolean;
           notes: string | null;
@@ -2114,6 +2182,7 @@ export type Database = {
           id?: string;
           internal_notes?: string | null;
           invoice_number?: number | null;
+          is_qbo?: boolean;
           lenient: boolean;
           must_be_clean?: boolean;
           notes?: string | null;
@@ -2152,6 +2221,7 @@ export type Database = {
           id?: string;
           internal_notes?: string | null;
           invoice_number?: number | null;
+          is_qbo?: boolean;
           lenient?: boolean;
           must_be_clean?: boolean;
           notes?: string | null;
@@ -2421,6 +2491,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      Maintainers: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          user_uuid: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          user_uuid: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          user_uuid?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "maintainers_user_uuid_fkey";
+            columns: ["user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       MaintenanceEvents: {
         Row: {
           address_uuid: string | null;
@@ -2541,14 +2640,18 @@ export type Database = {
           amount_cents: number;
           created_at: string;
           currency: string;
+          entry_source: string;
           event_uuid: string;
           id: string;
           installment_id: string | null;
+          intended_installment_id: string | null;
           notes: string | null;
           paid_at: string | null;
           payer_email: string | null;
           payer_name: string;
           payment_method_type: string | null;
+          recorded_by_user_uuid: string | null;
+          reference: string | null;
           status: string;
           stripe_checkout_session_id: string | null;
           stripe_connection_uuid: string | null;
@@ -2559,14 +2662,18 @@ export type Database = {
           amount_cents: number;
           created_at?: string;
           currency?: string;
+          entry_source?: string;
           event_uuid: string;
           id?: string;
           installment_id?: string | null;
+          intended_installment_id?: string | null;
           notes?: string | null;
           paid_at?: string | null;
           payer_email?: string | null;
           payer_name: string;
           payment_method_type?: string | null;
+          recorded_by_user_uuid?: string | null;
+          reference?: string | null;
           status?: string;
           stripe_checkout_session_id?: string | null;
           stripe_connection_uuid?: string | null;
@@ -2577,14 +2684,18 @@ export type Database = {
           amount_cents?: number;
           created_at?: string;
           currency?: string;
+          entry_source?: string;
           event_uuid?: string;
           id?: string;
           installment_id?: string | null;
+          intended_installment_id?: string | null;
           notes?: string | null;
           paid_at?: string | null;
           payer_email?: string | null;
           payer_name?: string;
           payment_method_type?: string | null;
+          recorded_by_user_uuid?: string | null;
+          reference?: string | null;
           status?: string;
           stripe_checkout_session_id?: string | null;
           stripe_connection_uuid?: string | null;
@@ -2607,6 +2718,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "PaymentHistory_recorded_by_user_uuid_fkey";
+            columns: ["recorded_by_user_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Users";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "PaymentHistory_stripe_connection_uuid_fkey";
             columns: ["stripe_connection_uuid"];
             isOneToOne: false;
@@ -2623,8 +2741,6 @@ export type Database = {
           due_date: string;
           event_uuid: string;
           id: string;
-          paid_at: string | null;
-          status: Database["public"]["Enums"]["payment_installment_status"];
         };
         Insert: {
           amount_cents: number;
@@ -2633,8 +2749,6 @@ export type Database = {
           due_date: string;
           event_uuid: string;
           id?: string;
-          paid_at?: string | null;
-          status?: Database["public"]["Enums"]["payment_installment_status"];
         };
         Update: {
           amount_cents?: number;
@@ -2643,8 +2757,6 @@ export type Database = {
           due_date?: string;
           event_uuid?: string;
           id?: string;
-          paid_at?: string | null;
-          status?: Database["public"]["Enums"]["payment_installment_status"];
         };
         Relationships: [
           {
@@ -3651,6 +3763,7 @@ export type Database = {
           expo_push_token: string | null;
           first_name: string | null;
           id: string;
+          inspection_queue_last_seen_at: string | null;
           is_admin: boolean;
           is_viewer: boolean;
           last_name: string | null;
@@ -3667,6 +3780,7 @@ export type Database = {
           expo_push_token?: string | null;
           first_name?: string | null;
           id?: string;
+          inspection_queue_last_seen_at?: string | null;
           is_admin?: boolean;
           is_viewer?: boolean;
           last_name?: string | null;
@@ -3683,6 +3797,7 @@ export type Database = {
           expo_push_token?: string | null;
           first_name?: string | null;
           id?: string;
+          inspection_queue_last_seen_at?: string | null;
           is_admin?: boolean;
           is_viewer?: boolean;
           last_name?: string | null;
@@ -3928,6 +4043,9 @@ export type Database = {
           dropoff_poc: string | null;
           dropoff_poc_contact_uuid: string | null;
           dropoff_time: string | null;
+          dropoff_time_end: string | null;
+          dropoff_time_mode: Database["public"]["Enums"]["work_tracker_time_mode"];
+          dropoff_time_start: string | null;
           id: string;
           internal_notes: string | null;
           notes: string | null;
@@ -3937,6 +4055,9 @@ export type Database = {
           pickup_poc: string | null;
           pickup_poc_contact_uuid: string | null;
           pickup_time: string | null;
+          pickup_time_end: string | null;
+          pickup_time_mode: Database["public"]["Enums"]["work_tracker_time_mode"];
+          pickup_time_start: string | null;
           post_inspection_uuid: string | null;
           pre_inspection_uuid: string | null;
           project_number: string | null;
@@ -3968,6 +4089,9 @@ export type Database = {
           dropoff_poc?: string | null;
           dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
+          dropoff_time_end?: string | null;
+          dropoff_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
+          dropoff_time_start?: string | null;
           id?: string;
           internal_notes?: string | null;
           notes?: string | null;
@@ -3977,6 +4101,9 @@ export type Database = {
           pickup_poc?: string | null;
           pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
+          pickup_time_end?: string | null;
+          pickup_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
+          pickup_time_start?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
           project_number?: string | null;
@@ -4008,6 +4135,9 @@ export type Database = {
           dropoff_poc?: string | null;
           dropoff_poc_contact_uuid?: string | null;
           dropoff_time?: string | null;
+          dropoff_time_end?: string | null;
+          dropoff_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
+          dropoff_time_start?: string | null;
           id?: string;
           internal_notes?: string | null;
           notes?: string | null;
@@ -4017,6 +4147,9 @@ export type Database = {
           pickup_poc?: string | null;
           pickup_poc_contact_uuid?: string | null;
           pickup_time?: string | null;
+          pickup_time_end?: string | null;
+          pickup_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
+          pickup_time_start?: string | null;
           post_inspection_uuid?: string | null;
           pre_inspection_uuid?: string | null;
           project_number?: string | null;
@@ -4165,6 +4298,7 @@ export type Database = {
       };
       WorkTrackerTypes: {
         Row: {
+          code: Database["public"]["Enums"]["work_tracker_type_code"] | null;
           created_at: string;
           display_name: string;
           id: string;
@@ -4172,6 +4306,7 @@ export type Database = {
           sort_order: number;
         };
         Insert: {
+          code?: Database["public"]["Enums"]["work_tracker_type_code"] | null;
           created_at?: string;
           display_name: string;
           id?: string;
@@ -4179,6 +4314,7 @@ export type Database = {
           sort_order?: number;
         };
         Update: {
+          code?: Database["public"]["Enums"]["work_tracker_type_code"] | null;
           created_at?: string;
           display_name?: string;
           id?: string;
@@ -4361,6 +4497,9 @@ export type Database = {
         | "maintenance"
         | "per_diem"
         | "custom";
+      work_tracker_time_mode: "exact" | "flexible" | "any_time";
+      work_tracker_type_code:
+        "trip" | "repair_maintenance" | "site_visit_cleaning_other";
       worktracker_group_status:
         | "draft"
         | "qbo_bill_creating"
@@ -4544,6 +4683,12 @@ export const Constants = {
         "maintenance",
         "per_diem",
         "custom",
+      ],
+      work_tracker_time_mode: ["exact", "flexible", "any_time"],
+      work_tracker_type_code: [
+        "trip",
+        "repair_maintenance",
+        "site_visit_cleaning_other",
       ],
       worktracker_group_status: [
         "draft",

@@ -13,6 +13,8 @@
  * `cancelled`) is treated as a stage the driver is still working through.
  */
 
+import type { WorkTrackerKind } from "@/utils/workTrackerKind";
+
 /** Terminal trip states — nothing about the trip changes after these. */
 const CLOSED_STATUSES: ReadonlySet<string> = new Set(["completed"]);
 
@@ -25,7 +27,9 @@ const CLOSED_STATUSES: ReadonlySet<string> = new Set(["completed"]);
  * cannot classify is not evidence that it closed. `cancelled` is also treated
  * as open: a cancelled trip must remain editable/repairable.
  */
-export function isWorkTrackerClosed(status: string | null | undefined): boolean {
+export function isWorkTrackerClosed(
+  status: string | null | undefined,
+): boolean {
   return !!status && CLOSED_STATUSES.has(status);
 }
 
@@ -67,4 +71,18 @@ export function isTripAccepted(
   if (acceptedAt) return true;
 
   return !!status && ACCEPTED_STATUSES.has(status);
+}
+
+/**
+ * Where a tracker goes when the driver starts it.
+ *
+ * A trip starts at its pick up. A repair or a site visit has no pick-up leg at
+ * all — one place, one arrival, one inspection — so it starts on the leg the
+ * office actually filled in, and passes through exactly the same statuses from
+ * there: `dest_dropoff` → `dropoff_inspection` → `completed`.
+ */
+export function startingStatusFor(
+  kind: WorkTrackerKind,
+): "dest_pickup" | "dest_dropoff" {
+  return kind === "trip" ? "dest_pickup" : "dest_dropoff";
 }

@@ -1,5 +1,8 @@
 import Badge from "@/components/ui/Badge";
-import { ThemeColors, elevation, typeScale } from "@/constants/theme";
+import HistoryTripCard from "./components/HistoryTripCard";
+import { useWorkTrackerTypes } from "@/hooks/db/useWorkTrackerTypes";
+import { resolveWorkTrackerKind } from "@/utils/workTrackerKind";
+import { ThemeColors, typeScale } from "@/constants/theme";
 import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
@@ -96,6 +99,7 @@ function weekHeaderColor(
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function TripHistoryScreen() {
   const { theme, scheme } = useTheme();
+  const { types: workTrackerTypes } = useWorkTrackerTypes();
   const router = useRouter();
 
   const { workTrackers, isLoading } = useWorkTrackers();
@@ -281,142 +285,44 @@ export default function TripHistoryScreen() {
                       { backgroundColor: theme.surfaceElevated },
                     ]}
                   >
-                    {group.trips.map((trip, index) => {
-                      const pickupAddress = trip.pickup_address_uuid
-                        ? allAddresses[trip.pickup_address_uuid]
-                        : null;
-                      const dropoffAddress = trip.dropoff_address_uuid
-                        ? allAddresses[trip.dropoff_address_uuid]
-                        : null;
-                      const bleacher = trip.bleacher_uuid
-                        ? allBleachers[trip.bleacher_uuid]
-                        : null;
-                      const isLast = index === group.trips.length - 1;
-
-                      return (
-                        <TouchableOpacity
-                          key={trip.id}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/completed-trip",
-                              params: { workTrackerId: trip.id },
-                            })
-                          }
-                          style={[
-                            styles.tripCard,
-                            {
-                              backgroundColor: theme.surface,
-                              marginBottom: isLast ? 10 : 0,
-                              ...elevation(theme, "card"),
-                            },
-                          ]}
-                        >
-                          <View style={styles.tripCardHeader}>
-                            <View style={styles.tripCardHeaderLeft}>
-                              <Text
-                                style={[
-                                  styles.tripCardTitle,
-                                  { color: theme.textPrimary },
-                                ]}
-                              >
-                                {bleacher
-                                  ? `Bleacher #${bleacher.bleacher_number}`
-                                  : "Trip"}
-                                {bleacher && trip.pay_cents ? " – " : ""}
-                                {trip.pay_cents
-                                  ? formatPay(trip.pay_cents)
-                                  : ""}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.tripCardDate,
-                                  { color: theme.textSecondary },
-                                ]}
-                              >
-                                {formatDate(trip.date)}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View style={styles.addressBlock}>
-                            <View style={styles.addressLabel}>
-                              <Ionicons
-                                name="location-outline"
-                                size={13}
-                                color={theme.textTertiary}
-                              />
-                              <Text
-                                style={[
-                                  styles.addressLabelText,
-                                  { color: theme.textTertiary },
-                                ]}
-                              >
-                                Pickup
-                              </Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.addressText,
-                                { color: theme.textPrimary },
-                              ]}
-                            >
-                              {pickupAddress
-                                ? pickupAddress.street
-                                : "No address"}
-                            </Text>
-
-                            <View
-                              style={[styles.addressLabel, { marginTop: 8 }]}
-                            >
-                              <Ionicons
-                                name="location-outline"
-                                size={13}
-                                color={theme.textTertiary}
-                              />
-                              <Text
-                                style={[
-                                  styles.addressLabelText,
-                                  { color: theme.textTertiary },
-                                ]}
-                              >
-                                Dropoff
-                              </Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.addressText,
-                                { color: theme.textPrimary },
-                              ]}
-                            >
-                              {dropoffAddress
-                                ? dropoffAddress.street
-                                : "No address"}
-                            </Text>
-                          </View>
-
-                          <View
-                            style={[
-                              styles.tripCardFooter,
-                              { borderTopColor: theme.separator },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.tripCardFooterText,
-                                { color: theme.accent },
-                              ]}
-                            >
-                              View full details and inspections
-                            </Text>
-                            <Ionicons
-                              name="arrow-forward"
-                              size={14}
-                              color={theme.accent}
-                            />
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    {group.trips.map((trip, index) => (
+                      <HistoryTripCard
+                        key={trip.id}
+                        trip={trip}
+                        kind={resolveWorkTrackerKind(
+                          trip.work_tracker_type_uuid,
+                          workTrackerTypes,
+                        )}
+                        bleacherNumber={
+                          trip.bleacher_uuid
+                            ? (allBleachers[trip.bleacher_uuid]
+                                ?.bleacher_number ?? null)
+                            : null
+                        }
+                        pickupAddress={
+                          trip.pickup_address_uuid
+                            ? allAddresses[trip.pickup_address_uuid]
+                            : null
+                        }
+                        dropoffAddress={
+                          trip.dropoff_address_uuid
+                            ? allAddresses[trip.dropoff_address_uuid]
+                            : null
+                        }
+                        payLabel={
+                          trip.pay_cents ? formatPay(trip.pay_cents) : null
+                        }
+                        dateLabel={formatDate(trip.date)}
+                        isLast={index === group.trips.length - 1}
+                        theme={theme}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/completed-trip",
+                            params: { workTrackerId: trip.id },
+                          })
+                        }
+                      />
+                    ))}
                   </View>
                 )}
               </View>
@@ -462,41 +368,4 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingTop: 2,
   },
-  tripCard: {
-    marginHorizontal: 10,
-    marginTop: 8,
-    borderRadius: 10,
-    padding: 14,
-  },
-  tripCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  tripCardHeaderLeft: { flex: 1 },
-  tripCardTitle: { ...typeScale.body, fontWeight: "700", marginBottom: 2 },
-  tripCardDate: { ...typeScale.footnote },
-  addressBlock: { marginBottom: 10 },
-  addressLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 2,
-  },
-  addressLabelText: {
-    ...typeScale.caption2,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  addressText: { ...typeScale.footnote, marginLeft: 18 },
-  tripCardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderTopWidth: 1,
-    paddingTop: 10,
-  },
-  tripCardFooterText: { ...typeScale.footnote, fontWeight: "600" },
 });

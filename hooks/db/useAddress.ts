@@ -10,6 +10,9 @@ export type AddressData = {
     city: string | null;
     state_province: string | null;
     zip_postal: string | null;
+    country: string | null;
+    latitude: number | null;
+    longitude: number | null;
 };
 
 /**
@@ -30,6 +33,11 @@ export function useAddress(addressID: string | null): { address: AddressData | n
         "city",
         "state_province",
         "zip_postal",
+        // The rest of the address, plus the geocode a maps app can be handed
+        // directly — both read through utils/formatAddress.ts.
+        "country",
+        "latitude",
+        "longitude",
     ])
     .where("id", "=", addressID)
     .limit(1)
@@ -59,6 +67,9 @@ export function useBatchAddresses(addressIds: (string | null)[]): Record<string,
         "city",
         "state_province",
         "zip_postal",
+        "country",
+        "latitude",
+        "longitude",
       ])
       .where("id", "in", uniqueIds)
       .compile();

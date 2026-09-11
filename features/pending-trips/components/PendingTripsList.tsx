@@ -84,6 +84,7 @@ export default function PendingTripsList({
           onStartTrip={noop}
           onSkip={handleSkip}
           onArrived={noop}
+          onCompleteJob={noop}
           onStartInspection={noop}
         />
       )}

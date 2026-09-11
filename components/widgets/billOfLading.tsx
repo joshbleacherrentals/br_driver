@@ -25,6 +25,10 @@ import {
 } from "react-native";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+import { buildBolSections, type BolSection } from "@/utils/bolSections";
+import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
+import { isSingleLeg, type WorkTrackerKind } from "@/utils/workTrackerKind";
+
 interface BillOfLadingProps {
   visible: boolean;
   workTracker: WorkTracker;
@@ -47,9 +51,12 @@ function formatDate(dateISO?: string | null): string {
   }
 }
 
-function boolLabel(val: number | null | undefined): string {
-  if (val === null || val === undefined) return "—";
-  return val ? "Yes" : "No";
+/** Text going into the printed HTML — an address with an `&` is not markup. */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function v(value: string | number | null | undefined, fallback = "—"): string {
@@ -113,6 +120,7 @@ async function getLogoBase64(): Promise<string> {
 // ─── HTML Template for PDF ────────────────────────────────────────────────────
 function buildBOLHtml(params: {
   workTracker: WorkTracker;
+  kind: WorkTrackerKind;
   bleacher: ReturnType<typeof useBleacher>["bleacher"];
   pickupAddress: ReturnType<typeof useAddress>["address"];
   dropoffAddress: ReturnType<typeof useAddress>["address"];
@@ -121,6 +129,7 @@ function buildBOLHtml(params: {
 }): string {
   const {
     workTracker,
+    kind,
     bleacher,
     pickupAddress,
     dropoffAddress,
@@ -128,13 +137,26 @@ function buildBOLHtml(params: {
     bolNumber,
   } = params;
 
-  const pickupFull = pickupAddress
-    ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province} ${pickupAddress.zip_postal}`
-    : "—";
-
-  const dropoffFull = dropoffAddress
-    ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province} ${dropoffAddress.zip_postal}`
-    : "—";
+  // Two stop blocks for a trip, one "SHIPMENT INFORMATION" block for repair
+  // and site-visit work — the same builder the on-screen sheet renders from.
+  const sections = buildBolSections({
+    kind,
+    workTracker,
+    pickupAddress,
+    dropoffAddress,
+  });
+  const sectionsHtml = sections
+    .map((section, index) => {
+      const lines = section.fields
+        .map(
+          (field) =>
+            `<div class="pd-line"><span class="pd-label">${esc(field.label)}</span><span class="pd-val">${esc(field.value)}</span></div>`,
+        )
+        .join("");
+      const columnClass = index === 0 ? "pd-col" : "pd-col-border";
+      return `<div class="${columnClass}"><div class="pd-title">${esc(section.title)}</div>${lines}</div>`;
+    })
+    .join("");
 
   const seats =
     bleacher?.bleacher_rows && bleacher?.bleacher_seats
@@ -298,24 +320,7 @@ function buildBOLHtml(params: {
   </div>
 
   <div class="pd-row">
-    <div class="pd-col">
-      <div class="pd-title">PICKUP INFORMATION (Trailer Origin)</div>
-      <div class="pd-line"><span class="pd-label">Pick up date:</span><span class="pd-val">${v(workTracker.date)}</span></div>
-      <div class="pd-line"><span class="pd-label">Pick up time:</span><span class="pd-val">${v(workTracker.pickup_time)}</span></div>
-      <div class="pd-line"><span class="pd-label">Pick up address:</span><span class="pd-val">${pickupFull}</span></div>
-      <div class="pd-line"><span class="pd-label">On site POC at pick up:</span><span class="pd-val">${v(workTracker.pickup_poc)}</span></div>
-      <div class="pd-line"><span class="pd-label">Tear Down Required:</span><span class="pd-val">${boolLabel(workTracker.teardown_required)}</span></div>
-      <div class="pd-line"><span class="pd-label">Pick up Instructions:</span><span class="pd-val">${v(workTracker.pickup_instructions)}</span></div>
-    </div>
-    <div class="pd-col-border">
-      <div class="pd-title">DELIVERY INFORMATION (Trailer Destination)</div>
-      <div class="pd-line"><span class="pd-label">Delivery date:</span><span class="pd-val">${v(workTracker.date)}</span></div>
-      <div class="pd-line"><span class="pd-label">Delivery time:</span><span class="pd-val">${v(workTracker.dropoff_time)}</span></div>
-      <div class="pd-line"><span class="pd-label">Delivery address:</span><span class="pd-val">${dropoffFull}</span></div>
-      <div class="pd-line"><span class="pd-label">On site POC at delivery (Consignee):</span><span class="pd-val">${v(workTracker.dropoff_poc)}</span></div>
-      <div class="pd-line"><span class="pd-label">Set Up Required:</span><span class="pd-val">${boolLabel(workTracker.setup_required)}</span></div>
-      <div class="pd-line"><span class="pd-label">Delivery Instructions:</span><span class="pd-val">${v(workTracker.dropoff_instructions)}</span></div>
-    </div>
+    ${sectionsHtml}
   </div>
 
   <div class="sig-box">
@@ -455,6 +460,21 @@ function makeSectionStyles(theme: ThemeColors) {
   });
 }
 
+const SECTION_SCREEN_TITLE: Record<BolSection["key"], string> = {
+  pickup: "Pickup Information",
+  dropoff: "Delivery Information",
+  shipment: "Shipment Information",
+};
+
+const SECTION_ICON: Record<
+  BolSection["key"],
+  "location-outline" | "flag-outline" | "cube-outline"
+> = {
+  pickup: "location-outline",
+  dropoff: "flag-outline",
+  shipment: "cube-outline",
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function BillOfLading({
   visible,
@@ -464,8 +484,12 @@ export default function BillOfLading({
   const { theme } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const infoRowStyles = useMemo(() => makeInfoRowStyles(theme), [theme]);
+  const kind = useWorkTrackerKind(workTracker.work_tracker_type_uuid);
+  // A repair or a site visit never collects a trailer, so it has no origin to
+  // print — and no reason to read one. The pickup address the office may have
+  // left on the row is not part of this paperwork.
   const { address: pickupAddress } = useAddress(
-    workTracker.pickup_address_uuid,
+    isSingleLeg(kind) ? null : workTracker.pickup_address_uuid,
   );
   const { address: dropoffAddress } = useAddress(
     workTracker.dropoff_address_uuid,
@@ -477,13 +501,12 @@ export default function BillOfLading({
   const { bleacher } = useBleacher(workTracker.bleacher_uuid);
   const [printing, setPrinting] = React.useState(false);
 
-  const pickupFull = pickupAddress
-    ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province} ${pickupAddress.zip_postal}`
-    : null;
-
-  const dropoffFull = dropoffAddress
-    ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province} ${dropoffAddress.zip_postal}`
-    : null;
+  const sections = buildBolSections({
+    kind,
+    workTracker,
+    pickupAddress,
+    dropoffAddress,
+  });
 
   const seats =
     bleacher?.bleacher_rows && bleacher?.bleacher_seats
@@ -506,6 +529,7 @@ export default function BillOfLading({
       const logoBase64 = await getLogoBase64();
       const html = buildBOLHtml({
         workTracker,
+        kind,
         bleacher,
         pickupAddress,
         dropoffAddress,
@@ -583,9 +607,7 @@ export default function BillOfLading({
           />
           <View style={[infoRowStyles.row, { borderBottomWidth: 0 }]}>
             <Text style={infoRowStyles.label}>Notes</Text>
-            <Text
-              style={[infoRowStyles.value, { color: theme.textSecondary }]}
-            >
+            <Text style={[infoRowStyles.value, { color: theme.textSecondary }]}>
               Power Only · Flatbed
             </Text>
           </View>
@@ -603,52 +625,44 @@ export default function BillOfLading({
           </Text>
         </Section>
 
-        <Section title="Pickup Information" icon="location-outline">
-          <InfoRow label="Date" value={formatDate(workTracker.date)} />
-          <InfoRow label="Time" value={workTracker.pickup_time} />
-          <InfoRow label="Address" value={pickupFull} accent />
-          <InfoRow label="On-Site POC" value={workTracker.pickup_poc} />
-          <InfoRow
-            label="Tear Down Required"
-            value={boolLabel(workTracker.teardown_required)}
-          />
-          <View
-            style={[
-              infoRowStyles.row,
-              { borderBottomWidth: 0, alignItems: "flex-start" },
-            ]}
+        {sections.map((section) => (
+          <Section
+            key={section.key}
+            title={SECTION_SCREEN_TITLE[section.key]}
+            icon={SECTION_ICON[section.key]}
           >
-            <Text style={infoRowStyles.label}>Pickup Instructions</Text>
-            <Text style={infoRowStyles.value}>
-              {workTracker.pickup_instructions || "—"}
-            </Text>
-          </View>
-        </Section>
-
-        <Section title="Delivery Information" icon="flag-outline">
-          <InfoRow label="Date" value={formatDate(workTracker.date)} />
-          <InfoRow label="Time" value={workTracker.dropoff_time} />
-          <InfoRow label="Address" value={dropoffFull} accent />
-          <InfoRow
-            label="On-Site POC (Consignee)"
-            value={workTracker.dropoff_poc}
-          />
-          <InfoRow
-            label="Set Up Required"
-            value={boolLabel(workTracker.setup_required)}
-          />
-          <View
-            style={[
-              infoRowStyles.row,
-              { borderBottomWidth: 0, alignItems: "flex-start" },
-            ]}
-          >
-            <Text style={infoRowStyles.label}>Delivery Instructions</Text>
-            <Text style={infoRowStyles.value}>
-              {workTracker.dropoff_instructions || "—"}
-            </Text>
-          </View>
-        </Section>
+            {section.fields.map((field) =>
+              field.label.includes("Instructions") ? (
+                <View
+                  key={field.label}
+                  style={[
+                    infoRowStyles.row,
+                    { borderBottomWidth: 0, alignItems: "flex-start" },
+                  ]}
+                >
+                  <Text style={infoRowStyles.label}>
+                    {field.label.replace(/:$/, "")}
+                  </Text>
+                  <Text style={infoRowStyles.value}>{field.value}</Text>
+                </View>
+              ) : (
+                <InfoRow
+                  key={field.label}
+                  label={field.label.replace(/:$/, "")}
+                  value={
+                    field.label.startsWith("Date")
+                      ? formatDate(workTracker.date)
+                      : field.value
+                  }
+                  accent={
+                    field.label.includes("address") ||
+                    field.label.includes("Address")
+                  }
+                />
+              ),
+            )}
+          </Section>
+        ))}
 
         {/* <Section title="Signatures" icon="pencil-outline">
             <Text style={styles.sigNote}>Please sign when the unit is dropped off at the destination.</Text>
@@ -734,7 +748,11 @@ function makeStyles(theme: ThemeColors) {
       paddingVertical: 10,
     },
     title: { ...typeScale.callout, fontWeight: "700", color: theme.onAccent },
-    shipperName: { ...typeScale.footnote, fontWeight: "700", color: theme.onAccent },
+    shipperName: {
+      ...typeScale.footnote,
+      fontWeight: "700",
+      color: theme.onAccent,
+    },
     shipperDetail: {
       ...typeScale.caption2,
       color: theme.onAccent + "CC",

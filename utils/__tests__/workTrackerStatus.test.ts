@@ -10,6 +10,7 @@
 import {
   isTripAccepted,
   isWorkTrackerClosed,
+  startingStatusFor,
 } from "@/utils/workTrackerStatus";
 
 describe("trip closed boundary", () => {
@@ -88,5 +89,19 @@ describe("isTripAccepted", () => {
     expect(isTripAccepted(null, null)).toBe(false);
     expect(isTripAccepted(undefined, undefined)).toBe(false);
     expect(isTripAccepted("some_future_status", null)).toBe(false);
+  });
+});
+
+describe("startingStatusFor", () => {
+  it("sends a trip to its pick up first", () => {
+    expect(startingStatusFor("trip")).toBe("dest_pickup");
+  });
+
+  it("sends a repair or a site visit straight to the one place it happens", () => {
+    // There is nothing to collect: the driver drives to where the bleacher is,
+    // works, and inspects once. Walking them through an empty pick-up leg
+    // would ask for an inspection of a trailer they never hitched.
+    expect(startingStatusFor("repair_maintenance")).toBe("dest_dropoff");
+    expect(startingStatusFor("site_visit_cleaning_other")).toBe("dest_dropoff");
   });
 });
