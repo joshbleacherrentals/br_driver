@@ -71,3 +71,68 @@ describe("mapsQuery", () => {
     expect(mapsQuery(null)).toBeNull();
   });
 });
+
+describe("a street that is already a whole address", () => {
+  // Every address the office app saved before it started splitting Google's
+  // result kept the entire suggestion in `street`. Adding the city and state
+  // back on printed them twice — "303 York St, Kingston, Frontenac County, ON
+  // K7K 4M4, Canada, Kingston, Ontario K7K 4M4" on the pending-trips card.
+  const legacyKingston = {
+    street: "303 York St, Kingston, Frontenac County, ON K7K 4M4, Canada",
+    city: "Kingston",
+    state_province: "Ontario",
+    zip_postal: "K7K 4M4",
+    country: "CA",
+  };
+
+  it("is shown as it stands, with nothing appended", () => {
+    expect(formatAddress(legacyKingston)).toBe(
+      "303 York St, Kingston, Frontenac County, ON K7K 4M4, Canada",
+    );
+  });
+
+  it("does not repeat a country the street already names", () => {
+    expect(
+      formatAddress({
+        street: "Woodbridge Fairground, Porter Ave, Woodbridge, ON, Canada",
+        city: "Vaughan",
+        state_province: "Ontario",
+        zip_postal: "L4L 8W8",
+        country: "CA",
+      }),
+    ).toBe("Woodbridge Fairground, Porter Ave, Woodbridge, ON, Canada");
+  });
+
+  it("is recognised by having more than one comma", () => {
+    // Two commas is the line between a street and a whole address: a street
+    // line may carry one ("Apt 5, 123 Main St"), never two.
+    expect(
+      formatAddress({
+        street: "Apt 5, 123 Main St",
+        city: "Springfield",
+        state_province: "IL",
+        zip_postal: "62701",
+      }),
+    ).toBe("Apt 5, 123 Main St, Springfield, IL 62701");
+
+    expect(
+      formatAddress({
+        street: "123 Main St",
+        city: "Springfield",
+        state_province: "IL",
+        zip_postal: "62701",
+      }),
+    ).toBe("123 Main St, Springfield, IL 62701");
+  });
+
+  it("still hands a maps app the geocode when there is one", () => {
+    // The heuristic is about what is printed, not about where the driver is
+    // sent — coordinates still win.
+    expect(
+      mapsQuery({ ...legacyKingston, latitude: 44.23, longitude: -76.48 }),
+    ).toBe("44.23,-76.48");
+    expect(mapsQuery(legacyKingston)).toBe(
+      "303 York St, Kingston, Frontenac County, ON K7K 4M4, Canada",
+    );
+  });
+});

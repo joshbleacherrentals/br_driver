@@ -32,9 +32,30 @@ function clean(part: string | null | undefined): string | null {
 }
 
 /**
+ * Whether `street` is already a whole address rather than one line of one.
+ *
+ * Before the office app started splitting Google's result into columns it kept
+ * the entire suggestion in `street` — "303 York St, Kingston, Frontenac
+ * County, ON K7K 4M4, Canada" — and neither address migration backfills those
+ * rows. Composing them part by part prints the city, province and postal code
+ * a second time.
+ *
+ * Two commas is the line between the two: a street line can carry one ("Apt 5,
+ * 123 Main St"), but a third part means the city is in there already. It is a
+ * heuristic, and it only ever decides whether to append — it never rewrites
+ * what the office typed.
+ */
+function isWholeAddress(street: string): boolean {
+  return (street.match(/,/g)?.length ?? 0) > 1;
+}
+
+/**
  * The address on one line — `street, city, ST zip[, country]` — with every
  * part the row does not have left out rather than rendered as a gap between
  * commas. Null when there is nothing at all to show.
+ *
+ * A `street` that is already a whole address (see `isWholeAddress`) is handed
+ * back untouched, so pre-migration rows do not print their city twice.
  */
 export function formatAddress(
   address: FormattableAddress | null | undefined,
@@ -42,6 +63,10 @@ export function formatAddress(
   if (!address) return null;
 
   const street = clean(address.street);
+
+  // A pre-migration row is already complete — show it as it stands.
+  if (street && isWholeAddress(street)) return street;
+
   const city = clean(address.city);
   const state = clean(address.state_province);
   const zip = clean(address.zip_postal);
