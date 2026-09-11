@@ -13,6 +13,7 @@ import { elevation, typeScale, type ThemeColors } from "@/constants/theme";
 import type { AddressData } from "@/hooks/db/useAddress";
 import type { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { buildTripStops } from "@/utils/tripStops";
+import { withdrawnOutcomeLabel } from "@/utils/tripWithdrawal";
 import type { WorkTrackerKind } from "@/utils/workTrackerKind";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -44,6 +45,9 @@ function HistoryTripCard({
   onPress,
 }: HistoryTripCardProps) {
   const kindColor = workTrackerKindColor(kind, theme);
+  // Declined and abandoned trackers sit in the same list as completed work;
+  // unlabelled, they read as a trip that paid nothing.
+  const outcome = withdrawnOutcomeLabel(trip.status);
   const stops = buildTripStops({
     kind,
     workTracker: trip,
@@ -76,6 +80,16 @@ function HistoryTripCard({
           </Text>
           <View style={styles.badgeRow}>
             <WorkTrackerKindBadge kind={kind} theme={theme} />
+            {outcome ? (
+              <Text
+                style={[
+                  styles.outcome,
+                  { color: theme.danger, borderColor: theme.danger },
+                ]}
+              >
+                {outcome}
+              </Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -113,6 +127,15 @@ function HistoryTripCard({
 }
 
 const styles = StyleSheet.create({
+  outcome: {
+    ...typeScale.caption2,
+    fontWeight: "600",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: "hidden",
+  },
   card: {
     marginHorizontal: 10,
     marginTop: 8,

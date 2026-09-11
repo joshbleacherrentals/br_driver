@@ -6,6 +6,11 @@ import { ThemeColors, typeScale } from "@/constants/theme";
 import { useBatchAddresses } from "@/hooks/db/useAddress";
 import { useBatchBleachers } from "@/hooks/db/useBleacher";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import {
+  buildWeekGroups,
+  isDriverHistoryTracker,
+  type WeekGroup,
+} from "@/features/trip-history/utils/buildWeekGroups";
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -20,55 +25,6 @@ import {
 } from "react-native";
 
 // ── Utility helpers ───────────────────────────────────────────────────────────
-function getWeekStart(dateISO: string): Date {
-  const d = new Date(dateISO + "T00:00:00");
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  return monday;
-}
-
-function getWeekEnd(monday: Date): Date {
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return sunday;
-}
-
-function formatWeekRange(monday: Date, sunday: Date): string {
-  const sameMonth = monday.getMonth() === sunday.getMonth();
-  const monthFmt = (d: Date) =>
-    d.toLocaleDateString(undefined, { month: "long" });
-  const dayOrd = (n: number) => {
-    const s = ["th", "st", "nd", "rd"];
-    const v = n % 100;
-    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
-  };
-  if (sameMonth) {
-    return `${monthFmt(monday)} ${dayOrd(monday.getDate())} – ${dayOrd(sunday.getDate())}`;
-  }
-  return `${monthFmt(monday)} ${dayOrd(monday.getDate())} – ${monthFmt(sunday)} ${dayOrd(sunday.getDate())}`;
-}
-
-function getWeekKey(monday: Date): string {
-  return monday.toISOString().split("T")[0];
-}
-
-function isCurrentWeek(monday: Date): boolean {
-  const currentMonday = getWeekStart(new Date().toISOString().split("T")[0]);
-  return getWeekKey(monday) === getWeekKey(currentMonday);
-}
-
-interface WeekGroup {
-  key: string;
-  label: string;
-  monday: Date;
-  sunday: Date;
-  trips: WorkTracker[];
-  totalPay: number;
-  isCurrent: boolean;
-}
-
 const formatPay = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 function formatDate(dateISO?: string | null) {
@@ -107,41 +63,17 @@ export default function TripHistoryScreen() {
     {},
   );
 
-  const completedTrips = useMemo(
-    () => (workTrackers ?? []).filter((wt) => wt.status === "completed"),
+  // Everything the driver has finished with — completed, declined, abandoned.
+  const historyTrips = useMemo(
+    () =>
+      (workTrackers ?? []).filter((wt) => isDriverHistoryTracker(wt.status)),
     [workTrackers],
   );
 
-  const weekGroups = useMemo<WeekGroup[]>(() => {
-    const groups: Record<string, WeekGroup> = {};
-    completedTrips.forEach((trip) => {
-      if (!trip.date) return;
-      const monday = getWeekStart(trip.date);
-      const key = getWeekKey(monday);
-      if (!groups[key]) {
-        const sunday = getWeekEnd(monday);
-        groups[key] = {
-          key,
-          label: formatWeekRange(monday, sunday),
-          monday,
-          sunday,
-          trips: [],
-          totalPay: 0,
-          isCurrent: isCurrentWeek(monday),
-        };
-      }
-      groups[key].trips.push(trip);
-      groups[key].totalPay += trip.pay_cents ?? 0;
-    });
-    return Object.values(groups)
-      .sort((a, b) => b.monday.getTime() - a.monday.getTime())
-      .map((g) => ({
-        ...g,
-        trips: [...g.trips].sort((a, b) =>
-          (b.date ?? "").localeCompare(a.date ?? ""),
-        ),
-      }));
-  }, [completedTrips]);
+  const weekGroups = useMemo<WeekGroup[]>(
+    () => buildWeekGroups(historyTrips),
+    [historyTrips],
+  );
 
   const isCollapsed = (key: string, isCurrent: boolean) => {
     if (key in collapsedWeeks) return collapsedWeeks[key];
@@ -157,16 +89,16 @@ export default function TripHistoryScreen() {
 
   const allAddressIds = useMemo(() => {
     const ids: (string | null)[] = [];
-    completedTrips.forEach((trip) => {
+    historyTrips.forEach((trip) => {
       ids.push(trip.pickup_address_uuid);
       ids.push(trip.dropoff_address_uuid);
     });
     return ids;
-  }, [completedTrips]);
+  }, [historyTrips]);
 
   const allAddresses = useBatchAddresses(allAddressIds);
   const allBleachers = useBatchBleachers(
-    completedTrips.map((wt) => wt.bleacher_uuid),
+    historyTrips.map((wt) => wt.bleacher_uuid),
   );
 
   if (isLoading) {
@@ -310,7 +242,11 @@ export default function TripHistoryScreen() {
                             : null
                         }
                         payLabel={
-                          trip.pay_cents ? formatPay(trip.pay_cents) : null
+                          // Handed-back work shows no figure: it pays nothing,
+                          // and the week's total does not count it either.
+                          trip.status === "completed" && trip.pay_cents
+                            ? formatPay(trip.pay_cents)
+                            : null
                         }
                         dateLabel={formatDate(trip.date)}
                         isLast={index === group.trips.length - 1}

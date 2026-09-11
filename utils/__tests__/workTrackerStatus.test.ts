@@ -8,6 +8,7 @@
  */
 
 import {
+  isDriverActiveTracker,
   isTripAccepted,
   isWorkTrackerClosed,
   startingStatusFor,
@@ -103,5 +104,67 @@ describe("startingStatusFor", () => {
     // would ask for an inspection of a trailer they never hitched.
     expect(startingStatusFor("repair_maintenance")).toBe("dest_dropoff");
     expect(startingStatusFor("site_visit_cleaning_other")).toBe("dest_dropoff");
+  });
+});
+
+/**
+ * The two statuses a driver can put a tracker into themselves: `declined` (an
+ * offer they never took) and `abandoned` (work they took on and walked away
+ * from). Both are terminal for the driver — the tracker leaves their app the
+ * same way a completed one does — so every boundary in this file has to treat
+ * them as shut, and the shared list filter has to drop them.
+ */
+describe("driver-withdrawn trackers", () => {
+  it.each(["declined", "abandoned"])(
+    "treats %s as closed to further edits",
+    (status) => {
+      expect(isWorkTrackerClosed(status)).toBe(true);
+    },
+  );
+
+  // `accepted_at` is set on an abandoned trip — the driver did accept it once —
+  // so the timestamp witness has to lose to the later fact, exactly as it does
+  // on a cancelled trip. Otherwise a walked-away trip keeps leaking a
+  // customer's personal phone number.
+  it("is shut for contact details, timestamp or not", () => {
+    expect(isTripAccepted("declined", null)).toBe(false);
+    expect(isTripAccepted("abandoned", null)).toBe(false);
+    expect(isTripAccepted("abandoned", "2026-09-11T10:00:00Z")).toBe(false);
+  });
+});
+
+/**
+ * `isDriverActiveTracker` — the one rule for "is this still on the driver's
+ * plate", replacing the copies that used to sit in the trips list, the pending
+ * list and the trip card. A `draft` has not been released to anyone, and
+ * `completed`, `declined` and `abandoned` are all finished business.
+ */
+describe("isDriverActiveTracker", () => {
+  it.each([
+    "released",
+    "accepted",
+    "dest_pickup",
+    "pickup_inspection",
+    "dest_dropoff",
+    "dropoff_inspection",
+    // Unchanged by this feature: a cancelled trip still shows, carrying its
+    // CANCELLED badge, so the driver learns the office called it off.
+    "cancelled",
+  ])("keeps %s on the driver's plate", (status) => {
+    expect(isDriverActiveTracker(status)).toBe(true);
+  });
+
+  it.each(["draft", "completed", "declined", "abandoned"])(
+    "drops %s from the driver's lists",
+    (status) => {
+      expect(isDriverActiveTracker(status)).toBe(false);
+    },
+  );
+
+  // A tracker whose status this build cannot name is still the driver's work;
+  // hiding it would strand a trip nobody can see.
+  it("keeps a tracker it cannot classify", () => {
+    expect(isDriverActiveTracker(null)).toBe(true);
+    expect(isDriverActiveTracker("some_future_status")).toBe(true);
   });
 });

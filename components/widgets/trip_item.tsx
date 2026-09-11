@@ -18,6 +18,7 @@ import { bleacherChangeReasonLabel } from "@/constants/bleacherChangeReasons";
 import { useInspection } from "@/hooks/db/useInspection";
 import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
 import TripStopSection from "@/components/widgets/trip/TripStopSection";
+import TripWithdrawalButton from "@/components/widgets/trip/TripWithdrawalButton";
 import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
 import {
   workTrackerActionLabels,
@@ -25,6 +26,8 @@ import {
 } from "@/constants/workTrackerKinds";
 import { buildTripStops } from "@/utils/tripStops";
 import { isSingleLeg, tripHasInspections } from "@/utils/workTrackerKind";
+import type { WithdrawalAction } from "@/utils/tripWithdrawal";
+import { isDriverActiveTracker } from "@/utils/workTrackerStatus";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeColors, typeScale } from "@/constants/theme";
@@ -82,6 +85,11 @@ interface TripItemProps {
    * work only. A trip is completed by submitting its drop-off inspection.
    */
   onCompleteJob?: (workTrackerId: string) => void;
+  /**
+   * The driver hands the tracker back — declined before they took it on,
+   * abandoned after. The card only asks; the screen owns the write.
+   */
+  onWithdraw?: (workTrackerId: string, action: WithdrawalAction) => void;
   onStartInspection?: (
     workTrackerId: string,
     inspectionType: "pickup" | "dropoff",
@@ -100,6 +108,7 @@ function TripItem({
   onSkip,
   onArrived,
   onCompleteJob,
+  onWithdraw,
   onStartInspection,
 }: TripItemProps) {
   const { theme } = useTheme();
@@ -173,7 +182,9 @@ function TripItem({
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
 
-  if (status === "draft" || status === "completed") return null;
+  // A tracker the driver has finished with — completed, declined or abandoned
+  // — leaves the card behind entirely; a draft was never theirs to see.
+  if (!isDriverActiveTracker(status)) return null;
 
   const stops = buildTripStops({
     kind,
@@ -511,7 +522,10 @@ function TripItem({
       {status === "dropoff_inspection" &&
         (inspects ? (
           <TouchableOpacity
-            style={[styles.inspectionButton, { backgroundColor: theme.warning }]}
+            style={[
+              styles.inspectionButton,
+              { backgroundColor: theme.warning },
+            ]}
             onPress={() => handleStartInspection(workTracker.id, "dropoff")}
           >
             <Text
@@ -590,6 +604,14 @@ function TripItem({
         </>
       )}
 
+      {/* Last thing on the card, below Accept, below Start, and below the
+          inspection controls once the work is under way. */}
+      <TripWithdrawalButton
+        status={status}
+        kind={kind}
+        onWithdraw={(action) => onWithdraw?.(workTracker.id, action)}
+      />
+
       {/* Read-only: nothing here is being selected, the driver is finding out
           what is already known about the bleacher they are hauling. */}
       <BottomSheetModal
@@ -627,6 +649,7 @@ function tripItemPropsEqual(prev: TripItemProps, next: TripItemProps): boolean {
     prev.onStartTrip === next.onStartTrip &&
     prev.onSkip === next.onSkip &&
     prev.onArrived === next.onArrived &&
+    prev.onWithdraw === next.onWithdraw &&
     prev.onStartInspection === next.onStartInspection
   );
 }

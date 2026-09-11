@@ -25,6 +25,8 @@ export type WorkTracker = {
   accepted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  declined_at: string | null;
+  abandoned_at: string | null;
   teardown_required: number | null;
   pickup_instructions: string | null;
   setup_required: number | null;
@@ -76,6 +78,9 @@ const WORK_TRACKER_COLUMNS = [
   "accepted_at",
   "started_at",
   "completed_at",
+  // Set when the driver hands the work back — see utils/withdrawTracker.
+  "declined_at",
+  "abandoned_at",
   "teardown_required",
   "pickup_instructions",
   "setup_required",

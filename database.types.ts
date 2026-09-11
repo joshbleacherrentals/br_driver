@@ -4027,6 +4027,8 @@ export type Database = {
       WorkTrackers: {
         Row: {
           accepted_at: string | null;
+          abandoned_at: string | null;
+          declined_at: string | null;
           actual_bleacher_uuid: string | null;
           bleacher_change_reason: string | null;
           bleacher_uuid: string | null;
@@ -4073,6 +4075,8 @@ export type Database = {
         };
         Insert: {
           accepted_at?: string | null;
+          abandoned_at?: string | null;
+          declined_at?: string | null;
           actual_bleacher_uuid?: string | null;
           bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
@@ -4119,6 +4123,8 @@ export type Database = {
         };
         Update: {
           accepted_at?: string | null;
+          abandoned_at?: string | null;
+          declined_at?: string | null;
           actual_bleacher_uuid?: string | null;
           bleacher_change_reason?: string | null;
           bleacher_uuid?: string | null;
@@ -4515,7 +4521,9 @@ export type Database = {
         | "dest_dropoff"
         | "dropoff_inspection"
         | "completed"
-        | "cancelled";
+        | "cancelled"
+        | "declined"
+        | "abandoned";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -4707,6 +4715,8 @@ export const Constants = {
         "dropoff_inspection",
         "completed",
         "cancelled",
+        "declined",
+        "abandoned",
       ],
     },
   },

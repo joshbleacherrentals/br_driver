@@ -406,6 +406,10 @@ const WorkTrackersCols = {
   accepted_at: column.text,
   started_at: column.text,
   completed_at: column.text,
+  // When the driver handed the work back — one column per kind of withdrawal,
+  // so "never took it on" and "walked away mid-job" stay distinguishable.
+  declined_at: column.text,
+  abandoned_at: column.text,
   pre_inspection_uuid: column.text,
   post_inspection_uuid: column.text,
   teardown_required: column.integer,

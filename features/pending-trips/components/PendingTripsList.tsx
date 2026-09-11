@@ -7,6 +7,8 @@ import { useThemedStyles } from "@/hooks/useThemedStyles";
 import { useAcceptTrip } from "@/hooks/useAcceptTrip";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
+import type { WithdrawalAction } from "@/utils/tripWithdrawal";
+import { withdrawTracker } from "@/utils/withdrawTracker";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
@@ -36,6 +38,17 @@ export default function PendingTripsList({
       await acceptTrip(workTrackerId, trip?.date ?? todayISODate());
     },
     [acceptTrip, workTrackers],
+  );
+
+  const handleWithdraw = useCallback(
+    async (workTrackerId: string, action: WithdrawalAction) => {
+      try {
+        await withdrawTracker(workTrackerId, action);
+      } catch {
+        Alert.alert("Error", "Failed to decline. Please try again.");
+      }
+    },
+    [],
   );
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
@@ -83,6 +96,7 @@ export default function PendingTripsList({
           onAccept={handleAccept}
           onStartTrip={noop}
           onSkip={handleSkip}
+          onWithdraw={handleWithdraw}
           onArrived={noop}
           onCompleteJob={noop}
           onStartInspection={noop}
