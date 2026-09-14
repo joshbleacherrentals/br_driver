@@ -158,6 +158,51 @@ const BleacherCols = {
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
 
+// ── Fleet reference data, behind the read-only Assets page ────────────────────
+//
+// `satisfies Partial<...>` for the same reason DamageReports uses it below:
+// the mobile sync stream ships a named subset of each of these tables, not
+// `SELECT *` (see br_powersync/config/sync_rules.yaml). Declaring a column the
+// stream does not send would give the app a column that is null forever, and
+// `Partial` still type-checks every column that IS declared, so a typo or a
+// text/integer mix-up is caught exactly as it would be otherwise.
+
+// bleacher types — the office's catalogue; where row count is maintained
+const BleacherTypeCols = {
+  name: column.text,
+  row_count: column.integer,
+} satisfies Partial<PowerSyncColsFor<"BleacherTypes">>;
+const BleacherTypes = new Table(BleacherTypeCols, { indexes: { id: ["id"] } });
+
+// storage locations — the yard a bleacher lives in when it is not out
+//
+// Deliberately name-only. The table also carries gate codes, site phone
+// numbers and internal notes; none of that is synced to a phone.
+const StorageLocationCols = {
+  name: column.text,
+} satisfies Partial<PowerSyncColsFor<"StorageLocations">>;
+const StorageLocations = new Table(StorageLocationCols, {
+  indexes: { id: ["id"] },
+});
+
+// zones — the region a bleacher is assigned to
+const ZoneCols = {
+  display_name: column.text,
+} satisfies Partial<PowerSyncColsFor<"Zones">>;
+const Zones = new Table(ZoneCols, { indexes: { id: ["id"] } });
+
+// annual inspections — the compliance date a driver can check before hitching
+const BleacherAnnualInspectionCols = {
+  bleacher_uuid: column.text,
+  inspected_on: column.text,
+  next_due_on: column.text,
+  document_path: column.text,
+} satisfies Partial<PowerSyncColsFor<"BleacherAnnualInspections">>;
+const BleacherAnnualInspections = new Table(BleacherAnnualInspectionCols, {
+  // Always read by bleacher, never by its own id.
+  indexes: { bleacher_uuid: ["bleacher_uuid"] },
+});
+
 // inspection questions
 const InspectionQuestionsCols = {
   question_text: column.text,
@@ -678,6 +723,10 @@ export const AppSchema = new Schema({
   DriverUnavailability,
   DriverPayRanges,
   Bleachers,
+  BleacherTypes,
+  StorageLocations,
+  Zones,
+  BleacherAnnualInspections,
   Addresses,
   AccountManagers,
   WorkTrackerInspections,
@@ -712,6 +761,11 @@ export type PowerSyncDB = (typeof AppSchema)["types"];
 export type DriverRecord = PowerSyncDB["Drivers"];
 export type UserRecord = PowerSyncDB["Users"];
 export type BleacherRecord = PowerSyncDB["Bleachers"];
+export type BleacherTypeRecord = PowerSyncDB["BleacherTypes"];
+export type StorageLocationRecord = PowerSyncDB["StorageLocations"];
+export type ZoneRecord = PowerSyncDB["Zones"];
+export type BleacherAnnualInspectionRecord =
+  PowerSyncDB["BleacherAnnualInspections"];
 export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
 export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];

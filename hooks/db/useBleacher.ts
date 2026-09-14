@@ -27,6 +27,7 @@ export type BleacherData = {
   opening_direction: string | null;
   trailer_length_in: number | null;
   trailer_height_in: number | null;
+  nvis_pdf_path: string | null;
   zone_uuid: string | null;
   storage_location_uuid: string | null;
   bleacher_type_uuid: string | null;
@@ -61,6 +62,9 @@ const BLEACHER_COLUMNS = [
   "opening_direction",
   "trailer_length_in",
   "trailer_height_in",
+  // The NVIS certificate in Supabase Storage. A path, not a file: the Assets
+  // page fetches it on demand and says so when there is no connection.
+  "nvis_pdf_path",
   // Needed by orderBleacherOptions to group the swap picker by warehouse/zone.
   "zone_uuid",
   "storage_location_uuid",

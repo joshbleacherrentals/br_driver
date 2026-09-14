@@ -38,6 +38,11 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(drawer)/(tabs)/documents",
   },
   {
+    label: "Assets",
+    icon: "cube-outline",
+    route: "/(drawer)/(tabs)/assets",
+  },
+  {
     label: "Damage Reports",
     icon: "warning-outline",
     route: "/(drawer)/(tabs)/damage-report-history",

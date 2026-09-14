@@ -204,6 +204,13 @@ function TabsContent() {
           }}
         />
         <Tabs.Screen
+          name="assets"
+          options={{
+            title: "Assets",
+            tabBarItemStyle: { display: "none" },
+          }}
+        />
+        <Tabs.Screen
           name="whats-new"
           options={{
             title: "What's New",
