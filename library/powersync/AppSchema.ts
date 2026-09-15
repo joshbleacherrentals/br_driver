@@ -410,6 +410,8 @@ const WorkTrackersCols = {
   accepted_at: column.text,
   started_at: column.text,
   completed_at: column.text,
+  abandoned_at: column.text,
+  declined_at: column.text,
   pre_inspection_uuid: column.text,
   post_inspection_uuid: column.text,
   teardown_required: column.integer,
@@ -458,6 +460,7 @@ const ContactsCols = {
   created_at: column.text,
   created_by_user_uuid: column.text,
   preferred_language: column.text,
+  default_venue_uuid: column.text,
 } satisfies PowerSyncColsFor<"Contacts">;
 const Contacts = new Table(ContactsCols);
 
@@ -647,6 +650,62 @@ const DriverSurveyResponses = new Table(DriverSurveyResponsesCols, {
   indexes: { driver_uuid: ["driver_uuid", "survey_uuid"] },
 });
 
+// BleacherAnnualInspections — one row per year per bleacher.
+const BleacherAnnualInspectionsCols = {
+  bleacher_uuid: column.text,
+  created_at: column.text,
+  created_by: column.text,
+  document_path: column.text,
+  inspected_on: column.text,
+  next_due_on: column.text,
+  notes: column.text,
+} satisfies PowerSyncColsFor<"BleacherAnnualInspections">;
+const BleacherAnnualInspections = new Table(BleacherAnnualInspectionsCols, {
+  indexes: { bleacher_uuid: ["bleacher_uuid"] },
+});
+
+// BleacherTypes — office-maintained catalogue the Assets page resolves names against.
+const BleacherTypesCols = {
+  created_at: column.text,
+  created_by_user_uuid: column.text,
+  deleted: column.integer,
+  name: column.text,
+  roof_type: column.text,
+  row_count: column.integer,
+} satisfies PowerSyncColsFor<"BleacherTypes">;
+const BleacherTypes = new Table(BleacherTypesCols);
+
+// StorageLocations — office-maintained catalogue the Assets page resolves names against.
+const StorageLocationsCols = {
+  address_uuid: column.text,
+  contact_phone_number: column.text,
+  created_at: column.text,
+  deleted: column.integer,
+  gate_code: column.text,
+  name: column.text,
+  notes: column.text,
+} satisfies PowerSyncColsFor<"StorageLocations">;
+const StorageLocations = new Table(StorageLocationsCols);
+
+// WorkTrackerTypes — office-maintained catalogue of trip type labels.
+const WorkTrackerTypesCols = {
+  code: column.text,
+  created_at: column.text,
+  display_name: column.text,
+  is_deleted: column.integer,
+  sort_order: column.integer,
+} satisfies PowerSyncColsFor<"WorkTrackerTypes">;
+const WorkTrackerTypes = new Table(WorkTrackerTypesCols);
+
+// Zones — office-maintained catalogue the Assets page resolves names against.
+const ZonesCols = {
+  created_at: column.text,
+  description: column.text,
+  display_name: column.text,
+  photo_path: column.text,
+} satisfies PowerSyncColsFor<"Zones">;
+const Zones = new Table(ZonesCols);
+
 export const AppSchema = new Schema({
   Users,
   Drivers,
@@ -674,6 +733,11 @@ export const AppSchema = new Schema({
   DriverSurveys,
   DriverSurveyQuestions,
   DriverSurveyResponses,
+  BleacherAnnualInspections,
+  BleacherTypes,
+  StorageLocations,
+  WorkTrackerTypes,
+  Zones,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),

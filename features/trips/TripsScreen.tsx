@@ -6,10 +6,18 @@ import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import TripItem from "@/components/widgets/trip_item";
 import { WorkTracker, useWorkTrackers } from "@/hooks/db/useWorkTrackers";
+import { useWorkTrackerTypes } from "@/hooks/db/useWorkTrackerTypes";
 import { useTheme } from "@/hooks/useTheme";
 import { useAcceptTrip } from "@/hooks/useAcceptTrip";
 import { executeTypedMutationVoid } from "@/library/powersync/typedMutation";
 import { todayISODate } from "@/utils/documentExpiry";
+import { resolveWorkTrackerKind } from "@/utils/workTrackerKind";
+import {
+  isDriverActiveTracker,
+  startingStatusFor,
+} from "@/utils/workTrackerStatus";
+import type { WithdrawalAction } from "@/utils/tripWithdrawal";
+import { withdrawTracker } from "@/utils/withdrawTracker";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -56,6 +64,7 @@ export default function TripsScreen() {
   } | null>(null);
 
   const workTrackers = useWorkTrackers().workTrackers;
+  const { types: workTrackerTypes } = useWorkTrackerTypes();
   const { acceptTrip, blockFor, openFix } = useAcceptTrip();
 
   const today = useMemo(() => todayISODate(), []);
@@ -70,11 +79,125 @@ export default function TripsScreen() {
     [acceptTrip, today, workTrackers],
   );
 
-  const handleStartTrip = useCallback(async (workTrackerId: string) => {
-    Alert.alert("Start Trip", "Ready to start this trip?", [
-      { text: "Cancel", style: "cancel" },
+  const handleStartTrip = useCallback(
+    async (workTrackerId: string) => {
+      const trip = workTrackers?.find((wt) => wt.id === workTrackerId);
+      const kind = resolveWorkTrackerKind(
+        trip?.work_tracker_type_uuid,
+        workTrackerTypes,
+      );
+      // A repair or a site visit has no pick-up leg to drive to first.
+      const startingStatus = startingStatusFor(kind);
+      const isTrip = kind === "trip";
+
+      Alert.alert(
+        isTrip ? "Start Trip" : "Start",
+        isTrip ? "Ready to start this trip?" : "Ready to start this job?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Start",
+            onPress: async () => {
+              try {
+                const now = new Date().toISOString();
+                await executeTypedMutationVoid(
+                  db
+                    .updateTable("WorkTrackers")
+                    .set({
+                      status: startingStatus,
+                      started_at: now,
+                      updated_at: now,
+                    })
+                    .where("id", "=", workTrackerId)
+                    .compile(),
+                );
+              } catch {
+                Alert.alert("Error", "Failed to start trip. Please try again.");
+              }
+            },
+          },
+        ],
+      );
+    },
+    [workTrackers, workTrackerTypes],
+  );
+
+  // The card has already asked "are you sure"; this is the write.
+  const handleWithdraw = useCallback(
+    async (workTrackerId: string, action: WithdrawalAction) => {
+      try {
+        await withdrawTracker(workTrackerId, action);
+      } catch {
+        Alert.alert(
+          "Error",
+          action === "decline"
+            ? "Failed to decline. Please try again."
+            : "Failed to abandon. Please try again.",
+        );
+      }
+    },
+    [],
+  );
+
+  const handleArrived = useCallback(
+    async (workTrackerId: string, _arrivedAt: string) => {
+      const currentTrip = workTrackers?.find((t) => t.id === workTrackerId);
+      const isAtPickup = currentTrip?.status === "dest_pickup";
+      const isTrip =
+        resolveWorkTrackerKind(
+          currentTrip?.work_tracker_type_uuid,
+          workTrackerTypes,
+        ) === "trip";
+
+      Alert.alert(
+        "Arrived",
+        isTrip
+          ? `Have you arrived at the ${isAtPickup ? "pickup" : "drop-off"} location?`
+          : "Have you arrived on site?",
+        [
+          { text: "Not Yet", style: "cancel" },
+          {
+            text: "Yes, I've Arrived",
+            onPress: async () => {
+              try {
+                const newStatus = isAtPickup
+                  ? "pickup_inspection"
+                  : "dropoff_inspection";
+                await executeTypedMutationVoid(
+                  db
+                    .updateTable("WorkTrackers")
+                    .set({
+                      status: newStatus,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .where("id", "=", workTrackerId)
+                    .compile(),
+                );
+              } catch {
+                Alert.alert(
+                  "Error",
+                  "Failed to update inspection status. Please try again.",
+                );
+              }
+            },
+          },
+        ],
+      );
+    },
+    [workTrackers, workTrackerTypes],
+  );
+
+  /**
+   * Closes a repair or site-visit job. These have no inspection, so
+   * `dropoff_inspection` is where the driver sits once they are on site, and
+   * this is the step that ends the work — the same write submitting a
+   * drop-off inspection performs for a trip.
+   */
+  const handleCompleteJob = useCallback(async (workTrackerId: string) => {
+    Alert.alert("Complete Job", "Is this job finished?", [
+      { text: "Not Yet", style: "cancel" },
       {
-        text: "Start",
+        text: "Yes, Complete",
         onPress: async () => {
           try {
             const now = new Date().toISOString();
@@ -82,65 +205,30 @@ export default function TripsScreen() {
               db
                 .updateTable("WorkTrackers")
                 .set({
-                  status: "dest_pickup",
-                  started_at: now,
+                  status: "completed",
+                  completed_at: now,
                   updated_at: now,
                 })
                 .where("id", "=", workTrackerId)
                 .compile(),
             );
           } catch {
-            Alert.alert("Error", "Failed to start trip. Please try again.");
+            Alert.alert(
+              "Error",
+              "Failed to complete this job. Please try again.",
+            );
           }
         },
       },
     ]);
   }, []);
 
-  const handleArrived = useCallback(async (workTrackerId: string, _arrivedAt: string) => {
-    const currentTrip = workTrackers?.find((t) => t.id === workTrackerId);
-    const isAtPickup = currentTrip?.status === "dest_pickup";
-
-    Alert.alert(
-      "Arrived",
-      `Have you arrived at the ${isAtPickup ? "pickup" : "drop-off"} location?`,
-      [
-        { text: "Not Yet", style: "cancel" },
-        {
-          text: "Yes, I've Arrived",
-          onPress: async () => {
-            try {
-              const newStatus = isAtPickup
-                ? "pickup_inspection"
-                : "dropoff_inspection";
-              await executeTypedMutationVoid(
-                db
-                  .updateTable("WorkTrackers")
-                  .set({
-                    status: newStatus,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .where("id", "=", workTrackerId)
-                  .compile(),
-              );
-            } catch {
-              Alert.alert(
-                "Error",
-                "Failed to update inspection status. Please try again.",
-              );
-            }
-          },
-        },
-      ],
-    );
-  }, [workTrackers]);
-
-  const handleStartInspection = useCallback((
-    workTrackerId: string,
-    type: "pickup" | "dropoff",
-  ) => {
-    setInspectionData({ workTrackerId, type });
-  }, []);
+  const handleStartInspection = useCallback(
+    (workTrackerId: string, type: "pickup" | "dropoff") => {
+      setInspectionData({ workTrackerId, type });
+    },
+    [],
+  );
 
   const handleSkip = useCallback(async (workTrackerId: string) => {
     Alert.alert(
@@ -212,8 +300,7 @@ export default function TripsScreen() {
 
   // ── Derived counts ──────────────────────────────────────────────────────
 
-  const activeStatuses = (wt: WorkTracker) =>
-    wt.status !== "completed" && wt.status !== "draft";
+  const activeStatuses = (wt: WorkTracker) => isDriverActiveTracker(wt.status);
 
   const todayCount = (workTrackers ?? []).filter(
     (wt) => activeStatuses(wt) && (wt.date == null || wt.date <= today),
@@ -237,7 +324,9 @@ export default function TripsScreen() {
       />
 
       {/* Toggle */}
-      <View style={[styles.toggleContainer, { backgroundColor: toggleTrackBg }]}>
+      <View
+        style={[styles.toggleContainer, { backgroundColor: toggleTrackBg }]}
+      >
         <TouchableOpacity
           style={[
             styles.toggleBtn,
@@ -249,9 +338,7 @@ export default function TripsScreen() {
           <Ionicons
             name="today-outline"
             size={14}
-            color={
-              activeTab === "today" ? theme.onAccent : theme.textTertiary
-            }
+            color={activeTab === "today" ? theme.onAccent : theme.textTertiary}
           />
           <Text
             style={[
@@ -332,12 +419,16 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
-              acceptBlockReason={blockFor(item.date ?? today)?.shortReason ?? null}
+              acceptBlockReason={
+                blockFor(item.date ?? today)?.shortReason ?? null
+              }
               onFixBlock={() => openFix(item.date ?? today)}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
+              onWithdraw={handleWithdraw}
               onArrived={handleArrived}
+              onCompleteJob={handleCompleteJob}
               onStartInspection={handleStartInspection}
             />
           )}
@@ -377,12 +468,16 @@ export default function TripsScreen() {
           renderItem={({ item }) => (
             <TripItem
               workTracker={item}
-              acceptBlockReason={blockFor(item.date ?? today)?.shortReason ?? null}
+              acceptBlockReason={
+                blockFor(item.date ?? today)?.shortReason ?? null
+              }
               onFixBlock={() => openFix(item.date ?? today)}
               onAccept={handleAccept}
               onStartTrip={handleStartTrip}
               onSkip={handleSkip}
+              onWithdraw={handleWithdraw}
               onArrived={handleArrived}
+              onCompleteJob={handleCompleteJob}
               onStartInspection={handleStartInspection}
             />
           )}

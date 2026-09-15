@@ -18,6 +18,16 @@ export const WARNING_ORANGE = "#FF9500";
 /** Error / failed upload */
 export const DANGER_RED = "#FF3B30";
 
+// ── Work tracker kinds ─────────────────────────────────────────────────────
+// One colour per kind of work, so a driver can tell a haul from a repair from
+// a site visit at a glance — on the trip card, in history, on the badge.
+/** Trip — the blue the app already uses for hauling work. */
+export const TRACKER_TRIP_BLUE = BRAND_BLUE;
+/** Repair / Maintenance — burnt orange. */
+export const TRACKER_REPAIR_ORANGE = "#C2410C";
+/** Site Visit / Cleaning / Other — violet. */
+export const TRACKER_SITE_VISIT_PURPLE = "#7C3AED";
+
 // ── Screen backgrounds ─────────────────────────────────────────────────────
 /** Default screen background — light mode */
 export const SCREEN_BG_LIGHT = "#F2F2F7";

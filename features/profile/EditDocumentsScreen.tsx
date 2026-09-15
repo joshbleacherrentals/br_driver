@@ -1,6 +1,7 @@
 import LoadingScreen from "@/components/widgets/loadingScreen";
 import EditDocumentsForm from "@/features/profile/components/EditDocumentsForm";
 import { useAddress } from "@/hooks/db/useAddress";
+import { isUSAddress } from "@/utils/addressCountry";
 import { useDriver } from "@/hooks/db/useDriver";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { DocSlug } from "@/utils/documentExpiry";
@@ -37,7 +38,7 @@ export default function EditDocumentsScreen() {
 
   const { driver } = useDriver();
   const { address } = useAddress(driver?.address_uuid ?? null);
-  const isUSA = address?.street?.split(",").pop()?.trim() === "USA";
+  const isUSA = isUSAddress(address);
   const { getAcceptBlock } = useProfileCompletion();
 
   const close = () => {

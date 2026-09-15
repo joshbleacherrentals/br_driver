@@ -7,7 +7,6 @@ import ExistingDamageChecklist from "@/components/widgets/ExistingDamageChecklis
 import ViewDamageReportsButton from "@/components/widgets/ViewDamageReportsButton";
 import { InspectionDetailModal } from "@/components/widgets/inspectionSummaryWidget";
 import { InspectionPhotoRepair } from "@/components/widgets/InspectionPhotoRepair";
-import { ContactButton } from "@/components/widgets/contactSheet";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
@@ -17,6 +16,18 @@ import {
 } from "@/utils/effectiveBleacher";
 import { bleacherChangeReasonLabel } from "@/constants/bleacherChangeReasons";
 import { useInspection } from "@/hooks/db/useInspection";
+import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
+import TripStopSection from "@/components/widgets/trip/TripStopSection";
+import TripWithdrawalButton from "@/components/widgets/trip/TripWithdrawalButton";
+import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
+import {
+  workTrackerActionLabels,
+  workTrackerKindColor,
+} from "@/constants/workTrackerKinds";
+import { buildTripStops } from "@/utils/tripStops";
+import { isSingleLeg, tripHasInspections } from "@/utils/workTrackerKind";
+import type { WithdrawalAction } from "@/utils/tripWithdrawal";
+import { isDriverActiveTracker } from "@/utils/workTrackerStatus";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemeColors, typeScale } from "@/constants/theme";
@@ -69,6 +80,16 @@ interface TripItemProps {
   onStartTrip?: (workTrackerId: string) => void;
   onSkip?: (workTrackerId: string) => void;
   onArrived?: (workTrackerId: string, arrivedAt: string) => void;
+  /**
+   * Closes a job that has no inspection to close it — repair and site-visit
+   * work only. A trip is completed by submitting its drop-off inspection.
+   */
+  onCompleteJob?: (workTrackerId: string) => void;
+  /**
+   * The driver hands the tracker back — declined before they took it on,
+   * abandoned after. The card only asks; the screen owns the write.
+   */
+  onWithdraw?: (workTrackerId: string, action: WithdrawalAction) => void;
   onStartInspection?: (
     workTrackerId: string,
     inspectionType: "pickup" | "dropoff",
@@ -86,6 +107,8 @@ function TripItem({
   onStartTrip,
   onSkip,
   onArrived,
+  onCompleteJob,
+  onWithdraw,
   onStartInspection,
 }: TripItemProps) {
   const { theme } = useTheme();
@@ -94,18 +117,8 @@ function TripItem({
     pickup_address_uuid,
     dropoff_address_uuid,
     date,
-    pickup_time,
-    dropoff_time,
-    pickup_poc,
-    dropoff_poc,
     pay_cents,
     notes,
-    teardown_required,
-    pickup_instructions,
-    setup_required,
-    dropoff_instructions,
-    pickup_poc_contact_uuid,
-    dropoff_poc_contact_uuid,
     accepted_at,
   } = workTracker;
 
@@ -116,6 +129,15 @@ function TripItem({
 
   const pickupAddressData = useAddress(pickup_address_uuid);
   const dropoffAddressData = useAddress(dropoff_address_uuid);
+
+  // What kind of work this is decides the whole shape of the card: two stops
+  // and two inspections, or one of each.
+  const kind = useWorkTrackerKind(workTracker.work_tracker_type_uuid);
+  const singleLeg = isSingleLeg(kind);
+  // A repair or a site visit never inspects anything — see tripHasInspections.
+  const inspects = tripHasInspections(kind);
+  const actionLabels = workTrackerActionLabels(kind);
+  const kindColor = workTrackerKindColor(kind, theme);
   // What the driver is physically hauling: the bleacher they confirmed taking,
   // falling back to the one the manager assigned until they confirm.
   const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
@@ -130,14 +152,10 @@ function TripItem({
 
   // Load full inspection (incl. answers_json) only when the modal is open.
   const { inspection: preInspection } = useInspection(
-    preInspectionVisible
-      ? (workTracker.pre_inspection_uuid ?? null)
-      : null,
+    preInspectionVisible ? (workTracker.pre_inspection_uuid ?? null) : null,
   );
   const { inspection: postInspection } = useInspection(
-    postInspectionVisible
-      ? (workTracker.post_inspection_uuid ?? null)
-      : null,
+    postInspectionVisible ? (workTracker.post_inspection_uuid ?? null) : null,
   );
 
   // ── Damage report for the bleacher actually being hauled ────────────────
@@ -164,18 +182,16 @@ function TripItem({
   const hasPreInspection = !!workTracker.pre_inspection_uuid;
   const hasPostInspection = !!workTracker.post_inspection_uuid;
 
-  if (status === "draft" || status === "completed") return null;
+  // A tracker the driver has finished with — completed, declined or abandoned
+  // — leaves the card behind entirely; a draft was never theirs to see.
+  if (!isDriverActiveTracker(status)) return null;
 
-  const formatAddress = (type: "pickup" | "dropoff") => {
-    const address =
-      type === "pickup"
-        ? pickupAddressData.address
-        : dropoffAddressData.address;
-    if (!address) return "Address not set";
-    return `${address.street}`;
-  };
-
-  const formatTime = (time: string | null) => time ?? "";
+  const stops = buildTripStops({
+    kind,
+    workTracker,
+    pickupAddress: pickupAddressData.address,
+    dropoffAddress: dropoffAddressData.address,
+  });
 
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return "Date not set";
@@ -239,20 +255,15 @@ function TripItem({
   };
 
   const badge = getStatusBadge(status, theme);
-  const showTeardown = teardown_required === 1;
-  const showSetup = setup_required === 1;
 
   // Which bleacher the inspection is for is settled inside the inspection
   // itself — the driver confirms it there — so it is not passed down.
-  const handleStartInspection = (
-    id: string,
-    type: "pickup" | "dropoff",
-  ) => {
+  const handleStartInspection = (id: string, type: "pickup" | "dropoff") => {
     onStartInspection?.(id, type);
   };
 
   return (
-    <Card style={styles.card}>
+    <Card style={[styles.card, { borderLeftColor: kindColor }]}>
       {/* ── Top Header: Bleacher, Pay & damage badge ── */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeader}>
@@ -282,10 +293,18 @@ function TripItem({
           <Text style={[styles.dateText, { color: theme.textSecondary }]}>
             {formatDate(date)}
           </Text>
+          <View style={styles.kindBadgeRow}>
+            <WorkTrackerKindBadge kind={kind} theme={theme} />
+          </View>
         </View>
         {badge && (
           <View style={styles.badgeAndBol}>
-            <Badge label={badge.text} color={badge.color} variant="solid" uppercase />
+            <Badge
+              label={badge.text}
+              color={badge.color}
+              variant="solid"
+              uppercase
+            />
             <BOLButton onPress={() => setBolVisible(true)} />
           </View>
         )}
@@ -307,253 +326,128 @@ function TripItem({
 
       <View style={[styles.divider, { backgroundColor: theme.separator }]} />
 
-      {/* ── PICKUP ── */}
-      <View style={styles.stopSection}>
-        <View style={styles.stopHeader}>
-          <View style={styles.stopHeaderLeft}>
-            <Ionicons name="location" size={16} color={theme.accent} />
-            <Text style={[styles.locationLabel, { color: theme.textPrimary }]}>
-              PICKUP
-            </Text>
-          </View>
-          <View style={styles.stopHeaderRight}>
-            {pickup_time && (
-              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-                {formatTime(pickup_time)}
-              </Text>
-            )}
-            <ContactButton
-              contactId={pickup_poc_contact_uuid}
-              status={status}
-              acceptedAt={accepted_at}
-            />
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => {
-            const addr = pickupAddressData.address;
-            openInMaps(
-              addr
-                ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}`
-                : undefined,
-            );
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.addressText, { color: theme.accent }]}>
-            {formatAddress("pickup")}
-          </Text>
-        </TouchableOpacity>
+      {/* The first — and, for a repair or a site visit, the only — stop. */}
+      <TripStopSection
+        stop={stops[0]}
+        theme={theme}
+        status={status}
+        acceptedAt={accepted_at}
+        onOpenMaps={(query) => openInMaps(query ?? undefined)}
+      />
 
-        {!!pickup_poc && (
-          <Text style={[styles.detailText, { color: theme.textSecondary }]}>
-            POC: {pickup_poc}
-          </Text>
-        )}
-        {showTeardown && (
-          <View style={styles.flagRow}>
-            <Ionicons
-              name="construct-outline"
-              size={14}
-              color={theme.warning}
-            />
-            <Text style={[styles.flagText, { color: theme.warning }]}>
-              Tear Down Required
-            </Text>
-          </View>
-        )}
-        {!!pickup_instructions && (
-          <View
-            style={[
-              styles.instructionsBox,
-              {
-                backgroundColor: theme.accentSoft,
-                borderLeftColor: theme.accent,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.instructionsLabel, { color: theme.accent }]}
-            >
-              Pickup Instructions
-            </Text>
-            <Text
-              style={[styles.instructionsText, { color: theme.textPrimary }]}
-            >
-              {pickup_instructions}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* I've Arrived (pickup) */}
-      {status === "dest_pickup" && (
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: theme.accent }]}
-            onPress={() =>
-              onArrived?.(workTracker.id, new Date().toISOString())
-            }
-          >
-            <Text
-              style={[styles.primaryButtonText, { color: theme.onAccent }]}
-            >
-              Arrived at Pickup
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Start Pickup Inspection */}
-      {status === "pickup_inspection" && (
-        <View style={styles.inspectionBlock}>
-          <TouchableOpacity
-            style={[
-              styles.inspectionButton,
-              { backgroundColor: theme.warning },
-            ]}
-            onPress={() =>
-              handleStartInspection(workTracker.id, "pickup")
-            }
-          >
-            <Text
-              style={[styles.inspectionButtonText, { color: theme.onAccent }]}
-            >
-              Start Inspection
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {hasPreInspection && (
+      {/* The pick-up leg and everything that happens on it — a repair or a
+          site visit has neither: one stop, one inspection. */}
+      {!singleLeg && (
         <>
-          <InspectionPhotoRepair
-            inspectionUuid={workTracker.pre_inspection_uuid}
-            tripStatus={status}
+          {/* I've Arrived (pickup) */}
+          {status === "dest_pickup" && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: theme.accent },
+                ]}
+                onPress={() =>
+                  onArrived?.(workTracker.id, new Date().toISOString())
+                }
+              >
+                <Text
+                  style={[styles.primaryButtonText, { color: theme.onAccent }]}
+                >
+                  Arrived at Pickup
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Start Pickup Inspection */}
+          {status === "pickup_inspection" && (
+            <View style={styles.inspectionBlock}>
+              <TouchableOpacity
+                style={[
+                  styles.inspectionButton,
+                  { backgroundColor: theme.warning },
+                ]}
+                onPress={() => handleStartInspection(workTracker.id, "pickup")}
+              >
+                <Text
+                  style={[
+                    styles.inspectionButtonText,
+                    { color: theme.onAccent },
+                  ]}
+                >
+                  Start Inspection
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {hasPreInspection && (
+            <>
+              <InspectionPhotoRepair
+                inspectionUuid={workTracker.pre_inspection_uuid}
+                tripStatus={status}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.viewInspectionButton,
+                  { borderColor: theme.secondaryAccent },
+                ]}
+                onPress={() => setPreInspectionVisible(true)}
+              >
+                <Ionicons
+                  name="clipboard-outline"
+                  size={14}
+                  color={theme.secondaryAccent}
+                />
+                <Text
+                  style={[
+                    styles.viewInspectionText,
+                    { color: theme.secondaryAccent },
+                  ]}
+                >
+                  View Pickup Inspection
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={14}
+                  color={theme.secondaryAccent}
+                />
+              </TouchableOpacity>
+              {preInspectionVisible && preInspection ? (
+                <InspectionDetailModal
+                  visible={preInspectionVisible}
+                  inspection={preInspection}
+                  damages={damageReports}
+                  title="Pickup Inspection"
+                  onClose={() => setPreInspectionVisible(false)}
+                />
+              ) : null}
+              <ViewDamageReportsButton
+                count={damageReports.length}
+                onPress={() => setDamageListVisible(true)}
+                style={styles.viewDamageReportsButton}
+              />
+            </>
+          )}
+
+          <View
+            style={[styles.divider, { backgroundColor: theme.separator }]}
           />
-          <TouchableOpacity
-            style={[
-              styles.viewInspectionButton,
-              { borderColor: theme.secondaryAccent },
-            ]}
-            onPress={() => setPreInspectionVisible(true)}
-          >
-            <Ionicons
-              name="clipboard-outline"
-              size={14}
-              color={theme.secondaryAccent}
-            />
-            <Text
-              style={[
-                styles.viewInspectionText,
-                { color: theme.secondaryAccent },
-              ]}
-            >
-              View Pickup Inspection
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={14}
-              color={theme.secondaryAccent}
-            />
-          </TouchableOpacity>
-          {preInspectionVisible && preInspection ? (
-            <InspectionDetailModal
-              visible={preInspectionVisible}
-              inspection={preInspection}
-              damages={damageReports}
-              title="Pickup Inspection"
-              onClose={() => setPreInspectionVisible(false)}
-            />
-          ) : null}
-          <ViewDamageReportsButton
-            count={damageReports.length}
-            onPress={() => setDamageListVisible(true)}
-            style={styles.viewDamageReportsButton}
+
+          <View
+            style={[styles.divider, { backgroundColor: theme.separator }]}
+          />
+
+          <TripStopSection
+            stop={stops[1]}
+            theme={theme}
+            status={status}
+            acceptedAt={accepted_at}
+            onOpenMaps={(query) => openInMaps(query ?? undefined)}
           />
         </>
       )}
-
-      <View style={[styles.divider, { backgroundColor: theme.separator }]} />
-
-      {/* ── DROP-OFF ── */}
-      <View style={styles.stopSection}>
-        <View style={styles.stopHeader}>
-          <View style={styles.stopHeaderLeft}>
-            <Ionicons name="location" size={16} color={theme.accent} />
-            <Text style={[styles.locationLabel, { color: theme.textPrimary }]}>
-              DROP-OFF
-            </Text>
-          </View>
-          <View style={styles.stopHeaderRight}>
-            {dropoff_time && (
-              <Text style={[styles.timeText, { color: theme.textPrimary }]}>
-                {formatTime(dropoff_time)}
-              </Text>
-            )}
-            <ContactButton
-              contactId={dropoff_poc_contact_uuid}
-              status={status}
-              acceptedAt={accepted_at}
-            />
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => {
-            const addr = dropoffAddressData.address;
-            openInMaps(
-              addr
-                ? `${addr.street}, ${addr.city}, ${addr.state_province}, ${addr.zip_postal}`
-                : undefined,
-            );
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.addressText, { color: theme.accent }]}>
-            {formatAddress("dropoff")}
-          </Text>
-        </TouchableOpacity>
-
-        {!!dropoff_poc && (
-          <Text style={[styles.detailText, { color: theme.textSecondary }]}>
-            POC: {dropoff_poc}
-          </Text>
-        )}
-        {showSetup && (
-          <View style={styles.flagRow}>
-            <Ionicons
-              name="construct-outline"
-              size={14}
-              color={theme.warning}
-            />
-            <Text style={[styles.flagText, { color: theme.warning }]}>
-              Set Up Required
-            </Text>
-          </View>
-        )}
-        {!!dropoff_instructions && (
-          <View
-            style={[
-              styles.instructionsBox,
-              {
-                backgroundColor: theme.accentSoft,
-                borderLeftColor: theme.accent,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.instructionsLabel, { color: theme.accent }]}
-            >
-              Drop-off Instructions
-            </Text>
-            <Text
-              style={[styles.instructionsText, { color: theme.textPrimary }]}
-            >
-              {dropoff_instructions}
-            </Text>
-          </View>
-        )}
-      </View>
 
       {/* Action buttons */}
       {status === "released" &&
@@ -563,7 +457,10 @@ function TripItem({
           <TouchableOpacity
             style={[
               styles.blockedButton,
-              { backgroundColor: theme.danger + "14", borderColor: theme.danger },
+              {
+                backgroundColor: theme.danger + "14",
+                borderColor: theme.danger,
+              },
             ]}
             onPress={() => onFixBlock?.(workTracker.id)}
             accessibilityRole="button"
@@ -592,7 +489,7 @@ function TripItem({
                 { color: theme.onSecondaryAccent },
               ]}
             >
-              Accept Trip
+              {actionLabels.accept}
             </Text>
           </TouchableOpacity>
         ))}
@@ -602,10 +499,8 @@ function TripItem({
             style={[styles.primaryButton, { backgroundColor: theme.accent }]}
             onPress={() => onStartTrip?.(workTracker.id)}
           >
-            <Text
-              style={[styles.primaryButtonText, { color: theme.onAccent }]}
-            >
-              Start Trip
+            <Text style={[styles.primaryButtonText, { color: theme.onAccent }]}>
+              {actionLabels.start}
             </Text>
           </TouchableOpacity>
         </View>
@@ -618,33 +513,49 @@ function TripItem({
               onArrived?.(workTracker.id, new Date().toISOString())
             }
           >
-            <Text
-              style={[styles.primaryButtonText, { color: theme.onAccent }]}
-            >
-              Arrived at Dropoff
+            <Text style={[styles.primaryButtonText, { color: theme.onAccent }]}>
+              {actionLabels.arrived}
             </Text>
           </TouchableOpacity>
         </View>
       )}
-      {status === "dropoff_inspection" && (
-        <TouchableOpacity
-          style={[
-            styles.inspectionButton,
-            { backgroundColor: theme.warning },
-          ]}
-          onPress={() =>
-            handleStartInspection(workTracker.id, "dropoff")
-          }
-        >
-          <Text
-            style={[styles.inspectionButtonText, { color: theme.onAccent }]}
+      {status === "dropoff_inspection" &&
+        (inspects ? (
+          <TouchableOpacity
+            style={[
+              styles.inspectionButton,
+              { backgroundColor: theme.warning },
+            ]}
+            onPress={() => handleStartInspection(workTracker.id, "dropoff")}
           >
-            Start Inspection
-          </Text>
-        </TouchableOpacity>
-      )}
+            <Text
+              style={[styles.inspectionButtonText, { color: theme.onAccent }]}
+            >
+              Start Inspection
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          // Nothing to inspect, so this status means "on site" and the driver
+          // closes the job themselves once the work is done.
+          <TouchableOpacity
+            style={[
+              styles.inspectionButton,
+              { backgroundColor: theme.secondaryAccent },
+            ]}
+            onPress={() => onCompleteJob?.(workTracker.id)}
+          >
+            <Text
+              style={[
+                styles.inspectionButtonText,
+                { color: theme.onSecondaryAccent },
+              ]}
+            >
+              Complete Job
+            </Text>
+          </TouchableOpacity>
+        ))}
 
-      {hasPostInspection && (
+      {inspects && hasPostInspection && (
         <>
           <InspectionPhotoRepair
             inspectionUuid={workTracker.post_inspection_uuid}
@@ -668,7 +579,7 @@ function TripItem({
                 { color: theme.secondaryAccent },
               ]}
             >
-              View Dropoff Inspection
+              {actionLabels.viewInspection}
             </Text>
             <Ionicons
               name="chevron-forward"
@@ -681,7 +592,7 @@ function TripItem({
               visible={postInspectionVisible}
               inspection={postInspection}
               damages={damageReports}
-              title="Dropoff Inspection"
+              title={actionLabels.inspectionTitle}
               onClose={() => setPostInspectionVisible(false)}
             />
           ) : null}
@@ -692,6 +603,14 @@ function TripItem({
           />
         </>
       )}
+
+      {/* Last thing on the card, below Accept, below Start, and below the
+          inspection controls once the work is under way. */}
+      <TripWithdrawalButton
+        status={status}
+        kind={kind}
+        onWithdraw={(action) => onWithdraw?.(workTracker.id, action)}
+      />
 
       {/* Read-only: nothing here is being selected, the driver is finding out
           what is already known about the bleacher they are hauling. */}
@@ -721,10 +640,7 @@ function TripItem({
   );
 }
 
-function tripItemPropsEqual(
-  prev: TripItemProps,
-  next: TripItemProps,
-): boolean {
+function tripItemPropsEqual(prev: TripItemProps, next: TripItemProps): boolean {
   return (
     prev.workTracker === next.workTracker &&
     prev.acceptBlockReason === next.acceptBlockReason &&
@@ -733,6 +649,7 @@ function tripItemPropsEqual(
     prev.onStartTrip === next.onStartTrip &&
     prev.onSkip === next.onSkip &&
     prev.onArrived === next.onArrived &&
+    prev.onWithdraw === next.onWithdraw &&
     prev.onStartInspection === next.onStartInspection
   );
 }
@@ -745,6 +662,8 @@ const styles = StyleSheet.create({
   card: {
     marginVertical: 6,
     marginHorizontal: 16,
+    // The kind's colour, wide enough to read at a glance down a scrolling list.
+    borderLeftWidth: 6,
   },
   topHeaderRow: {
     flexDirection: "row",
@@ -762,6 +681,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   mainTitle: { ...typeScale.title2, fontWeight: "700" },
+  kindBadgeRow: { marginTop: 6 },
   dateText: { ...typeScale.subhead, fontWeight: "400" },
   notesBox: { borderRadius: 8, padding: 12, marginBottom: 12 },
   notesLabel: { ...typeScale.caption, marginBottom: 4, fontWeight: "400" },
@@ -776,7 +696,11 @@ const styles = StyleSheet.create({
   },
   stopHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   stopHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  locationLabel: { ...typeScale.footnote, fontWeight: "700", letterSpacing: 0.5 },
+  locationLabel: {
+    ...typeScale.footnote,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
   timeText: { ...typeScale.subhead, fontWeight: "600" },
   addressText: {
     ...typeScale.subhead,

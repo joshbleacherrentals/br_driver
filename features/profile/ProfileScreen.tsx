@@ -3,10 +3,7 @@ import DocExpiryWarningBanner from "@/components/widgets/DocExpiryWarningBanner"
 import ProfileCompletionBanner from "@/components/widgets/onboardingBanner";
 import PhotoUploadStatusOverlay from "@/components/widgets/PhotoUploadStatusOverlay";
 import { ThemeColors, typeScale } from "@/constants/theme";
-import {
-  expiryStatusLabel,
-  getDocExpiryStatus,
-} from "@/utils/documentExpiry";
+import { expiryStatusLabel, getDocExpiryStatus } from "@/utils/documentExpiry";
 import DevResetDbButton from "@/features/profile/components/DevResetDbButton";
 import { DocUploadStatusBanner } from "@/features/profile/components/DocUploadStatusBanner";
 import {
@@ -17,7 +14,9 @@ import {
   useAccountManager,
   UserContactData,
 } from "@/hooks/db/useAccountManager";
-import { AddressData, useAddress } from "@/hooks/db/useAddress";
+import { useAddress } from "@/hooks/db/useAddress";
+import { isUSAddress } from "@/utils/addressCountry";
+import { formatAddress } from "@/utils/formatAddress";
 import {
   DriverPayRangeData,
   useDriver,
@@ -63,8 +62,13 @@ export default function ProfileScreen() {
   const { accountManager } = useAccountManager(
     driver?.account_manager_uuid ?? null,
   );
-  const country = address?.street?.split(",").pop()?.trim();
-  const isUSA = country === "USA";
+  const isUSA = isUSAddress(address);
+  // The documents this driver has to hold depend on where they live, so the
+  // section stays hidden until there is an address to reason about. This is
+  // the old `street`-tail truthiness check, which any non-empty street passed
+  // — deliberately not narrowed to a recognised country, so an address we
+  // cannot classify still gets a licence and insurance upload.
+  const hasAddress = formatAddress(address) !== null;
 
   const {
     statuses: docStatuses,
@@ -99,12 +103,6 @@ export default function ProfileScreen() {
     if (status === "pending") return "Uploading…";
     if (status === "failed") return "Upload failed";
     return null;
-  };
-
-  const formatAddress = (address: AddressData | null) => {
-    if (!address) return "Address not set";
-
-    return `${address.street}, ${address.city}, ${address.state_province}`;
   };
 
   const onLogout = async () => {
@@ -245,7 +243,11 @@ export default function ProfileScreen() {
               <View style={styles.sectionRight}>
                 {driver?.phone_number && driver?.address_uuid && (
                   <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={theme.onSecondaryAccent}
+                    />
                   </View>
                 )}
                 <TouchableOpacity
@@ -267,7 +269,7 @@ export default function ProfileScreen() {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Address</Text>
               <Text style={styles.infoValue}>
-                {address?.street?.split(",")[0]?.trim() ?? ""}
+                {formatAddress(address) ?? "Not set"}
               </Text>
             </View>
 
@@ -364,7 +366,11 @@ export default function ProfileScreen() {
                   vehicle?.year &&
                   vehicle?.vin_number && (
                     <View style={styles.documentBadge}>
-                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={theme.onSecondaryAccent}
+                      />
                     </View>
                   )}
                 <TouchableOpacity
@@ -400,7 +406,7 @@ export default function ProfileScreen() {
         )}
 
         {/* Documents Section */}
-        {vehicle && country && (
+        {vehicle && hasAddress && (
           <Card style={styles.sectionSpacing}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Documents</Text>
@@ -423,7 +429,11 @@ export default function ProfileScreen() {
                       docStatuses[driver.medical_card_photo_path!],
                     )) && (
                     <View style={styles.documentBadge}>
-                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={theme.onSecondaryAccent}
+                      />
                     </View>
                   )}
                 <TouchableOpacity
@@ -468,7 +478,11 @@ export default function ProfileScreen() {
                 licenseExpiryStatus === "ok" &&
                 isDocPathReady(docStatuses[driver.license_photo_path]) && (
                   <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={theme.onSecondaryAccent}
+                    />
                   </View>
                 )}
             </View>
@@ -504,7 +518,11 @@ export default function ProfileScreen() {
                 insuranceExpiryStatus === "ok" &&
                 isDocPathReady(docStatuses[driver.insurance_photo_path]) && (
                   <View style={styles.documentBadge}>
-                    <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={theme.onSecondaryAccent}
+                    />
                   </View>
                 )}
             </View>
@@ -536,7 +554,11 @@ export default function ProfileScreen() {
                     docStatuses[driver.medical_card_photo_path],
                   ) && (
                     <View style={styles.documentBadge}>
-                      <Ionicons name="checkmark" size={16} color={theme.onSecondaryAccent} />
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={theme.onSecondaryAccent}
+                      />
                     </View>
                   )}
               </View>
@@ -553,11 +575,7 @@ export default function ProfileScreen() {
           onPress={onLogout}
           activeOpacity={0.7}
         >
-          <LogOut
-            size={16}
-            color={theme.accent}
-            strokeWidth={2}
-          />
+          <LogOut size={16} color={theme.accent} strokeWidth={2} />
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
