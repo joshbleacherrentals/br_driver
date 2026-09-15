@@ -10,6 +10,9 @@ import {
   DANGER_RED,
   DARK_BLUE,
   GREEN_ACCENT,
+  TRACKER_REPAIR_ORANGE,
+  TRACKER_SITE_VISIT_PURPLE,
+  TRACKER_TRIP_BLUE,
   WARNING_ORANGE,
 } from "@/constants/Colors";
 import { ViewStyle } from "react-native";
@@ -56,6 +59,14 @@ export interface ThemeColors {
   /** Text / icon on top of `secondaryAccent`. */
   onSecondaryAccent: string;
 
+  // ── Work tracker kinds ───────────────────────────────────
+  /** Trip — a haul with a pick up and a drop off. */
+  trackerTrip: string;
+  /** Repair / Maintenance. */
+  trackerRepair: string;
+  /** Site Visit / Cleaning / Other. */
+  trackerSiteVisit: string;
+
   // ── Status ───────────────────────────────────────────────
   success: string;
   warning: string;
@@ -93,6 +104,10 @@ const light: ThemeColors = {
   secondaryAccentSoft: "rgba(50,140,97,0.12)",
   onSecondaryAccent: "#FFFFFF",
 
+  trackerTrip: TRACKER_TRIP_BLUE, // #1D62A3
+  trackerRepair: TRACKER_REPAIR_ORANGE, // #C2410C
+  trackerSiteVisit: TRACKER_SITE_VISIT_PURPLE, // #7C3AED
+
   success: GREEN_ACCENT, // #328C61
   warning: WARNING_ORANGE, // #FF9500
   danger: DANGER_RED, // #FF3B30
@@ -124,6 +139,12 @@ const dark: ThemeColors = {
   secondaryAccent: GREEN_ACCENT, // #328C61
   secondaryAccentSoft: "rgba(50,140,97,0.16)",
   onSecondaryAccent: "#FFFFFF",
+
+  // Lifted off the light-mode values — the print colours go muddy on a dark
+  // surface, so each kind keeps its hue at a brightness that reads on #0B0F14.
+  trackerTrip: "#4A9EE0",
+  trackerRepair: "#F97316",
+  trackerSiteVisit: "#A78BFA",
 
   success: GREEN_ACCENT, // #328C61
   warning: "#FF9F0A",

@@ -2,6 +2,8 @@ import { db } from "@/components/providers/SystemProvider";
 import { typeScale } from "@/constants/theme";
 import { useAddress } from "@/hooks/db/useAddress";
 import { useFormTheme } from "@/hooks/useTheme";
+import { addressFieldsFor } from "@/utils/addressWrite";
+import { formatAddress } from "@/utils/formatAddress";
 import { formatPhoneNumber } from "@/utils/phone";
 import { executeTypedMutation } from "@/library/powersync/typedMutation";
 import { randomUUID } from "expo-crypto";
@@ -16,20 +18,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import AddressAutocomplete from "./AddressAutoComplete";
+import AddressAutocomplete, { type AddressData } from "./AddressAutoComplete";
 
 interface EditDriverInfoProps {
   driverId: string | null;
   phoneNumber: string | null;
   addressId: string | null;
   onClose: () => void;
-}
-
-export interface AddressData {
-  address: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
 }
 
 export default function EditDriverInfo({
@@ -41,7 +36,13 @@ export default function EditDriverInfo({
   const { address } = useAddress(addressId);
 
   const [phone, setPhone] = useState<string>(phoneNumber ?? "");
-  const [addressData, setAddressData] = useState<AddressData | null>(null);
+  // What the field shows, and — separately — the place the driver actually
+  // picked off the dropdown. Only a pick carries a city, a country and a
+  // geocode; text typed over it is a street line and nothing more, so
+  // retyping has to drop the pick rather than leave a stale geocode attached
+  // to an address it no longer describes.
+  const [addressText, setAddressText] = useState<string>("");
+  const [picked, setPicked] = useState<AddressData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { form: theme } = useFormTheme();
@@ -94,47 +95,29 @@ export default function EditDriverInfo({
       );
 
       // --- Address ---
-      const finalAddress = addressData ?? {
-        address: address?.street ?? "",
-        city: address?.city ?? "",
-        state: address?.state_province ?? "",
-        postalCode: address?.zip_postal ?? "",
-      };
+      // Null means the driver never touched it — see addressFieldsFor for why
+      // a picked place and typed text write different sets of columns.
+      const addressFields = addressFieldsFor(picked, addressText);
 
-      const hasAddress =
-        finalAddress.address ||
-        finalAddress.city ||
-        finalAddress.state ||
-        finalAddress.postalCode;
-
-      if (hasAddress) {
+      if (addressFields) {
         if (addressId) {
           await executeTypedMutation(
             db
               .updateTable("Addresses")
-              .set({
-                street: finalAddress.address || null,
-                city: finalAddress.city || null,
-                state_province: finalAddress.state || null,
-                zip_postal: finalAddress.postalCode || null,
-              })
+              .set(addressFields)
               .where("id", "=", addressId)
               .compile(),
           );
         } else {
           const newAddressId = randomUUID();
-          const now = new Date().toISOString();
 
           await executeTypedMutation(
             db
               .insertInto("Addresses")
               .values({
                 id: newAddressId,
-                created_at: now,
-                street: finalAddress.address || null,
-                city: finalAddress.city || null,
-                state_province: finalAddress.state || null,
-                zip_postal: finalAddress.postalCode || null,
+                created_at: new Date().toISOString(),
+                ...addressFields,
               })
               .compile(),
           );
@@ -219,18 +202,17 @@ export default function EditDriverInfo({
               Address
             </Text>
             <AddressAutocomplete
-              value={addressData?.address ?? ""}
-              placeholder={address?.street ?? null}
+              value={addressText}
+              placeholder={formatAddress(address) ?? null}
               onChangeText={(text: string) => {
-                setAddressData((prev) => ({
-                  address: text,
-                  city: prev?.city,
-                  state: prev?.state,
-                  postalCode: prev?.postalCode,
-                }));
+                setAddressText(text);
+                setPicked(null);
               }}
               onAddressSelect={(data) => {
-                setAddressData(data); // autocomplete gives structured fields
+                // The field keeps showing Google's full one-line address; only
+                // `street` is narrowed to the street line.
+                setAddressText(data.formatted ?? data.address);
+                setPicked(data);
               }}
             />
           </View>
@@ -245,7 +227,10 @@ export default function EditDriverInfo({
             disabled={isSubmitting}
           >
             <Text
-              style={[styles.submitButtonText, { color: theme.onSecondaryAccent }]}
+              style={[
+                styles.submitButtonText,
+                { color: theme.onSecondaryAccent },
+              ]}
             >
               {isSubmitting ? "Saving..." : "Save Changes"}
             </Text>
