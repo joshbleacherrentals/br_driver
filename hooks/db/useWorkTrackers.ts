@@ -25,6 +25,8 @@ export type WorkTracker = {
   accepted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  declined_at: string | null;
+  abandoned_at: string | null;
   teardown_required: number | null;
   pickup_instructions: string | null;
   setup_required: number | null;
@@ -37,6 +39,13 @@ export type WorkTracker = {
   post_inspection_uuid: string | null;
   actual_bleacher_uuid: string | null;
   bleacher_change_reason: string | null;
+  work_tracker_type_uuid: string | null;
+  pickup_time_mode: string | null;
+  pickup_time_start: string | null;
+  pickup_time_end: string | null;
+  dropoff_time_mode: string | null;
+  dropoff_time_start: string | null;
+  dropoff_time_end: string | null;
 };
 
 export type UserData = {
@@ -69,6 +78,9 @@ const WORK_TRACKER_COLUMNS = [
   "accepted_at",
   "started_at",
   "completed_at",
+  // Set when the driver hands the work back — see utils/withdrawTracker.
+  "declined_at",
+  "abandoned_at",
   "teardown_required",
   "pickup_instructions",
   "setup_required",
@@ -81,6 +93,16 @@ const WORK_TRACKER_COLUMNS = [
   "post_inspection_uuid",
   "actual_bleacher_uuid",
   "bleacher_change_reason",
+  // What kind of work this is — resolved to a kind through WorkTrackerTypes.
+  "work_tracker_type_uuid",
+  // Structured leg times; `pickup_time` / `dropoff_time` above are the
+  // free-text mirrors kept only as a fallback for pre-migration rows.
+  "pickup_time_mode",
+  "pickup_time_start",
+  "pickup_time_end",
+  "dropoff_time_mode",
+  "dropoff_time_start",
+  "dropoff_time_end",
 ] as const;
 
 /** Single work tracker by id — for completed-trip detail route. */

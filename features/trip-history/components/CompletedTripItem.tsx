@@ -10,6 +10,10 @@ import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
 import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
+import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
+import { buildTripStops, type TripStop } from "@/utils/tripStops";
+import { tripHasInspections } from "@/utils/workTrackerKind";
 import { useTheme } from "@/hooks/useTheme";
 import { ContactButton } from "@/components/widgets/contactSheet";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +31,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useThemedStyles } from "@/hooks/useThemedStyles";
+const STOP_HEADING: Record<TripStop["key"], string> = {
+  pickup: "Pickup Location",
+  dropoff: "Dropoff Location",
+  single: "Location",
+};
+
+const STOP_INSPECTION_TITLE: Record<TripStop["key"], string> = {
+  pickup: "Pickup Inspection",
+  dropoff: "Dropoff Inspection",
+  single: "Inspection",
+};
+
 const FLOATING_HEADER_HEIGHT = 52;
 const FLOATING_HEADER_GAP = 12;
 
@@ -61,9 +77,15 @@ export default function CompletedTrips({
     workTracker.post_inspection_uuid ?? null,
   );
   const { damageReports } = useDamageReports(effectiveBleacherUuid);
+  const kind = useWorkTrackerKind(workTracker.work_tracker_type_uuid);
+  const inspects = tripHasInspections(kind);
+  const stops = buildTripStops({
+    kind,
+    workTracker,
+    pickupAddress,
+    dropoffAddress,
+  });
   const [bolVisible, setBolVisible] = React.useState(false);
-
-  const formatTime = (time: string | null) => time ?? "";
 
   const formatDate = (dateISO?: string | null) => {
     if (!dateISO) return "Date not set";
@@ -165,6 +187,9 @@ export default function CompletedTrips({
               )}
             </View>
             <Text style={styles.heroDate}>{formatDate(workTracker.date)}</Text>
+            <View style={styles.heroKindRow}>
+              <WorkTrackerKindBadge kind={kind} theme={theme} />
+            </View>
             <View style={styles.heroPayRow}>
               <PayAmount
                 workTrackerId={workTracker.id}
@@ -217,174 +242,100 @@ export default function CompletedTrips({
           ) : null}
         </View>
 
-        <View style={styles.group}>
-          <View style={[styles.card, styles.cardGroupedTop]}>
-            <View style={styles.cardTitleRow}>
-              <Ionicons name="location-outline" size={18} color={theme.accent} />
-              <Text style={styles.cardHeadingInline}>Pickup Location</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() =>
-                openInMaps(
-                  pickupAddress
-                    ? `${pickupAddress.street}, ${pickupAddress.city}, ${pickupAddress.state_province}, ${pickupAddress.zip_postal}`
-                    : undefined,
-                )
-              }
-            >
-              <Text style={styles.addressText}>
-                {pickupAddress ? pickupAddress.street : "Address not set"}
-              </Text>
-            </TouchableOpacity>
-            {workTracker.pickup_time ? (
-              <Text style={styles.detailText}>
-                Time: {formatTime(workTracker.pickup_time)}
-              </Text>
-            ) : null}
-            {workTracker.pickup_poc ? (
-              <Text style={styles.detailText}>
-                POC: {workTracker.pickup_poc}
-              </Text>
-            ) : null}
-            <ContactButton
-              contactId={workTracker.pickup_poc_contact_uuid}
-              status={workTracker.status}
-              acceptedAt={workTracker.accepted_at}
-            />
-            {workTracker.teardown_required !== null &&
-            workTracker.teardown_required !== undefined ? (
-              <View style={styles.flagRow}>
-                <Ionicons
-                  name={
-                    workTracker.teardown_required
-                      ? "construct-outline"
-                      : "checkmark-circle-outline"
-                  }
-                  size={14}
-                  color={
-                    workTracker.teardown_required
-                      ? theme.warning
-                      : theme.textTertiary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.flagText,
-                    workTracker.teardown_required
-                      ? styles.flagTextActive
-                      : null,
-                  ]}
+        {stops.map((stop) => {
+          // A trip has a pick-up leg with its own inspection and a drop-off
+          // leg with another. A repair or a site visit has one of each, and
+          // the office writes it into the drop-off columns — so the single
+          // stop reads its inspection from `post_inspection_uuid` too.
+          const isPickup = stop.key === "pickup";
+          const inspection = isPickup ? preInspection : postInspection;
+          const teardownFlag = isPickup ? workTracker.teardown_required : null;
+          const setupFlag =
+            stop.key === "dropoff" ? workTracker.setup_required : null;
+          const flagValue = isPickup ? teardownFlag : setupFlag;
+          const flagLabel = isPickup ? "Tear Down Required" : "Set Up Required";
+
+          return (
+            <View key={stop.key} style={styles.group}>
+              <View style={[styles.card, styles.cardGroupedTop]}>
+                <View style={styles.cardTitleRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color={theme.accent}
+                  />
+                  <Text style={styles.cardHeadingInline}>
+                    {STOP_HEADING[stop.key]}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => openInMaps(stop.mapsQuery ?? undefined)}
                 >
-                  Tear Down Required:{" "}
-                  {workTracker.teardown_required ? "Yes" : "No"}
-                </Text>
-              </View>
-            ) : null}
-            {workTracker.pickup_instructions ? (
-              <View style={styles.instructionsBox}>
-                <Text style={styles.instructionsLabel}>Pickup Instructions</Text>
-                <Text style={styles.instructionsText}>
-                  {workTracker.pickup_instructions}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <InspectionSummaryWidget
-            inspection={preInspection}
-            damages={damageReports}
-            title="Pickup Inspection"
-            defaultExpanded={true}
-            embedded
-          />
-        </View>
-
-        <View style={styles.group}>
-          <View style={[styles.card, styles.cardGroupedTop]}>
-            <View style={styles.cardTitleRow}>
-              <Ionicons name="location-outline" size={18} color={theme.accent} />
-              <Text style={styles.cardHeadingInline}>Dropoff Location</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() =>
-                openInMaps(
-                  dropoffAddress
-                    ? `${dropoffAddress.street}, ${dropoffAddress.city}, ${dropoffAddress.state_province}, ${dropoffAddress.zip_postal}`
-                    : undefined,
-                )
-              }
-            >
-              <Text style={styles.addressText}>
-                {dropoffAddress ? dropoffAddress.street : "Address not set"}
-              </Text>
-            </TouchableOpacity>
-            {workTracker.dropoff_time ? (
-              <Text style={styles.detailText}>
-                Time: {formatTime(workTracker.dropoff_time)}
-              </Text>
-            ) : null}
-            {workTracker.dropoff_poc ? (
-              <Text style={styles.detailText}>
-                POC: {workTracker.dropoff_poc}
-              </Text>
-            ) : null}
-            <ContactButton
-              contactId={workTracker.dropoff_poc_contact_uuid}
-              status={workTracker.status}
-              acceptedAt={workTracker.accepted_at}
-            />
-            {workTracker.setup_required !== null &&
-            workTracker.setup_required !== undefined ? (
-              <View style={styles.flagRow}>
-                <Ionicons
-                  name={
-                    workTracker.setup_required
-                      ? "construct-outline"
-                      : "checkmark-circle-outline"
-                  }
-                  size={14}
-                  color={
-                    workTracker.setup_required
-                      ? theme.warning
-                      : theme.textTertiary
-                  }
+                  <Text style={styles.addressText}>{stop.address}</Text>
+                </TouchableOpacity>
+                {stop.time ? (
+                  <Text style={styles.detailText}>Time: {stop.time}</Text>
+                ) : null}
+                {stop.poc ? (
+                  <Text style={styles.detailText}>POC: {stop.poc}</Text>
+                ) : null}
+                <ContactButton
+                  contactId={stop.contactUuid}
+                  status={workTracker.status}
+                  acceptedAt={workTracker.accepted_at}
                 />
-                <Text
-                  style={[
-                    styles.flagText,
-                    workTracker.setup_required
-                      ? styles.flagTextActive
-                      : null,
-                  ]}
-                >
-                  Set Up Required: {workTracker.setup_required ? "Yes" : "No"}
-                </Text>
+                {flagValue !== null && flagValue !== undefined ? (
+                  <View style={styles.flagRow}>
+                    <Ionicons
+                      name={
+                        flagValue
+                          ? "construct-outline"
+                          : "checkmark-circle-outline"
+                      }
+                      size={14}
+                      color={flagValue ? theme.warning : theme.textTertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.flagText,
+                        flagValue ? styles.flagTextActive : null,
+                      ]}
+                    >
+                      {flagLabel}: {flagValue ? "Yes" : "No"}
+                    </Text>
+                  </View>
+                ) : null}
+                {stop.instructions ? (
+                  <View style={styles.instructionsBox}>
+                    <Text style={styles.instructionsLabel}>
+                      {stop.instructionsLabel}
+                    </Text>
+                    <Text style={styles.instructionsText}>
+                      {stop.instructions}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
-            {workTracker.dropoff_instructions ? (
-              <View style={styles.instructionsBox}>
-                <Text style={styles.instructionsLabel}>
-                  Drop-off Instructions
-                </Text>
-                <Text style={styles.instructionsText}>
-                  {workTracker.dropoff_instructions}
-                </Text>
-              </View>
-            ) : null}
-          </View>
 
-          <InspectionSummaryWidget
-            inspection={postInspection}
-            damages={damageReports}
-            title="Dropoff Inspection"
-            defaultExpanded={true}
-            embedded
-          />
-        </View>
+              {inspects ? (
+                <InspectionSummaryWidget
+                  inspection={inspection}
+                  damages={damageReports}
+                  title={STOP_INSPECTION_TITLE[stop.key]}
+                  defaultExpanded={true}
+                  embedded
+                />
+              ) : null}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <View
-        style={[styles.headerOverlay, { paddingTop: insets.top + FLOATING_HEADER_GAP }]}
+        style={[
+          styles.headerOverlay,
+          { paddingTop: insets.top + FLOATING_HEADER_GAP },
+        ]}
         pointerEvents="box-none"
       >
         <View style={styles.floatingHeader}>
@@ -481,6 +432,7 @@ function makeStyles(theme: ThemeColors) {
       color: theme.textSecondary,
       marginTop: 4,
     },
+    heroKindRow: { marginTop: 8 },
     heroPayRow: { alignSelf: "flex-start", marginTop: 4 },
     heroActions: {
       alignItems: "flex-end",

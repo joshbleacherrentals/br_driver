@@ -1,5 +1,6 @@
 import { useAddress } from "@/hooks/db/useAddress";
 import { useDriver } from "@/hooks/db/useDriver";
+import { isUSAddress } from "@/utils/addressCountry";
 import {
   AcceptBlock,
   getAcceptBlock as buildAcceptBlock,
@@ -23,8 +24,7 @@ export function useProfileCompletion() {
   const { address } = useAddress(driver?.address_uuid ?? null);
 
   const hasDriver = driver !== null;
-  const country = address?.street?.split(",").pop()?.trim();
-  const isUSA = country === "USA";
+  const isUSA = isUSAddress(address);
   const today = todayISODate();
 
   const baseFieldsComplete = useMemo(() => {
