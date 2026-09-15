@@ -117,11 +117,9 @@ const AddressCols = {
   city: column.text,
   state_province: column.text,
   zip_postal: column.text,
-  // The rest of a full postal address plus its geocode. `street` alone stopped
-  // being the whole address — every display goes through formatAddress().
   country: column.text,
-  latitude: column.real,
-  longitude: column.real,
+  latitude: column.integer,
+  longitude: column.integer,
   place_id: column.text,
 } satisfies PowerSyncColsFor<"Addresses">;
 const Addresses = new Table(AddressCols, { indexes: { id: ["id"] } });
@@ -157,51 +155,6 @@ const BleacherCols = {
   storage_location_uuid: column.text,
 } satisfies PowerSyncColsFor<"Bleachers">;
 const Bleachers = new Table(BleacherCols, { indexes: { id: ["id"] } });
-
-// ── Fleet reference data, behind the read-only Assets page ────────────────────
-//
-// `satisfies Partial<...>` for the same reason DamageReports uses it below:
-// the mobile sync stream ships a named subset of each of these tables, not
-// `SELECT *` (see br_powersync/config/sync_rules.yaml). Declaring a column the
-// stream does not send would give the app a column that is null forever, and
-// `Partial` still type-checks every column that IS declared, so a typo or a
-// text/integer mix-up is caught exactly as it would be otherwise.
-
-// bleacher types — the office's catalogue; where row count is maintained
-const BleacherTypeCols = {
-  name: column.text,
-  row_count: column.integer,
-} satisfies Partial<PowerSyncColsFor<"BleacherTypes">>;
-const BleacherTypes = new Table(BleacherTypeCols, { indexes: { id: ["id"] } });
-
-// storage locations — the yard a bleacher lives in when it is not out
-//
-// Deliberately name-only. The table also carries gate codes, site phone
-// numbers and internal notes; none of that is synced to a phone.
-const StorageLocationCols = {
-  name: column.text,
-} satisfies Partial<PowerSyncColsFor<"StorageLocations">>;
-const StorageLocations = new Table(StorageLocationCols, {
-  indexes: { id: ["id"] },
-});
-
-// zones — the region a bleacher is assigned to
-const ZoneCols = {
-  display_name: column.text,
-} satisfies Partial<PowerSyncColsFor<"Zones">>;
-const Zones = new Table(ZoneCols, { indexes: { id: ["id"] } });
-
-// annual inspections — the compliance date a driver can check before hitching
-const BleacherAnnualInspectionCols = {
-  bleacher_uuid: column.text,
-  inspected_on: column.text,
-  next_due_on: column.text,
-  document_path: column.text,
-} satisfies Partial<PowerSyncColsFor<"BleacherAnnualInspections">>;
-const BleacherAnnualInspections = new Table(BleacherAnnualInspectionCols, {
-  // Always read by bleacher, never by its own id.
-  indexes: { bleacher_uuid: ["bleacher_uuid"] },
-});
 
 // inspection questions
 const InspectionQuestionsCols = {
@@ -435,8 +388,14 @@ const WorkTrackersCols = {
   updated_at: column.text,
   date: column.text,
   pickup_time: column.text,
+  pickup_time_start: column.text,
+  pickup_time_end: column.text,
+  pickup_time_mode: column.text,
   pickup_poc: column.text,
   dropoff_time: column.text,
+  dropoff_time_start: column.text,
+  dropoff_time_end: column.text,
+  dropoff_time_mode: column.text,
   dropoff_poc: column.text,
   pay_cents: column.integer,
   notes: column.text,
@@ -451,10 +410,6 @@ const WorkTrackersCols = {
   accepted_at: column.text,
   started_at: column.text,
   completed_at: column.text,
-  // When the driver handed the work back — one column per kind of withdrawal,
-  // so "never took it on" and "walked away mid-job" stay distinguishable.
-  declined_at: column.text,
-  abandoned_at: column.text,
   pre_inspection_uuid: column.text,
   post_inspection_uuid: column.text,
   teardown_required: column.integer,
@@ -475,16 +430,6 @@ const WorkTrackersCols = {
   // which is written explicitly. Read through getEffectiveBleacherUuid().
   actual_bleacher_uuid: column.text,
   bleacher_change_reason: column.text,
-  // Structured time — the source of truth behind the free-text `pickup_time` /
-  // `dropoff_time` mirrors a Postgres trigger keeps in step. Read these and
-  // format in the app (utils/workTrackerTime.ts); the text columns are only a
-  // fallback for rows saved before the migration.
-  pickup_time_mode: column.text,
-  pickup_time_start: column.text,
-  pickup_time_end: column.text,
-  dropoff_time_mode: column.text,
-  dropoff_time_start: column.text,
-  dropoff_time_end: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide
@@ -531,21 +476,6 @@ const WorkTrackerLineItemsCols = {
   is_automatically_managed: column.integer,
   created_at: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackerLineItems">;
-// What kind of work a tracker is: a Trip, a Repair / Maintenance visit, or a
-// Site Visit / Cleaning / Other. A tiny reference table (single digits of
-// rows) that ships whole to every phone — read it through `code`, never the
-// row's uuid or its `display_name`, both of which office users can change.
-const WorkTrackerTypesCols = {
-  display_name: column.text,
-  code: column.text,
-  sort_order: column.integer,
-  is_deleted: column.integer,
-  created_at: column.text,
-} satisfies PowerSyncColsFor<"WorkTrackerTypes">;
-const WorkTrackerTypes = new Table(WorkTrackerTypesCols, {
-  indexes: { id: ["id"] },
-});
-
 const WorkTrackerLineItems = new Table(WorkTrackerLineItemsCols, {
   indexes: { work_tracker_uuid: ["work_tracker_uuid"] },
 });
@@ -723,10 +653,6 @@ export const AppSchema = new Schema({
   DriverUnavailability,
   DriverPayRanges,
   Bleachers,
-  BleacherTypes,
-  StorageLocations,
-  Zones,
-  BleacherAnnualInspections,
   Addresses,
   AccountManagers,
   WorkTrackerInspections,
@@ -739,7 +665,6 @@ export const AppSchema = new Schema({
   DriverDocuments,
   WorkTrackers,
   WorkTrackerLineItems,
-  WorkTrackerTypes,
   Contacts,
   Vehicles,
   BlueBook,
@@ -761,18 +686,12 @@ export type PowerSyncDB = (typeof AppSchema)["types"];
 export type DriverRecord = PowerSyncDB["Drivers"];
 export type UserRecord = PowerSyncDB["Users"];
 export type BleacherRecord = PowerSyncDB["Bleachers"];
-export type BleacherTypeRecord = PowerSyncDB["BleacherTypes"];
-export type StorageLocationRecord = PowerSyncDB["StorageLocations"];
-export type ZoneRecord = PowerSyncDB["Zones"];
-export type BleacherAnnualInspectionRecord =
-  PowerSyncDB["BleacherAnnualInspections"];
 export type InspectionsRecord = PowerSyncDB["WorkTrackerInspections"];
 export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
-export type WorkTrackerTypeRecord = PowerSyncDB["WorkTrackerTypes"];
 export type ContactRecord = PowerSyncDB["Contacts"];
 export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];
 export type RoadmapTaskMessageRecord = PowerSyncDB["RoadmapTaskMessages"];
