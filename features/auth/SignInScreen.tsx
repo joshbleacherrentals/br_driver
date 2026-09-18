@@ -2,6 +2,7 @@ import OAuthButton from "@/components/OAuthButton";
 import { AppleSignInButton } from "@/components/SignInWithApple";
 import { getAuthStyles } from "@/constants/AuthStyles";
 import { typeScale } from "@/constants/theme";
+import FirstTimeHelpCard from "@/features/auth/components/FirstTimeHelpCard";
 import { useAuthError } from "@/hooks/useAuthError";
 import { useTheme } from "@/hooks/useTheme";
 import { useSignIn } from "@clerk/clerk-expo";
@@ -93,11 +94,10 @@ function SignInScreen() {
               accessibilityLabel="Bleacher Rentals"
             />
             <Text style={styles.title}>Welcome to Bleacher Rentals Driver</Text>
-            <Text style={styles.subtitle}>
-              Please sign in using the email address that your Account Manager
-              used to create your account.
-            </Text>
+            <Text style={styles.subtitle}>Sign in to your driver account.</Text>
           </View>
+
+          <FirstTimeHelpCard />
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
