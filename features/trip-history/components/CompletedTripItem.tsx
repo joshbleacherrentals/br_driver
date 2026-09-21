@@ -5,11 +5,10 @@ import BleacherDamageBadge from "@/components/widgets/bleacherDamageBadge";
 import { getEffectiveBleacherUuid } from "@/utils/effectiveBleacher";
 import InspectionSummaryWidget from "@/components/widgets/inspectionSummaryWidget";
 import { ThemeColors, elevation, radius, typeScale } from "@/constants/theme";
-import { useAddress } from "@/hooks/db/useAddress";
 import { useBleacher } from "@/hooks/db/useBleacher";
 import { useDamageReports } from "@/hooks/db/useDamageReport";
-import { useInspection } from "@/hooks/db/useInspection";
 import { WorkTracker } from "@/hooks/db/useWorkTrackers";
+import { useTripHistoryDetails } from "@/features/trip-history/hooks/useTripHistoryDetails";
 import { useWorkTrackerKind } from "@/hooks/db/useWorkTrackerTypes";
 import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
 import { buildTripStops, type TripStop } from "@/utils/tripStops";
@@ -61,21 +60,18 @@ export default function CompletedTrips({
   const headerScrollInset =
     FLOATING_HEADER_GAP + FLOATING_HEADER_HEIGHT + FLOATING_HEADER_GAP;
 
-  const { address: pickupAddress } = useAddress(
-    workTracker.pickup_address_uuid,
-  );
-  const { address: dropoffAddress } = useAddress(
-    workTracker.dropoff_address_uuid,
-  );
+  // A finished trip's addresses, pay and inspections come from its snapshot —
+  // those rows stop syncing once the trip is done.
+  const {
+    pickupAddress,
+    dropoffAddress,
+    lineItems,
+    preInspection,
+    postInspection,
+  } = useTripHistoryDetails(workTracker);
   // The bleacher actually hauled, not the one originally assigned.
   const effectiveBleacherUuid = getEffectiveBleacherUuid(workTracker);
   const { bleacher } = useBleacher(effectiveBleacherUuid);
-  const { inspection: preInspection } = useInspection(
-    workTracker.pre_inspection_uuid ?? null,
-  );
-  const { inspection: postInspection } = useInspection(
-    workTracker.post_inspection_uuid ?? null,
-  );
   const { damageReports } = useDamageReports(effectiveBleacherUuid);
   const kind = useWorkTrackerKind(workTracker.work_tracker_type_uuid);
   const inspects = tripHasInspections(kind);
@@ -194,6 +190,7 @@ export default function CompletedTrips({
               <PayAmount
                 workTrackerId={workTracker.id}
                 payCents={workTracker.pay_cents}
+                lineItems={lineItems}
               />
             </View>
           </View>

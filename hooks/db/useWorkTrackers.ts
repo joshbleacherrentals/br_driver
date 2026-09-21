@@ -46,6 +46,8 @@ export type WorkTracker = {
   dropoff_time_mode: string | null;
   dropoff_time_start: string | null;
   dropoff_time_end: string | null;
+  /** Finished trips only — read through features/trip-history/utils/parseHistoryJson. */
+  history_json: string | null;
 };
 
 export type UserData = {
@@ -103,6 +105,9 @@ const WORK_TRACKER_COLUMNS = [
   "dropoff_time_mode",
   "dropoff_time_start",
   "dropoff_time_end",
+  // A finished trip's snapshot (addresses, pay, inspections) — those tables
+  // stop syncing once the trip is done.
+  "history_json",
 ] as const;
 
 /** Single work tracker by id — for completed-trip detail route. */

@@ -30,6 +30,7 @@ import {
   firstPhotoQuestion,
 } from "../inspectionAnswers";
 import type { PhotoReplacementPlan } from "../photoRepair";
+import { inspectionPhotoInsert } from "./inspectionPhotoInsert";
 import { writeLocalPhoto } from "./localFile";
 import {
   forgetPhotoUploadStatusWrite,
@@ -142,7 +143,8 @@ export async function applyPhotoRepair(
   // Extra inspection photos have to join an existing photo question, otherwise
   // they would never render. Prefer the question the repaired photos came from.
   const inspectionAnswersJson =
-    parent.table === "InspectionPhotos" && plan.extras.length + deletedPaths.length > 0
+    parent.table === "InspectionPhotos" &&
+    plan.extras.length + deletedPaths.length > 0
       ? await readInspectionAnswers(parent.inspectionUuid)
       : null;
 
@@ -259,17 +261,12 @@ export async function applyPhotoRepair(
       }
       for (const insert of inserts) {
         await tx.run(
-          db
-            .insertInto("InspectionPhotos")
-            .values({
-              id: randomUUID(),
-              inspection_uuid: parent.inspectionUuid,
-              storage_path: insert.bucketPath,
-              upload_status: "pending",
-              attempts: 0,
-              created_at: createdAt,
-            })
-            .compile(),
+          inspectionPhotoInsert({
+            id: randomUUID(),
+            inspectionUuid: parent.inspectionUuid,
+            storagePath: insert.bucketPath,
+            createdAt,
+          }),
         );
       }
       if (plan.deletions.length > 0) {

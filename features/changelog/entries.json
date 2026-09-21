@@ -1,5 +1,10 @@
 [
   {
+    "version": "1.10.3",
+    "date": "2026-09-18",
+    "body_md": "### 🔧 Faster sync for drivers with a long trip history\n\nDrivers with many past trips could get stuck on the **poor connection** screen after signing in — the app was downloading every detail of every trip they had ever done. Now it only keeps the full details of the trips you are working on.\n\n**Trip History** still shows the pickup and drop-off address, the pay breakdown and both inspections for every finished trip, even with no signal. If the office corrects your pay or an address after a trip is done, the change shows up there too."
+  },
+  {
     "version": "1.10.2",
     "date": "2026-09-18",
     "body_md": "### 🔑 Signing in for the first time\n\nThe **sign-in screen** now has a **First time here?** card for new drivers. You can't create an account in the app — your Account Manager sets it up and emails you an invitation. Tap the card to see the three steps:\n\n- Find the email **Invitation to join Bleacher Rentals** — check your Spam folder too.\n- Tap **Accept invitation**, enter your name and create a password.\n- Come back to the app and sign in with that same email and password.\n\nUsed **Google** or **Apple** when you accepted? Tap the same button on the sign-in screen. No email, or it's more than 30 days old? Ask your Account Manager to send a new one.\n\nAlready signed in before? Nothing changes — the card stays folded up out of your way."

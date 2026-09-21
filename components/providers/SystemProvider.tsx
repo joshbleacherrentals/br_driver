@@ -11,6 +11,7 @@ import {
   setPhotoUploadService,
   subscribeNetworkAvailability,
 } from "@/library/photoUploadQueue";
+import { MOBILE_CONNECT_PARAMS } from "@/library/powersync/connectParams";
 import { db, powerSyncDb } from "@/library/powersync/db";
 import { clearDriverScope } from "@/library/powersync/scoping/driverScope";
 import { useStableCallback } from "@/hooks/useStableCallback";
@@ -175,7 +176,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
       connectingRef.current = true;
       try {
         DebugLogger.info(TAG, "Connecting...");
-        await powerSyncDb.connect(connector, { params: { app: "mobile" } });
+        await powerSyncDb.connect(connector, { params: MOBILE_CONNECT_PARAMS });
         connectedRef.current = true;
         DebugLogger.info(TAG, "Connected successfully");
 

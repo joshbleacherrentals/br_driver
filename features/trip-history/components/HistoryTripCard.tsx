@@ -10,7 +10,7 @@
 import WorkTrackerKindBadge from "@/components/widgets/trip/WorkTrackerKindBadge";
 import { workTrackerKindColor } from "@/constants/workTrackerKinds";
 import { elevation, typeScale, type ThemeColors } from "@/constants/theme";
-import type { AddressData } from "@/hooks/db/useAddress";
+import type { FormattableAddress } from "@/utils/formatAddress";
 import type { WorkTracker } from "@/hooks/db/useWorkTrackers";
 import { buildTripStops } from "@/utils/tripStops";
 import { withdrawnOutcomeLabel } from "@/utils/tripWithdrawal";
@@ -23,8 +23,8 @@ type HistoryTripCardProps = {
   trip: WorkTracker;
   kind: WorkTrackerKind;
   bleacherNumber: string | null;
-  pickupAddress: AddressData | null;
-  dropoffAddress: AddressData | null;
+  pickupAddress: FormattableAddress | null;
+  dropoffAddress: FormattableAddress | null;
   payLabel: string | null;
   dateLabel: string;
   isLast: boolean;

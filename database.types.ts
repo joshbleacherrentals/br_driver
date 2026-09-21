@@ -331,8 +331,7 @@ export type Database = {
           manufacturer: string | null;
           nvis_pdf_path: string | null;
           opening_direction:
-            | Database["public"]["Enums"]["bleacher_opening_dir"]
-            | null;
+            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
           storage_location_uuid: string | null;
           summer_account_manager_uuid: string | null;
           summer_home_base_uuid: string | null;
@@ -363,8 +362,7 @@ export type Database = {
           manufacturer?: string | null;
           nvis_pdf_path?: string | null;
           opening_direction?:
-            | Database["public"]["Enums"]["bleacher_opening_dir"]
-            | null;
+            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
           storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
@@ -395,8 +393,7 @@ export type Database = {
           manufacturer?: string | null;
           nvis_pdf_path?: string | null;
           opening_direction?:
-            | Database["public"]["Enums"]["bleacher_opening_dir"]
-            | null;
+            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
           storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
@@ -2460,6 +2457,7 @@ export type Database = {
           attempts: number;
           caption: string | null;
           created_at: string;
+          created_by_driver_uuid: string | null;
           gallery_asset_id: string | null;
           id: string;
           inspection_uuid: string;
@@ -2472,6 +2470,7 @@ export type Database = {
           attempts?: number;
           caption?: string | null;
           created_at?: string;
+          created_by_driver_uuid?: string | null;
           gallery_asset_id?: string | null;
           id?: string;
           inspection_uuid: string;
@@ -2484,6 +2483,7 @@ export type Database = {
           attempts?: number;
           caption?: string | null;
           created_at?: string;
+          created_by_driver_uuid?: string | null;
           gallery_asset_id?: string | null;
           id?: string;
           inspection_uuid?: string;
@@ -2493,6 +2493,13 @@ export type Database = {
           upload_status?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "InspectionPhotos_created_by_driver_uuid_fkey";
+            columns: ["created_by_driver_uuid"];
+            isOneToOne: false;
+            referencedRelation: "Drivers";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "InspectionPhotos_inspection_uuid_fkey";
             columns: ["inspection_uuid"];
@@ -4128,6 +4135,7 @@ export type Database = {
           dropoff_time_end: string | null;
           dropoff_time_mode: Database["public"]["Enums"]["work_tracker_time_mode"];
           dropoff_time_start: string | null;
+          history_json: Json | null;
           id: string;
           internal_notes: string | null;
           notes: string | null;
@@ -4176,6 +4184,7 @@ export type Database = {
           dropoff_time_end?: string | null;
           dropoff_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
           dropoff_time_start?: string | null;
+          history_json?: Json | null;
           id?: string;
           internal_notes?: string | null;
           notes?: string | null;
@@ -4224,6 +4233,7 @@ export type Database = {
           dropoff_time_end?: string | null;
           dropoff_time_mode?: Database["public"]["Enums"]["work_tracker_time_mode"];
           dropoff_time_start?: string | null;
+          history_json?: Json | null;
           id?: string;
           internal_notes?: string | null;
           notes?: string | null;
@@ -4507,6 +4517,10 @@ export type Database = {
     };
     Functions: {
       bleacher_change_reason_label: { Args: { code: string }; Returns: string };
+      build_work_tracker_history: {
+        Args: { tracker: Database["public"]["Tables"]["WorkTrackers"]["Row"] };
+        Returns: Json;
+      };
       damage_reports_recompute_photos_uploaded: {
         Args: { p_ids: string[] };
         Returns: undefined;
@@ -4514,6 +4528,10 @@ export type Database = {
       drivers_backfill_document: {
         Args: { p_doc_type: string; p_driver_id: string; p_photo_path: string };
         Returns: undefined;
+      };
+      format_history_address: {
+        Args: { address_uuid: string };
+        Returns: string;
       };
       generate_invoice_number: { Args: never; Returns: number };
       get_current_account_manager_id: { Args: never; Returns: string };
@@ -4529,6 +4547,10 @@ export type Database = {
         Args: { p_event_uuid: string };
         Returns: boolean;
       };
+      is_work_tracker_finished: {
+        Args: { tracker: Database["public"]["Tables"]["WorkTrackers"]["Row"] };
+        Returns: boolean;
+      };
       recompute_driver_scorecard_bucket: {
         Args: { p_driver: string; p_year: number };
         Returns: undefined;
@@ -4539,6 +4561,10 @@ export type Database = {
       };
       recompute_quote_hashes: {
         Args: { p_event_id: string };
+        Returns: undefined;
+      };
+      refresh_work_tracker_history: {
+        Args: { tracker_ids: string[] };
         Returns: undefined;
       };
       user_can_manage_zone: { Args: { p_zone_uuid: string }; Returns: boolean };
@@ -4570,10 +4596,7 @@ export type Database = {
       question_type: "text" | "checkbox" | "photo";
       roadmap_attachment_parent_type: "task" | "feature";
       roadmap_feature_status:
-        | "draft"
-        | "locked_in"
-        | "in_progress"
-        | "completed";
+        "draft" | "locked_in" | "in_progress" | "completed";
       roadmap_task_status: "to_do" | "in_progress" | "completed";
       roof_type: "canopy" | "none";
       task_status:
@@ -4594,9 +4617,7 @@ export type Database = {
         | "custom";
       work_tracker_time_mode: "exact" | "flexible" | "any_time";
       work_tracker_type_code:
-        | "trip"
-        | "repair_maintenance"
-        | "site_visit_cleaning_other";
+        "trip" | "repair_maintenance" | "site_visit_cleaning_other";
       worktracker_group_status:
         | "draft"
         | "qbo_bill_creating"
@@ -4633,12 +4654,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4660,13 +4681,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4685,13 +4705,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4710,13 +4729,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4729,11 +4747,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }

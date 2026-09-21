@@ -1,5 +1,6 @@
 import Badge from "@/components/ui/Badge";
 import HistoryTripCard from "./components/HistoryTripCard";
+import { parseHistoryJson } from "./utils/parseHistoryJson";
 import { useWorkTrackerTypes } from "@/hooks/db/useWorkTrackerTypes";
 import { resolveWorkTrackerKind } from "@/utils/workTrackerKind";
 import { ThemeColors, typeScale } from "@/constants/theme";
@@ -87,16 +88,48 @@ export default function TripHistoryScreen() {
     }));
   };
 
+  // Finished trips carry their addresses in a snapshot — the Addresses rows
+  // stop syncing once a trip is done. Only a trip finished offline, not yet
+  // snapshotted by the server, still looks its addresses up live.
+  const snapshots = useMemo(
+    () =>
+      new Map(
+        historyTrips.map((trip) => [
+          trip.id,
+          parseHistoryJson(trip.history_json, trip.id),
+        ]),
+      ),
+    [historyTrips],
+  );
+
   const allAddressIds = useMemo(() => {
     const ids: (string | null)[] = [];
     historyTrips.forEach((trip) => {
+      if (snapshots.get(trip.id)) return;
       ids.push(trip.pickup_address_uuid);
       ids.push(trip.dropoff_address_uuid);
     });
     return ids;
-  }, [historyTrips]);
+  }, [historyTrips, snapshots]);
 
   const allAddresses = useBatchAddresses(allAddressIds);
+
+  /** A card's two addresses: the snapshot's, or the live rows while it has none. */
+  const addressesFor = (trip: WorkTracker) => {
+    const snapshot = snapshots.get(trip.id);
+    if (snapshot) {
+      return {
+        pickupAddress: snapshot.pickupAddress,
+        dropoffAddress: snapshot.dropoffAddress,
+      };
+    }
+    const live = (id: string | null) =>
+      id ? (allAddresses[id] ?? null) : null;
+    return {
+      pickupAddress: live(trip.pickup_address_uuid),
+      dropoffAddress: live(trip.dropoff_address_uuid),
+    };
+  };
   const allBleachers = useBatchBleachers(
     historyTrips.map((wt) => wt.bleacher_uuid),
   );
@@ -231,16 +264,7 @@ export default function TripHistoryScreen() {
                                 ?.bleacher_number ?? null)
                             : null
                         }
-                        pickupAddress={
-                          trip.pickup_address_uuid
-                            ? allAddresses[trip.pickup_address_uuid]
-                            : null
-                        }
-                        dropoffAddress={
-                          trip.dropoff_address_uuid
-                            ? allAddresses[trip.dropoff_address_uuid]
-                            : null
-                        }
+                        {...addressesFor(trip)}
                         payLabel={
                           // Handed-back work shows no figure: it pays nothing,
                           // and the week's total does not count it either.

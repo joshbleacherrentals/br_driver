@@ -358,6 +358,11 @@ const InspectionsPhotosCols = {
   attempts: column.integer,
   last_attempt_at: column.text,
   last_error: column.text,
+  // The photo's own sync key — the mobile stream buckets photos by it, one
+  // bucket per driver. Also its ownership: a photo still queued when its trip
+  // finishes has lost the inspection it hangs off (inspections sync for active
+  // trips only), so the queue can't reach its driver through that chain.
+  created_by_driver_uuid: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, {
   // `inspection_uuid` is both the per-inspection photo lookup and the correlated
@@ -432,6 +437,10 @@ const WorkTrackersCols = {
   // which is written explicitly. Read through getEffectiveBleacherUuid().
   actual_bleacher_uuid: column.text,
   bleacher_change_reason: column.text,
+  // Snapshot of a FINISHED trip — addresses, line items, inspections — as
+  // JSON text. Built by Postgres triggers, never written here: those tables
+  // only sync while a trip is active. Read through parseHistoryJson().
+  history_json: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide

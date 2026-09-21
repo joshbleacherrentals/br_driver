@@ -131,20 +131,37 @@ export function inspectionOwnedBy(
   );
 }
 
-/** An `InspectionPhotos` row whose inspection is a leg of this driver's trip. */
+/**
+ * An `InspectionPhotos` row this driver took.
+ *
+ * The photo's own `created_by_driver_uuid` decides. Inspections only sync for
+ * active trips (docs/specs/sync-bucket-limit.md §4), so a photo still queued
+ * when its trip finishes has no inspection left on the device to walk through
+ * — and on a reassigned trip the file is on the phone of whoever took it, not
+ * the trip's new driver.
+ *
+ * The inspection chain is kept only for rows an older build inserted without
+ * the column, until the server fills it in.
+ */
 export function inspectionPhotoOwnedBy(
   eb: ExpressionBuilder<PowerSyncDB, "InspectionPhotos">,
   scope: DriverScope,
 ) {
-  return eb.exists(
-    eb
-      .selectFrom("WorkTrackerInspections")
-      .select("WorkTrackerInspections.id")
-      .whereRef(
-        "WorkTrackerInspections.id",
-        "=",
-        "InspectionPhotos.inspection_uuid",
-      )
-      .where((inner) => inspectionOwnedBy(inner, scope)),
-  );
+  return eb.or([
+    eb("InspectionPhotos.created_by_driver_uuid", "=", scope.driverUuid),
+    eb.and([
+      eb("InspectionPhotos.created_by_driver_uuid", "is", null),
+      eb.exists(
+        eb
+          .selectFrom("WorkTrackerInspections")
+          .select("WorkTrackerInspections.id")
+          .whereRef(
+            "WorkTrackerInspections.id",
+            "=",
+            "InspectionPhotos.inspection_uuid",
+          )
+          .where((inner) => inspectionOwnedBy(inner, scope)),
+      ),
+    ]),
+  ]);
 }
