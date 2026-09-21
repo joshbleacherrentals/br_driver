@@ -203,3 +203,49 @@ What changed from the plan above while building it:
 
 - **Pre-existing, unrelated:** `supabase/tests/driver-scorecard.test.sql` fails with and without this migration.
 - **`database.types.ts` was hand-edited in both repos** (two columns and one FK). Regenerate with `npm run generate-types-local` in bleacher_rentals once the migration is applied.
+
+## 11. Sync Health — seeing who is close to the limit (2026-09-21, app 1.10.4)
+
+The fix above removed the per-trip buckets; this is how we watch that it stays
+that way. The only place that knows a device's real bucket count is the device,
+so the app reports its own.
+
+**Mobile (`br_driver/features/sync-health/`)** — after a sync finishes
+successfully (`isSyncSettled`: connected, `hasSynced`, not downloading, no
+download error), `readBucketCount` runs the one raw SQL of the feature,
+`SELECT count(*) FROM ps_buckets WHERE name != '$local'`. `ps_buckets` is
+PowerSync's own table and is not in `AppSchema`, so the typed wrapper cannot
+express it; `$local` is the SDK's pseudo-bucket for pending writes and is not
+something the server sent. The number is written with `executeTypedMutationVoid`
+onto the driver's own Drivers row — local-first, so a report taken in a dead
+zone uploads later with the time it was measured. `createBucketCountReporter`
+allows one report per launch and then one per six hours: the report's own upload
+causes another finished sync, so without the throttle it would feed itself.
+Mounted from `AppVersionGate`, next to the app-version report.
+
+**Database** — `20260921120000_driver_sync_health.sql` adds `bucket_count`,
+`sync_version` and `bucket_count_reported_at` to Drivers (no new table). No
+default: NULL means "this build never reported", which the page shows as "—",
+not 0. Writes need no new policy — `driver_self_update` already limits a driver
+to its own row. Developers were not in `drivers_select`, so they get
+`drivers_developer_select`.
+
+**Sync rules** — the mobile stream needed no change: the driver's own Drivers
+row already syncs whole. On the web stream the three Drivers rules (admin,
+account manager, viewer) were rewritten to an explicit column list without the
+three new columns — **a new Drivers column now has to be added there by hand to
+reach the web app**. Developers get the numbers from two extra rules that alias
+the output tables, `DriverSyncHealth` (from Drivers) and `DriverSyncHealthUsers`
+(from Users, names only). The alias matters: a developer who is also an admin
+would otherwise receive the same Drivers row from two buckets with different
+columns. Both are one shared bucket, so they cost a developer 2 buckets.
+
+**Web** — `/dev-tools/sync-health`, developer-only at three levels: RLS, the
+sync rules, and `syncHealthGate` in the page. The route guard matches by prefix
+and admins/viewers hold `/dev-tools`, so the page's own gate is what turns them
+away; developers are given that one path, not `/dev-tools`. The table sorts by
+count, flags from 70% of the limit (1400 of 2000), and keeps "no report yet"
+distinct from a real 0.
+
+Rollout order: migration → sync rules + PowerSync restart → new build. The page
+is empty until builds with 1.10.4 are out, which is expected.

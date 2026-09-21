@@ -1,4 +1,5 @@
 import { useDriver } from "@/hooks/db/useDriver";
+import { useReportBucketCount } from "@/features/sync-health/hooks/useReportBucketCount";
 import { useUser } from "@clerk/clerk-expo";
 import React from "react";
 import ForceUpdateModal from "./components/ForceUpdateModal";
@@ -15,6 +16,7 @@ export default function AppVersionGate() {
   const enabled = isLoaded && !!isSignedIn;
   const { driver } = useDriver();
   useReportDriverAppVersion(driver?.id);
+  useReportBucketCount(driver?.id);
 
   const {
     status,

@@ -1206,6 +1206,8 @@ export type Database = {
           app_platform: string | null;
           app_version: string | null;
           app_version_reported_at: string | null;
+          bucket_count: number | null;
+          bucket_count_reported_at: string | null;
           created_at: string;
           deadhead_cents: number;
           id: string;
@@ -1221,6 +1223,7 @@ export type Database = {
           pay_rate_cents: number;
           phone_number: string | null;
           setup_cents: number;
+          sync_version: number | null;
           tax: number;
           tax_dec: number;
           teardown_cents: number;
@@ -1234,6 +1237,8 @@ export type Database = {
           app_platform?: string | null;
           app_version?: string | null;
           app_version_reported_at?: string | null;
+          bucket_count?: number | null;
+          bucket_count_reported_at?: string | null;
           created_at?: string;
           deadhead_cents?: number;
           id?: string;
@@ -1249,6 +1254,7 @@ export type Database = {
           pay_rate_cents?: number;
           phone_number?: string | null;
           setup_cents?: number;
+          sync_version?: number | null;
           tax?: number;
           tax_dec?: number;
           teardown_cents?: number;
@@ -1262,6 +1268,8 @@ export type Database = {
           app_platform?: string | null;
           app_version?: string | null;
           app_version_reported_at?: string | null;
+          bucket_count?: number | null;
+          bucket_count_reported_at?: string | null;
           created_at?: string;
           deadhead_cents?: number;
           id?: string;
@@ -1277,6 +1285,7 @@ export type Database = {
           pay_rate_cents?: number;
           phone_number?: string | null;
           setup_cents?: number;
+          sync_version?: number | null;
           tax?: number;
           tax_dec?: number;
           teardown_cents?: number;

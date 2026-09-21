@@ -62,6 +62,9 @@ const DriversCols = {
   app_platform: column.text,
   app_version: column.text,
   app_version_reported_at: column.text,
+  /** Sync Health: PowerSync buckets on this device, written by the app itself. NULL = never reported. */
+  bucket_count: column.integer,
+  bucket_count_reported_at: column.text,
   created_at: column.text,
   deadhead_cents: column.integer,
   insurance_expires_on: column.text,
@@ -76,6 +79,8 @@ const DriversCols = {
   pay_rate_cents: column.integer,
   phone_number: column.text,
   setup_cents: column.integer,
+  /** The `sync_version` connect param the reporting build used (see connectParams.ts). */
+  sync_version: column.integer,
   /** @deprecated Whole-percent mirror of `tax_dec`, kept for older builds of this app. */
   tax: column.integer,
   /** Tax rate in percent with 3 decimals (Quebec is 14.975). Postgres `numeric` -> SQLite real. */

@@ -1,5 +1,10 @@
 [
   {
+    "version": "1.10.4",
+    "date": "2026-09-21",
+    "body_md": "### 🔧 Keeping sync healthy behind the scenes\n\nAfter it finishes syncing, the app now quietly tells our developers how much data your phone is keeping in sync — at most once every few hours. That lets us spot a phone that is getting close to its sync limit and fix it **before** you ever see the **poor connection** screen.\n\n- Nothing changes on your screens, and there is nothing to tap.\n- It works with **no signal** too: the note waits on your phone and goes out the next time you are online."
+  },
+  {
     "version": "1.10.3",
     "date": "2026-09-18",
     "body_md": "### 🔧 Faster sync for drivers with a long trip history\n\nDrivers with many past trips could get stuck on the **poor connection** screen after signing in — the app was downloading every detail of every trip they had ever done. Now it only keeps the full details of the trips you are working on.\n\n**Trip History** still shows the pickup and drop-off address, the pay breakdown and both inspections for every finished trip, even with no signal. If the office corrects your pay or an address after a trip is done, the change shows up there too."
