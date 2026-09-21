@@ -231,21 +231,27 @@ to its own row. Developers were not in `drivers_select`, so they get
 `drivers_developer_select`.
 
 **Sync rules** — the mobile stream needed no change: the driver's own Drivers
-row already syncs whole. On the web stream the three Drivers rules (admin,
-account manager, viewer) were rewritten to an explicit column list without the
-three new columns — **a new Drivers column now has to be added there by hand to
-reach the web app**. Developers get the numbers from two extra rules that alias
-the output tables, `DriverSyncHealth` (from Drivers) and `DriverSyncHealthUsers`
-(from Users, names only). The alias matters: a developer who is also an admin
-would otherwise receive the same Drivers row from two buckets with different
-columns. Both are one shared bucket, so they cost a developer 2 buckets.
+row already syncs whole. The web stream keeps `Drivers.*` for admins, account
+managers and viewers: a bucket count is not sensitive, and an explicit column
+list would mean every future Drivers column had to be added there by hand or be
+invisible to the web app — a standing trap for a number nobody needs hidden.
 
-**Web** — `/dev-tools/sync-health`, developer-only at three levels: RLS, the
-sync rules, and `syncHealthGate` in the page. The route guard matches by prefix
-and admins/viewers hold `/dev-tools`, so the page's own gate is what turns them
-away; developers are given that one path, not `/dev-tools`. The table sorts by
-count, flags from 70% of the limit (1400 of 2000), and keeps "no report yet"
-distinct from a real 0.
+What developers do need is their own source: a developer with no office role
+syncs no Drivers and no Users rows at all, so the page would be empty for
+exactly its audience. Two rules read Drivers and Users but land under aliased
+client-side table names, `DriverSyncHealth` and `DriverSyncHealthUsers` (names
+only). The alias is what keeps a developer who is ALSO an admin from receiving
+the same Drivers row from two buckets with different columns. Both are one
+shared bucket, so they cost a developer 2 buckets.
+
+**Web** — `/dev-tools/sync-health`, developer-only: RLS gives developers read
+access to Drivers, the sync rules give them the page's own tables, and
+`syncHealthGate` guards the page. The page, not the data, is what is
+restricted — the counts themselves also reach office roles on `Drivers.*`. The
+route guard matches by prefix and admins/viewers hold `/dev-tools`, so the
+page's own gate is what turns them away; developers are given that one path,
+not `/dev-tools`. The table sorts by count, flags from 70% of the limit (1400
+of 2000), and keeps "no report yet" distinct from a real 0.
 
 Rollout order: migration → sync rules + PowerSync restart → new build. The page
 is empty until builds with 1.10.4 are out, which is expected.
