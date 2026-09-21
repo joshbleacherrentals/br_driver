@@ -331,7 +331,8 @@ export type Database = {
           manufacturer: string | null;
           nvis_pdf_path: string | null;
           opening_direction:
-            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null;
           storage_location_uuid: string | null;
           summer_account_manager_uuid: string | null;
           summer_home_base_uuid: string | null;
@@ -362,7 +363,8 @@ export type Database = {
           manufacturer?: string | null;
           nvis_pdf_path?: string | null;
           opening_direction?:
-            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null;
           storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
@@ -393,7 +395,8 @@ export type Database = {
           manufacturer?: string | null;
           nvis_pdf_path?: string | null;
           opening_direction?:
-            Database["public"]["Enums"]["bleacher_opening_dir"] | null;
+            | Database["public"]["Enums"]["bleacher_opening_dir"]
+            | null;
           storage_location_uuid?: string | null;
           summer_account_manager_uuid?: string | null;
           summer_home_base_uuid?: string | null;
@@ -4605,7 +4608,10 @@ export type Database = {
       question_type: "text" | "checkbox" | "photo";
       roadmap_attachment_parent_type: "task" | "feature";
       roadmap_feature_status:
-        "draft" | "locked_in" | "in_progress" | "completed";
+        | "draft"
+        | "locked_in"
+        | "in_progress"
+        | "completed";
       roadmap_task_status: "to_do" | "in_progress" | "completed";
       roof_type: "canopy" | "none";
       task_status:
@@ -4626,7 +4632,9 @@ export type Database = {
         | "custom";
       work_tracker_time_mode: "exact" | "flexible" | "any_time";
       work_tracker_type_code:
-        "trip" | "repair_maintenance" | "site_visit_cleaning_other";
+        | "trip"
+        | "repair_maintenance"
+        | "site_visit_cleaning_other";
       worktracker_group_status:
         | "draft"
         | "qbo_bill_creating"
@@ -4663,12 +4671,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4690,12 +4698,13 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4714,12 +4723,13 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4738,12 +4748,13 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
@@ -4756,11 +4767,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals;
 }
