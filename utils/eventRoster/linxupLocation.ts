@@ -13,8 +13,28 @@
  * owed a sentence, not a spinner.
  */
 
+/**
+ * What the web endpoint knows about the unit besides its position. Every field
+ * is optional and absent (`undefined`, never `null`) when the endpoint sent
+ * nothing usable.
+ */
+export type DeviceDetails = {
+  deviceId?: string;
+  /** The unit's label in Linxup, e.g. "Trailer 12". */
+  name?: string;
+  vin?: string;
+  /** Linxup's own word: "Moving", "Stopped", "Idle", … */
+  status?: string;
+  /** Unit unverified — the web labels it km/h, Linxup may send mph. */
+  speed?: number;
+  imei?: string;
+  uuid?: string;
+  /** When the unit last reported, epoch milliseconds. */
+  updatedAtMs?: number;
+};
+
 export type DeviceLocation =
-  | { kind: "ok"; lat: number; lng: number }
+  | ({ kind: "ok"; lat: number; lng: number } & DeviceDetails)
   /** The unit exists but has never reported a position. */
   | { kind: "no-position" }
   /** No such device — including a bleacher with no unit fitted at all. */
@@ -44,6 +64,44 @@ export function googleMapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
+function text(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+/** The web sends epoch ms as a string ("1790000000000"); anything else is no time. */
+function epochMs(value: unknown): number | undefined {
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : undefined;
+  return typeof value === "string" && /^\d+$/.test(value.trim())
+    ? Number(value.trim())
+    : undefined;
+}
+
+/** Only the fields that carry a value, so absent ones stay truly absent. */
+function readDetails(body: any): DeviceDetails {
+  const details: DeviceDetails = {
+    deviceId: text(body?.deviceId),
+    name: text(body?.name),
+    vin: text(body?.vin),
+    status: text(body?.status),
+    speed: finiteNumber(body?.speed),
+    imei: text(body?.imei),
+    uuid: text(body?.uuid),
+    updatedAtMs: epochMs(body?.updatedAt),
+  };
+
+  return Object.fromEntries(
+    Object.entries(details).filter(([, value]) => value !== undefined),
+  ) as DeviceDetails;
+}
+
 export async function fetchDeviceLocation(
   deviceId: string,
   options: DeviceLocationOptions,
@@ -56,7 +114,12 @@ export async function fetchDeviceLocation(
   try {
     const response = await fetchImpl(
       `${baseUrl.replace(/\/+$/, "")}/api/linxup/devices/${encodeURIComponent(deviceId)}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      },
     );
 
     if (response.status === 404) return { kind: "not-found" };
@@ -80,7 +143,7 @@ export async function fetchDeviceLocation(
       return { kind: "no-position" };
     }
 
-    return { kind: "ok", lat, lng };
+    return { kind: "ok", lat, lng, ...readDetails(body) };
   } catch {
     return { kind: "unreachable" };
   }

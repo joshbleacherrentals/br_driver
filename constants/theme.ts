@@ -15,7 +15,7 @@ import {
   TRACKER_TRIP_BLUE,
   WARNING_ORANGE,
 } from "@/constants/Colors";
-import { ViewStyle } from "react-native";
+import { Platform, ViewStyle } from "react-native";
 
 export type ColorScheme = "light" | "dark";
 
@@ -224,3 +224,9 @@ export const typeScale = {
   caption: { fontSize: 12, lineHeight: 16 }, // 600
   caption2: { fontSize: 11, lineHeight: 13 }, // 700
 } as const;
+
+/** Fixed-width face for IDs, VINs and coordinates. */
+export const monoFontFamily = Platform.select({
+  ios: "Menlo",
+  default: "monospace",
+});
