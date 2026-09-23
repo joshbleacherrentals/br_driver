@@ -99,6 +99,7 @@ function trackersQuery(eventUuid: string, leg: TripLeg) {
       "date",
       "status",
       "status_changed_at as statusChangedAt",
+      "drive_minutes as driveMinutes",
       "pickup_event_uuid as pickupEventUuid",
       "dropoff_event_uuid as dropoffEventUuid",
     ])

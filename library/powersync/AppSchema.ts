@@ -761,6 +761,8 @@ const FleetTrackersCols = {
   status: column.text,
   status_changed_at: column.text,
   work_tracker_type_uuid: column.text,
+  // Planned drive length — counts down the "On Its Way! - ETA" line.
+  drive_minutes: column.integer,
   // Server-computed (bleacher_rentals 20260922140000) — what useEventRoster
   // matches other drivers' trackers against. See AppSchema WorkTrackers above.
   dropoff_event_uuid: column.text,
@@ -772,6 +774,7 @@ const FleetTrackersCols = {
   | "status"
   | "status_changed_at"
   | "work_tracker_type_uuid"
+  | "drive_minutes"
   | "dropoff_event_uuid"
   | "pickup_event_uuid"
 >;

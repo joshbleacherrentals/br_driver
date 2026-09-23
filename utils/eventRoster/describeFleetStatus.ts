@@ -19,18 +19,75 @@ export type FleetStatusDescription = {
 };
 
 const DESCRIPTIONS: Record<string, FleetStatusDescription> = {
-  accepted: { label: "Waiting for the driver to start", tone: "active" },
-  dest_pickup: { label: "On the way to pick it up", tone: "active" },
-  pickup_inspection: { label: "Loading the bleacher", tone: "active" },
-  dest_dropoff: { label: "On the way to drop it off", tone: "active" },
-  dropoff_inspection: { label: "Unloading on site", tone: "active" },
+  accepted: { label: "Not Started", tone: "active" },
+  dest_pickup: { label: "Picking up Bleacher", tone: "active" },
+  pickup_inspection: { label: "Picking up Bleacher", tone: "active" },
+  dest_dropoff: { label: "On Its Way!", tone: "active" },
+  dropoff_inspection: { label: "Arrived", tone: "active" },
   completed: { label: "Delivered", tone: "done" },
 };
 
+export type FleetStatusContext = {
+  /** When the tracker reached its current status. */
+  statusChangedAt?: string | null;
+  /** `WorkTrackers.drive_minutes` — the planned length of the drive; 0 or null when unknown. */
+  driveMinutes?: number | null;
+  /** Injected so the label can be recomputed every minute (and tested). */
+  now?: number;
+};
+
+const ON_ITS_WAY = "On Its Way!";
+
+/** "5h 32m", "5h", "12m" — the time left, as someone says it out loud. */
+export function formatEta(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  if (hours === 0) return `${rest}m`;
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/**
+ * The drop-off drive is the one status with a promise attached: the trip's own
+ * planned drive time, counted down from the moment the driver set off.
+ *
+ * - No planned drive time (0 / null): say when they left, promise nothing.
+ * - Time left: "ETA: 5h 32m", rounded up so it never reads 0m while still going.
+ * - Time ran out and the status never changed: the driver is late or has not
+ *   pressed the button, so the honest answer is "soon", not a negative ETA.
+ */
+function describeOnItsWay(context: FleetStatusContext): string {
+  const changedAt = context.statusChangedAt
+    ? Date.parse(context.statusChangedAt)
+    : Number.NaN;
+  if (Number.isNaN(changedAt)) return ON_ITS_WAY;
+
+  const drive = context.driveMinutes ?? 0;
+  if (drive <= 0) {
+    const left = new Date(changedAt).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${ON_ITS_WAY} - Left at ${left}`;
+  }
+
+  const elapsedMs = Math.max(0, (context.now ?? Date.now()) - changedAt);
+  const remaining = Math.ceil(drive - elapsedMs / (60 * 1000));
+
+  return remaining > 0
+    ? `${ON_ITS_WAY} - ETA: ${formatEta(remaining)}`
+    : "Bleacher will be here soon";
+}
+
 export function describeFleetStatus(
   status: string | null | undefined,
+  context: FleetStatusContext = {},
 ): FleetStatusDescription {
   if (!status) return { label: OFFICE, tone: "unknown" };
+
+  if (status === "dest_dropoff") {
+    return { label: describeOnItsWay(context), tone: "active" };
+  }
 
   return DESCRIPTIONS[status] ?? { label: OFFICE, tone: "unknown" };
 }

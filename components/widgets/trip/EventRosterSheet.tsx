@@ -17,6 +17,7 @@
 import BottomSheetModal from "@/components/ui/BottomSheetModal";
 import { typeScale } from "@/constants/theme";
 import type { EventRoster, EventRosterEntry } from "@/hooks/db/useEventRoster";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useTheme } from "@/hooks/useTheme";
 import { useTrackBleacher } from "@/hooks/useTrackBleacher";
 import {
@@ -75,9 +76,14 @@ function RosterRow({
   tracking: boolean;
 }) {
   const { theme } = useTheme();
-  const status = describeFleetStatus(entry.tracker?.status);
+  const now = useMinuteClock();
   const changedAt = entry.tracker?.statusChangedAt ?? null;
-  const since = formatSinceChange(changedAt, Date.now());
+  const status = describeFleetStatus(entry.tracker?.status, {
+    statusChangedAt: changedAt,
+    driveMinutes: entry.tracker?.driveMinutes,
+    now,
+  });
+  const since = formatSinceChange(changedAt, now);
   const clock = formatClock(changedAt);
   const toneColor =
     status.tone === "active"

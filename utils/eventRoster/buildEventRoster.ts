@@ -38,6 +38,8 @@ export type FleetTracker = {
   date: string | null;
   status: string | null;
   statusChangedAt: string | null;
+  /** `WorkTrackers.drive_minutes` — planned drive length, for the drop-off ETA. */
+  driveMinutes: number | null;
   /** `WorkTrackers.pickup_event_uuid` / `FleetTrackers.pickup_event_uuid` — computed server-side, never inferred on the phone. */
   pickupEventUuid: string | null;
   /** `WorkTrackers.dropoff_event_uuid` / `FleetTrackers.dropoff_event_uuid` — computed server-side, never inferred on the phone. */

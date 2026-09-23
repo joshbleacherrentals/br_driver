@@ -21,33 +21,21 @@ const NOW = Date.parse("2026-09-21T15:00:00Z");
 
 describe("describeFleetStatus", () => {
   it("says the driver has the work but has not set off", () => {
-    expect(describeFleetStatus("accepted").label).toBe(
-      "Waiting for the driver to start",
-    );
+    expect(describeFleetStatus("accepted").label).toBe("Not Started");
   });
 
-  it("says the driver is driving to the pick up", () => {
-    expect(describeFleetStatus("dest_pickup").label).toBe(
-      "On the way to pick it up",
-    );
+  it("says the driver is picking the bleacher up while driving to it", () => {
+    expect(describeFleetStatus("dest_pickup").label).toBe("Picking up Bleacher");
   });
 
-  it("says the bleacher is being loaded", () => {
+  it("says the driver is picking the bleacher up while loading it", () => {
     expect(describeFleetStatus("pickup_inspection").label).toBe(
-      "Loading the bleacher",
+      "Picking up Bleacher",
     );
   });
 
-  it("says the driver is driving to the drop off", () => {
-    expect(describeFleetStatus("dest_dropoff").label).toBe(
-      "On the way to drop it off",
-    );
-  });
-
-  it("says the bleacher is being unloaded on site", () => {
-    expect(describeFleetStatus("dropoff_inspection").label).toBe(
-      "Unloading on site",
-    );
+  it("says the bleacher has arrived at the drop off", () => {
+    expect(describeFleetStatus("dropoff_inspection").label).toBe("Arrived");
   });
 
   it("says a finished trip delivered the bleacher", () => {
@@ -71,6 +59,58 @@ describe("describeFleetStatus", () => {
     expect(describeFleetStatus("teleported").label).toBe(
       "Ask the office for an update",
     );
+  });
+
+  describe("on its way (dest_dropoff)", () => {
+    const LEFT = "2026-09-21T14:00:00Z"; // an hour before NOW
+    const at = (driveMinutes: number | null, statusChangedAt = LEFT, now = NOW) =>
+      describeFleetStatus("dest_dropoff", { statusChangedAt, driveMinutes, now });
+
+    it("counts the planned drive down from when the driver left", () => {
+      // 6h 32m drive, 1h gone
+      expect(at(392).label).toBe("On Its Way! - ETA: 5h 32m");
+    });
+
+    it("shrinks by a minute every minute", () => {
+      expect(at(392, LEFT, NOW + 60_000).label).toBe("On Its Way! - ETA: 5h 31m");
+    });
+
+    it("drops the hours once under an hour", () => {
+      expect(at(100).label).toBe("On Its Way! - ETA: 40m");
+    });
+
+    it("drops the minutes on a whole number of hours", () => {
+      expect(at(180).label).toBe("On Its Way! - ETA: 2h");
+    });
+
+    it("rounds a part minute up so it never reads 0m while still going", () => {
+      expect(at(61, LEFT, NOW + 30_000).label).toBe("On Its Way! - ETA: 1m");
+    });
+
+    it("keeps the full drive when the clock says they have not left yet", () => {
+      expect(at(60, "2026-09-21T15:05:00Z").label).toBe("On Its Way! - ETA: 1h");
+    });
+
+    it.each([0, null])("gives the departure time, no ETA, for drive_minutes %s", (drive) => {
+      const label = at(drive).label;
+      expect(label).toMatch(/^On Its Way! - Left at /);
+      expect(label).not.toContain("ETA");
+    });
+
+    it("says it will be here soon once the drive time has run out", () => {
+      expect(at(60).label).toBe("Bleacher will be here soon");
+      expect(at(30).label).toBe("Bleacher will be here soon");
+    });
+
+    it("falls back to the plain label with no usable timestamp", () => {
+      expect(at(60, "whenever").label).toBe("On Its Way!");
+      expect(describeFleetStatus("dest_dropoff").label).toBe("On Its Way!");
+    });
+
+    it("stays active tone in every case", () => {
+      expect(at(30).tone).toBe("active");
+      expect(at(0).tone).toBe("active");
+    });
   });
 
   it("marks work under way apart from work that is nobody's", () => {

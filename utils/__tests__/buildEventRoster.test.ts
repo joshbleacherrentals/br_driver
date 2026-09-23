@@ -46,6 +46,7 @@ const tracker = (over: Partial<FleetTracker> & { id: string }): FleetTracker => 
   date: "2026-09-19",
   status: "dest_dropoff",
   statusChangedAt: "2026-09-19T12:00:00Z",
+  driveMinutes: null,
   pickupEventUuid: null,
   dropoffEventUuid: null,
   ...over,
