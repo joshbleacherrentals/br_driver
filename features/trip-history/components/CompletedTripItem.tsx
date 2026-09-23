@@ -1,3 +1,4 @@
+import StopRosterHeading from "@/components/widgets/trip/StopRosterHeading";
 import Badge from "@/components/ui/Badge";
 import BillOfLading, { BOLButton } from "@/components/widgets/billOfLading";
 import { PayAmount } from "@/components/widgets/payBreakdown";
@@ -261,9 +262,17 @@ export default function CompletedTrips({
                     size={18}
                     color={theme.accent}
                   />
-                  <Text style={styles.cardHeadingInline}>
-                    {STOP_HEADING[stop.key]}
-                  </Text>
+                  <StopRosterHeading
+                    title={STOP_HEADING[stop.key]}
+                    leg={isPickup ? "pickup" : "dropoff"}
+                    eventUuid={
+                      isPickup
+                        ? workTracker.pickup_event_uuid
+                        : workTracker.dropoff_event_uuid
+                    }
+                    workTrackerId={workTracker.id}
+                    textStyle={styles.cardHeadingInline}
+                  />
                 </View>
                 <TouchableOpacity
                   onPress={() => openInMaps(stop.mapsQuery ?? undefined)}

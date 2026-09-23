@@ -33,5 +33,10 @@
     "version": "1.8.0",
     "date": "2026-09-02",
     "body_md": "### 🆕 What's New — see everything we ship\n\nOpen the **menu** (top right) **→ What's New.** Every update to the app now gets\nwritten up here, newest first, so you can see what changed instead of noticing a\nbutton moved.\n\nA blue dot sits on the menu button and on the **What's New** row whenever there\nis an update you haven't read yet. Opening the page clears it.\n\nThe whole page works with **no signal** — the notes ship inside the app itself,\nso you can read them from a yard, a loading dock, or the middle of nowhere."
+  },
+  {
+    "version": "1.11.0",
+    "date": "2026-09-22",
+    "body_md": "### 🏟️ Who else is coming to this event?\n\nWhen several bleachers are booked into the same event, the **PICKUP** and **DROP-OFF** headings on a trip are now tappable — on the trip card and on Trip Details in your history.\n\nTapping one shows every bleacher due at that event, what the driver bringing it is doing right now (\"On the way to drop it off\", \"Unloading on site\", \"Delivered\") and how long ago that changed. It works offline, like the rest of the app.\n\nWhich event a trip belongs to is now worked out on our end instead of guessed on your phone, so this list is a lot more accurate than it was in earlier builds.\n\n### 📍 Track a trailer\n\nBleachers fitted with a GPS tracker get a **Track** button that opens the trailer's last known position in your maps app. That one needs a connection.\n\nPickup and drop-off are answered separately, because the bleachers you collect with and the ones you deliver alongside are not always the same job."
   }
 ]

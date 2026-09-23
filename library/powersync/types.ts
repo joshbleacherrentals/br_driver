@@ -27,6 +27,20 @@ export type PowerSyncColsFor<T extends SupaTableName> = {
   [K in Exclude<keyof SupaRow<T>, "id"> & string]: ColFor<SupaRow<T>[K]>;
 };
 
+/**
+ * The expected column map for a *subset* of a Supabase table's columns.
+ *
+ * For sync rules that list columns instead of `*` — including the ones that
+ * alias their output table (`SELECT "F"."col" FROM "WorkTrackers" AS "F"`),
+ * where the local table's name is not a Supabase table name at all. The column
+ * types still come from the real table, so a column renamed in Postgres breaks
+ * here rather than at runtime on a driver's phone.
+ */
+export type PowerSyncPickColsFor<
+  T extends SupaTableName,
+  K extends Exclude<keyof SupaRow<T>, "id"> & string,
+> = Pick<PowerSyncColsFor<T>, K>;
+
 // Exact type equality helper
 export type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
   ? (<T>() => T extends B ? 1 : 2) extends <T>() => T extends A ? 1 : 2
