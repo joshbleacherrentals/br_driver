@@ -62,6 +62,7 @@ import { db } from "../providers/SystemProvider";
 import {
   copyLocalPhoto,
   getPhotoUploadService,
+  inspectionPhotoInsert,
   saveToGalleryIfCamera,
 } from "@/library/photoUploadQueue";
 
@@ -255,8 +256,9 @@ export default function InspectionScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [damageFound, setDamageFound] = useState<boolean | null>(null);
-  const [damageDetails, setDamageDetails] =
-    useState<DamageDetailsFormValues>(INITIAL_DAMAGE_DETAILS);
+  const [damageDetails, setDamageDetails] = useState<DamageDetailsFormValues>(
+    INITIAL_DAMAGE_DETAILS,
+  );
 
   // ── "Select all that apply" ───────────────────────────────────────────────
   // Damage a driver finds is usually damage somebody already reported: the
@@ -424,7 +426,9 @@ export default function InspectionScreen({
       return;
     }
 
-    await runImport(questionId, (options) => pickDamagePhotosFromCamera(options));
+    await runImport(questionId, (options) =>
+      pickDamagePhotosFromCamera(options),
+    );
   };
 
   const SELECTION_MESSAGES: Record<string, string> = {
@@ -492,20 +496,12 @@ export default function InspectionScreen({
     void saveToGalleryIfCamera(localUri, photo.source);
 
     await executeTypedMutation(
-      db
-        .insertInto("InspectionPhotos")
-        .values({
-          id: randomUUID(),
-          inspection_uuid: inspectionId,
-          storage_path: filename,
-          upload_status: "pending",
-          attempts: 0,
-          // The upload queue orders its claims by `created_at`
-          // (`runtime/tableAdapters.ts`), so a row without one has no defined
-          // position in the queue at all.
-          created_at: new Date().toISOString(),
-        })
-        .compile(),
+      inspectionPhotoInsert({
+        id: randomUUID(),
+        inspectionUuid: inspectionId,
+        storagePath: filename,
+        createdAt: new Date().toISOString(),
+      }),
     );
 
     return filename;
@@ -847,9 +843,7 @@ export default function InspectionScreen({
               <Ionicons
                 name="warning"
                 size={18}
-                color={
-                  damageFound === true ? theme.danger : theme.textTertiary
-                }
+                color={damageFound === true ? theme.danger : theme.textTertiary}
               />
               <Text
                 style={[
@@ -959,7 +953,9 @@ export default function InspectionScreen({
                     <Ionicons
                       name="checkmark-circle"
                       size={18}
-                      color={!filingNewReport ? theme.success : theme.textTertiary}
+                      color={
+                        !filingNewReport ? theme.success : theme.textTertiary
+                      }
                     />
                     <Text
                       style={[
@@ -1070,7 +1066,11 @@ function makeStyles(theme: ThemeColors) {
       paddingVertical: 13,
       marginBottom: 8,
     },
-    checkAllText: { ...typeScale.subhead, fontWeight: "600", color: theme.accent },
+    checkAllText: {
+      ...typeScale.subhead,
+      fontWeight: "600",
+      color: theme.accent,
+    },
     checkbox: {
       flexDirection: "row",
       alignItems: "center",

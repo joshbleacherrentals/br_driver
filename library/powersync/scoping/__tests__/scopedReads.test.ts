@@ -37,7 +37,9 @@ import {
 
 jest.mock("@/library/powersync/db", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { mockDb: database } = require("@/library/photoUploadQueue/runtime/__tests__/testDb");
+  const {
+    mockDb: database,
+  } = require("@/library/photoUploadQueue/runtime/__tests__/testDb");
   return { __esModule: true, db: database, powerSyncDb: {} };
 });
 
@@ -292,6 +294,68 @@ describe("inspectionPhotosOf (§15)", () => {
     );
 
     expect(rows).toHaveLength(1);
+  });
+});
+
+// ── inspectionPhotosOf — the photo's own driver column ──────────────────────
+// docs/specs/sync-bucket-limit.md §4: inspections sync for active trips only,
+// so a photo still queued when its trip finishes loses the inspection row the
+// chain above walks through. The photo's own `created_by_driver_uuid` decides
+// instead; the chain is only for rows an old build left without it.
+
+describe("inspectionPhotosOf — created_by_driver_uuid (sync-bucket-limit §4)", () => {
+  it("keeps a photo whose inspection has left the device, by its own driver column", async () => {
+    await seedInspectionPhoto({
+      photoId: "ip-orphaned-mine",
+      inspectionId: "inspection-finished-trip",
+      driverUuid: null,
+      createdByDriverUuid: driverA.driverUuid,
+    });
+
+    const rows = await run(
+      inspectionPhotosOf(scopeFor(driverA)).select("id").compile(),
+    );
+
+    expect(ids(rows)).toEqual(["ip-orphaned-mine"]);
+  });
+
+  it("does not give another driver's photo to this one", async () => {
+    await seedInspectionPhoto({
+      photoId: "ip-orphaned-theirs",
+      inspectionId: "inspection-their-finished-trip",
+      driverUuid: null,
+      createdByDriverUuid: driverB.driverUuid,
+    });
+
+    const rows = await run(
+      inspectionPhotosOf(scopeFor(driverA)).select("id").compile(),
+    );
+
+    expect(ids(rows)).toEqual([]);
+  });
+
+  /**
+   * A reassigned trip: driver B took the photo, the office then moved the trip
+   * to driver A. The file is on B's phone, so B's queue is the one that can
+   * upload it — the column wins over the chain.
+   */
+  it("follows the photo's own driver over the trip's current driver", async () => {
+    await seedInspectionPhoto({
+      photoId: "ip-reassigned",
+      inspectionId: "inspection-reassigned",
+      driverUuid: driverA.driverUuid,
+      createdByDriverUuid: driverB.driverUuid,
+    });
+
+    const [forA, forB] = await Promise.all([
+      run(inspectionPhotosOf(scopeFor(driverA)).select("id").compile()),
+      run(inspectionPhotosOf(scopeFor(driverB)).select("id").compile()),
+    ]);
+
+    expect({ a: ids(forA), b: ids(forB) }).toEqual({
+      a: [],
+      b: ["ip-reassigned"],
+    });
   });
 });
 

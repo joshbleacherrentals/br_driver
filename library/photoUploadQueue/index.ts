@@ -23,6 +23,7 @@ export * from "./worker";
 // Runtime glue (PowerSync + Supabase Storage wiring).
 export * from "./runtime/applyPhotoRepair";
 export * from "./runtime/foregroundRecovery";
+export * from "./runtime/inspectionPhotoInsert";
 export * from "./runtime/localFile";
 export * from "./runtime/networkState";
 export * from "./runtime/parkedRowSweep";

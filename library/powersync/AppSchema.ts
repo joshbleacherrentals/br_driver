@@ -1,6 +1,6 @@
 import { AttachmentTable } from "@powersync/attachments";
 import { column, Schema, Table } from "@powersync/react-native";
-import { PowerSyncColsFor } from "./types";
+import { PowerSyncColsFor, PowerSyncPickColsFor } from "./types";
 
 export const USERS_TABLE = "Users";
 export const DRIVERS_TABLE = "Drivers";
@@ -48,6 +48,7 @@ const DriverAvailability = new Table(DriverAvailabilityCols, {
 
 const AccountManagerCols = {
   created_at: column.text,
+  default_sales_office_uuid: column.text,
   is_active: column.integer,
   user_uuid: column.text,
 } satisfies PowerSyncColsFor<"AccountManagers">;
@@ -62,6 +63,9 @@ const DriversCols = {
   app_platform: column.text,
   app_version: column.text,
   app_version_reported_at: column.text,
+  /** Sync Health: PowerSync buckets on this device, written by the app itself. NULL = never reported. */
+  bucket_count: column.integer,
+  bucket_count_reported_at: column.text,
   created_at: column.text,
   deadhead_cents: column.integer,
   insurance_expires_on: column.text,
@@ -76,6 +80,8 @@ const DriversCols = {
   pay_rate_cents: column.integer,
   phone_number: column.text,
   setup_cents: column.integer,
+  /** The `sync_version` connect param the reporting build used (see connectParams.ts). */
+  sync_version: column.integer,
   /** @deprecated Whole-percent mirror of `tax_dec`, kept for older builds of this app. */
   tax: column.integer,
   /** Tax rate in percent with 3 decimals (Quebec is 14.975). Postgres `numeric` -> SQLite real. */
@@ -358,6 +364,11 @@ const InspectionsPhotosCols = {
   attempts: column.integer,
   last_attempt_at: column.text,
   last_error: column.text,
+  // The photo's own sync key — the mobile stream buckets photos by it, one
+  // bucket per driver. Also its ownership: a photo still queued when its trip
+  // finishes has lost the inspection it hangs off (inspections sync for active
+  // trips only), so the queue can't reach its driver through that chain.
+  created_by_driver_uuid: column.text,
 } satisfies PowerSyncColsFor<"InspectionPhotos">;
 const InspectionPhotos = new Table(InspectionsPhotosCols, {
   // `inspection_uuid` is both the per-inspection photo lookup and the correlated
@@ -432,6 +443,21 @@ const WorkTrackersCols = {
   // which is written explicitly. Read through getEffectiveBleacherUuid().
   actual_bleacher_uuid: column.text,
   bleacher_change_reason: column.text,
+  // Snapshot of a FINISHED trip — addresses, line items, inspections — as
+  // JSON text. Built by Postgres triggers, never written here: those tables
+  // only sync while a trip is active. Read through parseHistoryJson().
+  history_json: column.text,
+  // When `status` last actually changed — written by the Postgres trigger
+  // (bleacher_rentals 20260921130000), never moved by an office edit to a note
+  // or a pay amount the way `updated_at` is. NULL on rows untouched since the
+  // migration; read it through the event roster's fallback to `updated_at`.
+  status_changed_at: column.text,
+  // Which event this leg serves — computed and kept current entirely by
+  // Postgres triggers (bleacher_rentals 20260922140000), never written here.
+  // NULL means no event matched: a run to storage. See
+  // docs/specs/event-bleacher-roster.md section 4 and useEventRoster.ts.
+  dropoff_event_uuid: column.text,
+  pickup_event_uuid: column.text,
 } satisfies PowerSyncColsFor<"WorkTrackers">;
 const WorkTrackers = new Table(WorkTrackersCols, {
   // The two inspection columns are the OR-chain the photo queue walks to decide
@@ -698,6 +724,69 @@ const WorkTrackerTypesCols = {
 } satisfies PowerSyncColsFor<"WorkTrackerTypes">;
 const WorkTrackerTypes = new Table(WorkTrackerTypesCols);
 
+// ── Event roster ────────────────────────────────────────────────────────────
+// "When are the other bleachers coming?" — docs/specs/event-bleacher-roster.md.
+//
+// Three narrow, global tables (see the mobile stream in
+// br_powersync/config/sync_rules.yaml). Together they answer, for the event at
+// one end of a trip, which bleachers are due there and how far along the
+// drivers bringing them are.
+
+// Events — booked, non-deleted events only, and only what the sheet displays.
+const EventsCols = {
+  event_name: column.text,
+  event_start: column.text,
+  event_end: column.text,
+} satisfies PowerSyncPickColsFor<"Events", "event_name" | "event_start" | "event_end">;
+const Events = new Table(EventsCols, { indexes: { id: ["id"] } });
+
+// BleacherEvents — which bleachers the office booked into which event.
+const BleacherEventsCols = {
+  bleacher_uuid: column.text,
+  event_uuid: column.text,
+} satisfies PowerSyncPickColsFor<"BleacherEvents", "bleacher_uuid" | "event_uuid">;
+const BleacherEvents = new Table(BleacherEventsCols, {
+  indexes: { event_uuid: ["event_uuid"], bleacher_uuid: ["bleacher_uuid"] },
+});
+
+// FleetTrackers — every driver's trackers, aliased from WorkTrackers and cut
+// down to progress only. The driver's own trips still arrive in full through
+// the `WorkTrackers` table above; this one exists so a driver can answer for
+// the bleachers that are not theirs, and carries no pay, address, POC or note.
+const FleetTrackersCols = {
+  // The ASSIGNED bleacher only. Events are booked against it; the substitute
+  // in `actual_bleacher_uuid` belongs to a different event's calendar, so the
+  // roster never matches on it and the column never reaches a phone.
+  bleacher_uuid: column.text,
+  date: column.text,
+  status: column.text,
+  status_changed_at: column.text,
+  work_tracker_type_uuid: column.text,
+  // Planned drive length — counts down the "On Its Way! - ETA" line.
+  drive_minutes: column.integer,
+  // Server-computed (bleacher_rentals 20260922140000) — what useEventRoster
+  // matches other drivers' trackers against. See AppSchema WorkTrackers above.
+  dropoff_event_uuid: column.text,
+  pickup_event_uuid: column.text,
+} satisfies PowerSyncPickColsFor<
+  "WorkTrackers",
+  | "bleacher_uuid"
+  | "date"
+  | "status"
+  | "status_changed_at"
+  | "work_tracker_type_uuid"
+  | "drive_minutes"
+  | "dropoff_event_uuid"
+  | "pickup_event_uuid"
+>;
+const FleetTrackers = new Table(FleetTrackersCols, {
+  indexes: {
+    bleacher_uuid: ["bleacher_uuid"],
+    dropoff_event_uuid: ["dropoff_event_uuid"],
+    pickup_event_uuid: ["pickup_event_uuid"],
+  },
+});
+
 // Zones — office-maintained catalogue the Assets page resolves names against.
 const ZonesCols = {
   created_at: column.text,
@@ -739,6 +828,9 @@ export const AppSchema = new Schema({
   StorageLocations,
   WorkTrackerTypes,
   Zones,
+  Events,
+  BleacherEvents,
+  FleetTrackers,
   [DRIVER_DOC_ATTACHMENT_TABLE]: new AttachmentTable({
     name: DRIVER_DOC_ATTACHMENT_TABLE,
   }),
@@ -756,6 +848,9 @@ export type InspectionPhotosRecord = PowerSyncDB["InspectionPhotos"];
 export type DamageReportPhotosRecord = PowerSyncDB["DamageReportPhotos"];
 export type DriverDocumentsRecord = PowerSyncDB["DriverDocuments"];
 export type WorkTrackerRecord = PowerSyncDB["WorkTrackers"];
+export type EventRecord = PowerSyncDB["Events"];
+export type BleacherEventRecord = PowerSyncDB["BleacherEvents"];
+export type FleetTrackerRecord = PowerSyncDB["FleetTrackers"];
 export type WorkTrackerLineItemRecord = PowerSyncDB["WorkTrackerLineItems"];
 export type ContactRecord = PowerSyncDB["Contacts"];
 export type RoadmapTaskRecord = PowerSyncDB["RoadmapTasks"];

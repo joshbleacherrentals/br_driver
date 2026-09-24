@@ -186,6 +186,16 @@ function TripItem({
   // — leaves the card behind entirely; a draft was never theirs to see.
   if (!isDriverActiveTracker(status)) return null;
 
+  // What each stop heading needs to open its event's roster: "when are the
+  // other bleachers coming?" — docs/specs/event-bleacher-roster.md. Both
+  // events are computed server-side on the tracker itself; pickup and
+  // drop-off resolve to different events on purpose.
+  const rosterContext = {
+    pickupEventUuid: workTracker.pickup_event_uuid,
+    dropoffEventUuid: workTracker.dropoff_event_uuid,
+    workTrackerId: workTracker.id,
+  };
+
   const stops = buildTripStops({
     kind,
     workTracker,
@@ -332,6 +342,7 @@ function TripItem({
         theme={theme}
         status={status}
         acceptedAt={accepted_at}
+        roster={rosterContext}
         onOpenMaps={(query) => openInMaps(query ?? undefined)}
       />
 
@@ -444,6 +455,7 @@ function TripItem({
             theme={theme}
             status={status}
             acceptedAt={accepted_at}
+            roster={rosterContext}
             onOpenMaps={(query) => openInMaps(query ?? undefined)}
           />
         </>

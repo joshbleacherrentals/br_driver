@@ -86,6 +86,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...config.android,
       package: dynamic.androidPackage,
+      // react-native-maps renders Google Maps on Android and needs a key at
+      // build time. iOS uses Apple Maps and needs none. Without the key the
+      // Live Location view shows a placeholder instead of the map
+      // (components/widgets/trip/location/LocationMap.tsx).
+      config: {
+        ...config.android?.config,
+        ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY
+          ? {
+              googleMaps: {
+                apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY,
+              },
+            }
+          : {}),
+      },
       adaptiveIcon: {
         ...config.android?.adaptiveIcon,
         foregroundImage: dynamic.androidAdaptiveIcon,

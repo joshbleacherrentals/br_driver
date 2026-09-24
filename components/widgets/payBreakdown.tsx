@@ -39,16 +39,26 @@ export function PayAmount({
   workTrackerId,
   payCents,
   textStyle,
+  lineItems: givenLineItems,
 }: {
   workTrackerId: string;
   payCents: number | null;
   /** Caller's own pay typography, so each screen keeps its own scale. */
   textStyle?: object;
+  /**
+   * Line items the caller already has — a finished trip's snapshot, since its
+   * `WorkTrackerLineItems` rows no longer sync. Omitted = read the live rows.
+   */
+  lineItems?: WorkTrackerLineItem[];
 }) {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeChipStyles);
   const [visible, setVisible] = React.useState(false);
-  const { lineItems, totalCents } = useWorkTrackerLineItems(workTrackerId);
+  const lineItems = useLineItems(workTrackerId, givenLineItems);
+  const totalCents = lineItems.reduce(
+    (sum, item) => sum + lineItemTotalCents(item),
+    0,
+  );
 
   if (payCents === null && lineItems.length === 0) return null;
 
@@ -78,6 +88,7 @@ export function PayAmount({
         <PayBreakdownSheet
           visible={visible}
           workTrackerId={workTrackerId}
+          lineItems={givenLineItems}
           onClose={() => setVisible(false)}
         />
       )}
@@ -85,19 +96,31 @@ export function PayAmount({
   );
 }
 
+/** The caller's line items when given, otherwise the trip's live rows. */
+function useLineItems(
+  workTrackerId: string,
+  given: WorkTrackerLineItem[] | undefined,
+): WorkTrackerLineItem[] {
+  const { lineItems } = useWorkTrackerLineItems(given ? null : workTrackerId);
+  return given ?? lineItems;
+}
+
 /** The breakdown itself — one row per line item. */
 export function PayBreakdownSheet({
   visible,
   workTrackerId,
+  lineItems: givenLineItems,
   onClose,
 }: {
   visible: boolean;
   workTrackerId: string;
+  /** See `PayAmount`'s `lineItems`. */
+  lineItems?: WorkTrackerLineItem[];
   onClose: () => void;
 }) {
   const { theme } = useTheme();
   const styles = useThemedStyles(makeSheetStyles);
-  const { lineItems } = useWorkTrackerLineItems(workTrackerId);
+  const lineItems = useLineItems(workTrackerId, givenLineItems);
 
   // Rolled once per mount, and the sheet is mounted only while open — so the
   // odds are per sheet-open, and the duck never blinks in or out from under a

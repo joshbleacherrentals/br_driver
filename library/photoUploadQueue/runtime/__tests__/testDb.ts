@@ -187,6 +187,7 @@ export async function createSchema(db: Kysely<PowerSyncDB>): Promise<void> {
     .addColumn("last_attempt_at", "text")
     .addColumn("last_error", "text")
     .addColumn("created_at", "text")
+    .addColumn("created_by_driver_uuid", "text")
     .execute();
 }
 
@@ -439,6 +440,8 @@ export async function seedInspectionPhoto(args: {
   leg?: InspectionLeg;
   workTrackerId?: string;
   queue?: QueueColumns;
+  /** The photo's own driver column. Omitted = NULL, as an old build leaves it. */
+  createdByDriverUuid?: string | null;
 }): Promise<string> {
   const {
     photoId,
@@ -447,6 +450,7 @@ export async function seedInspectionPhoto(args: {
     leg = "pre",
     workTrackerId = `wt-${inspectionId}-${leg}`,
     queue = {},
+    createdByDriverUuid = null,
   } = args;
 
   const existingInspection = await mockDb
@@ -485,6 +489,7 @@ export async function seedInspectionPhoto(args: {
       id: photoId,
       inspection_uuid: inspectionId,
       storage_path: `${inspectionId}/${photoId}.jpg`,
+      created_by_driver_uuid: createdByDriverUuid,
       ...queueDefaults("2026-08-01T00:00:00.000Z"),
       ...queue,
     })
