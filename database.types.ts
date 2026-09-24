@@ -12,23 +12,33 @@ export type Database = {
       AccountManagers: {
         Row: {
           created_at: string;
+          default_sales_office_uuid: string | null;
           id: string;
           is_active: boolean;
           user_uuid: string | null;
         };
         Insert: {
           created_at?: string;
+          default_sales_office_uuid?: string | null;
           id?: string;
           is_active?: boolean;
           user_uuid?: string | null;
         };
         Update: {
           created_at?: string;
+          default_sales_office_uuid?: string | null;
           id?: string;
           is_active?: boolean;
           user_uuid?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "AccountManagers_default_sales_office_uuid_fkey";
+            columns: ["default_sales_office_uuid"];
+            isOneToOne: false;
+            referencedRelation: "SalesOffices";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "AccountManagers_user_uuid_fkey";
             columns: ["user_uuid"];
@@ -1014,6 +1024,7 @@ export type Database = {
         Row: {
           account_manager_uuid: string | null;
           created_at: string;
+          hide_all_subrentals: boolean;
           id: string;
           only_show_my_events: boolean;
           optimization_mode: boolean;
@@ -1034,6 +1045,7 @@ export type Database = {
         Insert: {
           account_manager_uuid?: string | null;
           created_at?: string;
+          hide_all_subrentals?: boolean;
           id?: string;
           only_show_my_events?: boolean;
           optimization_mode?: boolean;
@@ -1054,6 +1066,7 @@ export type Database = {
         Update: {
           account_manager_uuid?: string | null;
           created_at?: string;
+          hide_all_subrentals?: boolean;
           id?: string;
           only_show_my_events?: boolean;
           optimization_mode?: boolean;
@@ -2792,28 +2805,31 @@ export type Database = {
       };
       PaymentInstallments: {
         Row: {
-          amount_cents: number;
+          amount_cents: number | null;
           created_at: string;
           currency: Database["public"]["Enums"]["currency"];
           due_date: string;
           event_uuid: string;
           id: string;
+          percentage_bps: number;
         };
         Insert: {
-          amount_cents: number;
+          amount_cents?: number | null;
           created_at?: string;
           currency: Database["public"]["Enums"]["currency"];
           due_date: string;
           event_uuid: string;
           id?: string;
+          percentage_bps: number;
         };
         Update: {
-          amount_cents?: number;
+          amount_cents?: number | null;
           created_at?: string;
           currency?: Database["public"]["Enums"]["currency"];
           due_date?: string;
           event_uuid?: string;
           id?: string;
+          percentage_bps?: number;
         };
         Relationships: [
           {
@@ -3376,6 +3392,7 @@ export type Database = {
           deleted: boolean;
           id: string;
           name: string;
+          payment_info: string | null;
           phone: string | null;
           quickbook_uuid: string;
           stripe_connection_uuid: string | null;
@@ -3387,6 +3404,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name: string;
+          payment_info?: string | null;
           phone?: string | null;
           quickbook_uuid: string;
           stripe_connection_uuid?: string | null;
@@ -3398,6 +3416,7 @@ export type Database = {
           deleted?: boolean;
           id?: string;
           name?: string;
+          payment_info?: string | null;
           phone?: string | null;
           quickbook_uuid?: string;
           stripe_connection_uuid?: string | null;
@@ -3686,6 +3705,7 @@ export type Database = {
           deleted: boolean;
           html_content: string;
           id: string;
+          is_default: boolean;
           name: string;
         };
         Insert: {
@@ -3694,6 +3714,7 @@ export type Database = {
           deleted?: boolean;
           html_content?: string;
           id?: string;
+          is_default?: boolean;
           name: string;
         };
         Update: {
@@ -3702,6 +3723,7 @@ export type Database = {
           deleted?: boolean;
           html_content?: string;
           id?: string;
+          is_default?: boolean;
           name?: string;
         };
         Relationships: [
@@ -4574,6 +4596,7 @@ export type Database = {
         Args: { p_ids: string[] };
         Returns: undefined;
       };
+      delete_past_alerts: { Args: never; Returns: number };
       drivers_backfill_document: {
         Args: { p_doc_type: string; p_driver_id: string; p_photo_path: string };
         Returns: undefined;
@@ -4601,6 +4624,10 @@ export type Database = {
         Returns: boolean;
       };
       normalize_street_words: { Args: { s: string }; Returns: string[] };
+      payment_schedule_total_cents: {
+        Args: { p_event_id: string };
+        Returns: number;
+      };
       recompute_driver_scorecard_bucket: {
         Args: { p_driver: string; p_year: number };
         Returns: undefined;
@@ -4620,6 +4647,13 @@ export type Database = {
       refresh_work_tracker_history: {
         Args: { tracker_ids: string[] };
         Returns: undefined;
+      };
+      resolve_payment_schedule: {
+        Args: { p_event_id: string };
+        Returns: {
+          amount_cents: number;
+          id: string;
+        }[];
       };
       resolve_work_tracker_dropoff_event: {
         Args: {

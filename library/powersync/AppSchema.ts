@@ -48,6 +48,7 @@ const DriverAvailability = new Table(DriverAvailabilityCols, {
 
 const AccountManagerCols = {
   created_at: column.text,
+  default_sales_office_uuid: column.text,
   is_active: column.integer,
   user_uuid: column.text,
 } satisfies PowerSyncColsFor<"AccountManagers">;
