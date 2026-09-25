@@ -1,5 +1,10 @@
 [
   {
+    "version": "1.11.1",
+    "date": "2026-09-25",
+    "body_md": "### 📍 Track button fix\n\nThe **Track** button now shows a clearer message when a bleacher's location can't be loaded."
+  },
+  {
     "version": "1.11.0",
     "date": "2026-09-24",
     "body_md": "### 🏟️ Who else is coming to this event?\n\nWhen more than one bleacher is booked into the same event, the **PICKUP** and **DROP-OFF** headings on your trip card turn into a tappable button. Tap one to see every bleacher due at that event and what its driver is doing right now — **Not Started**, **Picking up Bleacher**, **On Its Way!**, **Arrived** or **Delivered** — and how long ago that changed.\n\n- A bleacher that is **On Its Way!** shows a live countdown, like **ETA: 5h 32m**.\n- Pickup and drop-off each have their own list, because the bleachers you collect with are not always the ones you deliver alongside.\n- The list works with **no signal**, like the rest of the app.\n\n### 📍 Track a bleacher\n\nBleachers with a GPS tracker have a **Track** button in that list. It opens a map right inside the app, with **Last Updated** at the top so you know how fresh the pin is. It refreshes every 30 seconds while open, and **Open in Maps** gets you directions. Tracking needs a connection."

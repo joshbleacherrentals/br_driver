@@ -49,7 +49,13 @@ export type DeviceLocation =
 type FetchLike = (
   url: string,
   init: { headers: Record<string, string> },
-) => Promise<{ ok: boolean; status: number; json: () => Promise<any> }>;
+) => Promise<{
+  ok: boolean;
+  status: number;
+  json: () => Promise<any>;
+  /** Response headers; `get` is case-insensitive, as on a real `Response`. */
+  headers?: { get: (name: string) => string | null };
+}>;
 
 export type DeviceLocationOptions = {
   /** The web app's origin, from EXPO_PUBLIC_WEB_URL. */
@@ -122,6 +128,12 @@ export async function fetchDeviceLocation(
       },
     );
 
+    // Clerk refuses a token by rewriting to the not-found page (404, or 200
+    // HTML for a bad token) rather than answering 401. Its header is the tell;
+    // without it that 404 would read as "no tracker on this bleacher".
+    if (response.headers?.get("x-clerk-auth-status") === "signed-out") {
+      return { kind: "unauthorized" };
+    }
     if (response.status === 404) return { kind: "not-found" };
     if (response.status === 401 || response.status === 403) {
       return { kind: "unauthorized" };
